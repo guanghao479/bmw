@@ -38,7 +38,7 @@ class FamilyEventsApp {
                     "title": "Kids Movie Night Under Stars",
                     "description": "Bring your blankets and enjoy a classic family movie under the stars. Popcorn and refreshments available.",
                     "category": "event",
-                    "image": "https://images.unsplash.com/photo-1489599143177-bd3253531c8a?w=400&h=300&fit=crop",
+                    "image": "https://images.unsplash.com/photo-1440404653325-ab127d49abc1?w=400&h=300&fit=crop",
                     "date": "2025-08-20",
                     "time": "7:30 PM - 10:00 PM",
                     "location": "Riverside Park Amphitheater",
@@ -306,7 +306,7 @@ class FamilyEventsApp {
         
         return `
             <div class="card ${featuredClass}" data-id="${item.id}">
-                <img src="${item.image}" alt="${item.title}" class="card-image" loading="lazy">
+                <img src="${item.image}" alt="${item.title}" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0xNzUgMTI1SDE0MFYxNzVIMTc1VjE1MEgyMjVWMTc1SDI2MFYxMjVIMjI1VjEwMEgxNzVWMTI1WiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4K'; this.onerror=null;">
                 <div class="card-content">
                     <span class="card-category ${categoryClass}">${this.formatCategory(item.category)}</span>
                     <h3 class="card-title">${item.title}</h3>
