@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Plan & Execution
 ### Before starting work
 - Always in plan mode to make a plan
-- After get the plan, make sure you Write the plan to docs/tasks/TASK_NAME.md.
+- After get the plan, make sure you write the plan to docs/tasks/TASK_NAME.md.
 - The plan should be a detailed implementation plan and the reasoning behind them, as well as tasks broken down.
 - If the task require external knowledge or certain package, also research to get latest knowledge (Use Task tool for research)
 - Don't over plan it, always think MVP.
@@ -14,6 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### While implementing
 - You should update the plan as you work.
 - After you complete tasks in the plan, you should update and append detailed descriptions of the changes you made, so following tasks can be easily hand over to other engineers.
+- For each todo item completed, seak verification, once approved, commit the changes before moving on to next todo item
 
 ### After Implementation
 - You should ask user to review then proceed to commit and push the changes with git
