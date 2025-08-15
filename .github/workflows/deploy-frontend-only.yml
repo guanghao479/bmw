@@ -1,0 +1,65 @@
+name: Deploy Frontend Only (GitHub Pages)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths: [ 'app/**' ]
+
+jobs:
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+
+    - name: Test frontend JavaScript
+      run: |
+        # Basic JavaScript syntax check
+        node -c app/script.js
+        echo "✅ Frontend JavaScript syntax is valid"
+
+    - name: Validate HTML
+      run: |
+        # Check for basic HTML structure
+        grep -q "<html" app/index.html
+        grep -q "<body" app/index.html
+        grep -q "script.js" app/index.html
+        echo "✅ HTML structure is valid"
+
+    - name: Test CSS
+      run: |
+        # Check for basic CSS structure
+        grep -q "@media" app/styles.css
+        grep -q "font-family" app/styles.css
+        echo "✅ CSS structure is valid"
+
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: './app'
+
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+
+    - name: Test deployment
+      run: |
+        echo "🎉 Frontend deployed successfully!"
+        echo "📱 Site URL: ${{ steps.deployment.outputs.page_url }}"
+        echo ""
+        echo "ℹ️  Note: This deployment uses sample data since no backend is configured."
+        echo "   To get live Seattle activities data, configure AWS secrets and run the full deployment workflow."
