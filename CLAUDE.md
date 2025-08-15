@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Plan & Execution
-### Before starting work
+### Plan phase
 - Always in plan mode to make a plan
 - After get the plan, make sure you write the plan to docs/tasks/TASK_NAME.md.
 - The plan should be a detailed implementation plan and the reasoning behind them, as well as tasks broken down.
@@ -12,10 +12,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Once you write the plan, firstly ask me to review it. Do not continue until I approve the plan.
 - Follow TDD approach, always think about how to test and verify each step by yourself and by me. Write down tests and verification steps for each todo item.
 
-### While implementing
-- You should update the plan as you work.
-- After you complete tasks in the plan, you should update and append detailed descriptions of the changes you made, so following tasks can be easily hand over to other engineers.
-- For each todo item completed, seak verification, once approved, commit the changes before moving on to next todo item
+### During implementation
+- After you complete tasks in the plan, you should .
+- For each task
+    1. complete the implementation 
+    2. test thoroughly with unit tests and integration tests
+    3. seak approval from user
+    4. once approved, review and update the plan doc if there is any change including but not limited to
+        1. update and append detailed descriptions of the changes you made, so following tasks can be easily hand over to other engineers
+    5. commit and push the changes
+    6. then proceed to the next task
 
 ### After Implementation
 - You should ask user to review then proceed to commit and push the changes with git
