@@ -36,16 +36,18 @@ type LambdaResponse struct {
 
 // ScrapingSummary provides detailed results
 type ScrapingSummary struct {
-	TotalSources       int                   `json:"total_sources"`
-	SuccessfulSources  int                   `json:"successful_sources"`
-	FailedSources      int                   `json:"failed_sources"`
-	TotalActivities    int                   `json:"total_activities"`
-	NewActivities      int                   `json:"new_activities"`
-	DuplicatesRemoved  int                   `json:"duplicates_removed"`
-	SourceResults      []SourceResult        `json:"source_results"`
-	TotalTokensUsed    int                   `json:"total_tokens_used"`
-	TotalCost          float64               `json:"total_cost"`
-	UploadedFiles      []string              `json:"uploaded_files"`
+	TotalSources         int                   `json:"total_sources"`
+	SuccessfulSources    int                   `json:"successful_sources"`
+	FailedSources        int                   `json:"failed_sources"`
+	TotalActivities      int                   `json:"total_activities"`
+	NewActivities        int                   `json:"new_activities"`
+	DuplicatesRemoved    int                   `json:"duplicates_removed"`
+	SourceResults        []SourceResult        `json:"source_results"`
+	TotalTokensUsed      int                   `json:"total_tokens_used"`
+	TotalCost            float64               `json:"total_cost"`
+	UploadedFiles        []string              `json:"uploaded_files"`
+	AverageQualityScore  float64               `json:"average_quality_score"`  // Average quality across all sources
+	QualityBreakdown     map[string]interface{} `json:"quality_breakdown"`      // Aggregated quality metrics
 }
 
 // SourceResult represents the result from scraping a single source
@@ -58,6 +60,8 @@ type SourceResult struct {
 	TokensUsed      int           `json:"tokens_used,omitempty"`
 	Cost            float64       `json:"cost,omitempty"`
 	Error           string        `json:"error,omitempty"`
+	QualityScore    float64       `json:"quality_score,omitempty"`    // 0-100 quality score
+	QualityReport   map[string]interface{} `json:"quality_report,omitempty"` // Detailed quality breakdown
 }
 
 // SeattleSource represents a Seattle family activity source
@@ -80,8 +84,8 @@ func GetSeattleSources() []SeattleSource {
 			Domain:     "seattleschild.com",
 			Priority:   10,
 			Enabled:    true,
-			Timeout:    60,
-			RetryCount: 2,
+			Timeout:    90, // Increased timeout for anti-scraping protection
+			RetryCount: 3,  // More retries for 403 errors
 		},
 		{
 			Name:       "ParentMap Calendar",
@@ -115,7 +119,7 @@ func GetSeattleSources() []SeattleSource {
 			URL:        "https://www.seattlefunforkids.com/",
 			Domain:     "seattlefunforkids.com",
 			Priority:   6,
-			Enabled:    true,
+			Enabled:    false, // Disabled due to DNS issues (ENOTFOUND)
 			Timeout:    60,
 			RetryCount: 1,
 		},
@@ -125,8 +129,8 @@ func GetSeattleSources() []SeattleSource {
 			Domain:     "peps.org",
 			Priority:   5,
 			Enabled:    true,
-			Timeout:    45,
-			RetryCount: 1,
+			Timeout:    90, // Increased timeout for SSL certificate issues
+			RetryCount: 3,  // More retries for SSL handshake problems
 		},
 	}
 }
@@ -177,10 +181,18 @@ func (so *ScrapingOrchestrator) ScrapeSource(source SeattleSource) SourceResult 
 
 	log.Printf("Starting to scrape source: %s (%s)", source.Name, source.URL)
 
-	// Step 1: Extract content with Jina
-	content, err := so.jinaClient.ExtractContent(source.URL)
+	// Pre-process source-specific configurations
+	if err := so.prepareSourceSpecificConfig(source); err != nil {
+		result.Error = fmt.Sprintf("Source configuration failed: %v", err)
+		result.ProcessingTime = time.Since(start)
+		log.Printf("Failed to configure source %s: %v", source.Name, err)
+		return result
+	}
+
+	// Step 1: Extract content with Jina (with source-specific retry logic)
+	content, err := so.extractContentWithRetries(source)
 	if err != nil {
-		result.Error = fmt.Sprintf("Jina extraction failed: %v", err)
+		result.Error = fmt.Sprintf("Content extraction failed: %v", err)
 		result.ProcessingTime = time.Since(start)
 		log.Printf("Failed to extract content from %s: %v", source.Name, err)
 		return result
@@ -212,17 +224,108 @@ func (so *ScrapingOrchestrator) ScrapeSource(source SeattleSource) SourceResult 
 		// Log issues but don't fail - some issues may be acceptable
 	}
 
+	// Step 4: Calculate quality score and generate report
+	qualityScore := so.openaiClient.CalculateQualityScore(openaiResponse)
+	qualityReport := so.openaiClient.GenerateQualityReport(openaiResponse)
+
 	// Success
 	result.Success = true
 	result.ActivitiesFound = openaiResponse.TotalFound
 	result.TokensUsed = openaiResponse.TokensUsed
 	result.Cost = openaiResponse.EstimatedCost
+	result.QualityScore = qualityScore
+	result.QualityReport = qualityReport
 	result.ProcessingTime = time.Since(start)
 
-	log.Printf("Successfully scraped %s: %d activities, %d tokens, $%.4f", 
-		source.Name, result.ActivitiesFound, result.TokensUsed, result.Cost)
+	log.Printf("Successfully scraped %s: %d activities, %d tokens, $%.4f, quality: %.1f%%", 
+		source.Name, result.ActivitiesFound, result.TokensUsed, result.Cost, qualityScore)
 
 	return result
+}
+
+// prepareSourceSpecificConfig configures source-specific settings before scraping
+func (so *ScrapingOrchestrator) prepareSourceSpecificConfig(source SeattleSource) error {
+	switch source.Domain {
+	case "seattleschild.com":
+		// Add more realistic user agents for anti-scraping protection
+		additionalUserAgents := []string{
+			"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+			"Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+		}
+		for _, ua := range additionalUserAgents {
+			so.jinaClient.AddUserAgent(ua)
+		}
+		log.Printf("Enhanced user agent rotation for %s", source.Domain)
+		
+	case "peps.org":
+		// No specific preparation needed - SSL issues are handled in transport config
+		log.Printf("Using enhanced SSL configuration for %s", source.Domain)
+		
+	case "seattlefunforkids.com":
+		// This source is disabled due to DNS issues, should not reach here
+		return fmt.Errorf("source %s is disabled due to DNS resolution issues", source.Domain)
+	}
+	
+	return nil
+}
+
+// extractContentWithRetries handles source-specific retry logic
+func (so *ScrapingOrchestrator) extractContentWithRetries(source SeattleSource) (string, error) {
+	var lastErr error
+	
+	for attempt := 0; attempt < source.RetryCount; attempt++ {
+		content, err := so.jinaClient.ExtractContent(source.URL)
+		if err == nil {
+			return content, nil
+		}
+		
+		lastErr = err
+		
+		// Source-specific error handling
+		if err := so.handleSourceSpecificError(source, err, attempt); err != nil {
+			return "", err
+		}
+		
+		// Wait before retry
+		if attempt < source.RetryCount-1 {
+			waitTime := time.Duration(attempt+1) * 2 * time.Second
+			log.Printf("Retrying %s in %v (attempt %d/%d): %v", 
+				source.Name, waitTime, attempt+1, source.RetryCount, err)
+			time.Sleep(waitTime)
+		}
+	}
+	
+	return "", fmt.Errorf("failed after %d attempts: %w", source.RetryCount, lastErr)
+}
+
+// handleSourceSpecificError provides source-specific error handling
+func (so *ScrapingOrchestrator) handleSourceSpecificError(source SeattleSource, err error, attempt int) error {
+	errStr := err.Error()
+	
+	switch source.Domain {
+	case "seattleschild.com":
+		if strings.Contains(errStr, "403") || strings.Contains(errStr, "forbidden") {
+			log.Printf("Anti-scraping protection detected for %s, attempt %d", source.Name, attempt+1)
+			// Continue retrying - the enhanced headers might work
+			return nil
+		}
+		
+	case "peps.org":
+		if strings.Contains(errStr, "tls") || strings.Contains(errStr, "certificate") || strings.Contains(errStr, "ssl") {
+			log.Printf("SSL/TLS issue detected for %s, attempt %d", source.Name, attempt+1)
+			// Continue retrying - the enhanced TLS config might work
+			return nil
+		}
+		
+	case "seattlefunforkids.com":
+		if strings.Contains(errStr, "no such host") || strings.Contains(errStr, "ENOTFOUND") {
+			// Don't retry DNS failures
+			return fmt.Errorf("DNS resolution failed for %s: %w", source.Domain, err)
+		}
+	}
+	
+	// Default: continue retrying for other errors
+	return nil
 }
 
 // ScrapeAllSources orchestrates scraping from all enabled Seattle sources
@@ -305,8 +408,18 @@ func (so *ScrapingOrchestrator) ScrapeAllSources(sources []SeattleSource, source
 		UploadedFiles:  []string{},
 	}
 
-	// Collect all activities
+	// Collect all activities and calculate quality metrics
 	var finalActivities []models.Activity
+	var qualityScores []float64
+	var totalQualityBreakdown = map[string]interface{}{
+		"with_images": 0,
+		"with_coordinates": 0,
+		"with_specific_times": 0,
+		"with_registration_url": 0,
+		"with_detail_url": 0,
+		"with_contact_info": 0,
+	}
+	
 	for i, activities := range allActivities {
 		if activities != nil {
 			finalActivities = append(finalActivities, activities...)
@@ -319,7 +432,35 @@ func (so *ScrapingOrchestrator) ScrapeAllSources(sources []SeattleSource, source
 		result := results[i]
 		summary.TotalTokensUsed += result.TokensUsed
 		summary.TotalCost += result.Cost
+		
+		// Aggregate quality metrics
+		if result.QualityScore > 0 {
+			qualityScores = append(qualityScores, result.QualityScore)
+		}
+		
+		if result.QualityReport != nil {
+			if breakdown, ok := result.QualityReport["quality_breakdown"].(map[string]interface{}); ok {
+				for key, value := range breakdown {
+					if currentVal, exists := totalQualityBreakdown[key]; exists {
+						if intVal, ok := value.(int); ok {
+							totalQualityBreakdown[key] = currentVal.(int) + intVal
+						}
+					}
+				}
+			}
+		}
 	}
+	
+	// Calculate average quality score
+	if len(qualityScores) > 0 {
+		var totalScore float64
+		for _, score := range qualityScores {
+			totalScore += score
+		}
+		summary.AverageQualityScore = totalScore / float64(len(qualityScores))
+	}
+	
+	summary.QualityBreakdown = totalQualityBreakdown
 
 	// Remove duplicates
 	uniqueActivities := so.removeDuplicates(finalActivities)
@@ -327,8 +468,8 @@ func (so *ScrapingOrchestrator) ScrapeAllSources(sources []SeattleSource, source
 	summary.NewActivities = len(uniqueActivities) // For simplicity, treat all as new in MVP
 	summary.DuplicatesRemoved = len(finalActivities) - len(uniqueActivities)
 
-	log.Printf("Aggregated %d unique activities from %d total (%d duplicates removed)", 
-		len(uniqueActivities), len(finalActivities), summary.DuplicatesRemoved)
+	log.Printf("Aggregated %d unique activities from %d total (%d duplicates removed) with %.1f%% average quality score", 
+		len(uniqueActivities), len(finalActivities), summary.DuplicatesRemoved, summary.AverageQualityScore)
 
 	return summary, uniqueActivities, nil
 }

@@ -2,17 +2,29 @@ package services
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
+	"strings"
 	"time"
 )
 
 // JinaClient handles content extraction from web pages using Jina AI Reader
 type JinaClient struct {
-	httpClient *http.Client
-	baseURL    string
-	userAgent  string
+	httpClient  *http.Client
+	baseURL     string
+	userAgents  []string
+	retryConfig RetryConfig
+}
+
+// RetryConfig defines retry behavior for failed requests
+type RetryConfig struct {
+	MaxRetries    int
+	InitialDelay  time.Duration
+	MaxDelay      time.Duration
+	BackoffFactor float64
 }
 
 // JinaResponse represents the response from Jina AI Reader
@@ -25,26 +37,47 @@ type JinaResponse struct {
 	ProcessingMS int64  `json:"processing_ms"`
 }
 
-// NewJinaClient creates a new Jina AI client
+// NewJinaClient creates a new Jina AI client with enhanced anti-scraping support
 func NewJinaClient() *JinaClient {
+	// Create HTTP client with enhanced TLS configuration
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: false,
+			MinVersion:         tls.VersionTLS12,
+			MaxVersion:         tls.VersionTLS13,
+		},
+		DisableKeepAlives: false,
+		IdleConnTimeout:   90 * time.Second,
+	}
+
 	return &JinaClient{
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout:   45 * time.Second, // Increased timeout for problematic sites
+			Transport: transport,
 		},
-		baseURL:   "https://r.jina.ai",
-		userAgent: "SeattleFamilyActivities/1.0 (+https://github.com/family-activities)",
+		baseURL: "https://r.jina.ai",
+		userAgents: []string{
+			// Realistic browser user agents for better site compatibility
+			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/120.0.0.0 Safari/537.36",
+			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
+			"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+		},
+		retryConfig: RetryConfig{
+			MaxRetries:    3,
+			InitialDelay:  1 * time.Second,
+			MaxDelay:      10 * time.Second,
+			BackoffFactor: 2.0,
+		},
 	}
 }
 
 // NewJinaClientWithTimeout creates a new Jina client with custom timeout
 func NewJinaClientWithTimeout(timeout time.Duration) *JinaClient {
-	return &JinaClient{
-		httpClient: &http.Client{
-			Timeout: timeout,
-		},
-		baseURL:   "https://r.jina.ai",
-		userAgent: "SeattleFamilyActivities/1.0 (+https://github.com/family-activities)",
-	}
+	client := NewJinaClient()
+	client.httpClient.Timeout = timeout
+	return client
 }
 
 // ExtractContent extracts clean content from a webpage URL using Jina AI Reader
@@ -56,6 +89,40 @@ func (j *JinaClient) ExtractContent(url string) (string, error) {
 		return "", fmt.Errorf("URL cannot be empty")
 	}
 	
+	var lastErr error
+	
+	// Retry loop with exponential backoff
+	for attempt := 0; attempt <= j.retryConfig.MaxRetries; attempt++ {
+		content, err := j.attemptExtraction(url, attempt)
+		if err == nil {
+			// Log processing time (for debugging)
+			processingTime := time.Since(startTime)
+			if processingTime > 10*time.Second {
+				fmt.Printf("Warning: Jina processing took %v for URL: %s (attempt %d)\n", processingTime, url, attempt+1)
+			}
+			return content, nil
+		}
+		
+		lastErr = err
+		
+		// Don't retry if it's a client error (4xx) or URL validation error
+		if strings.Contains(err.Error(), "status 4") || strings.Contains(err.Error(), "cannot be empty") {
+			break
+		}
+		
+		// Calculate delay for next attempt
+		if attempt < j.retryConfig.MaxRetries {
+			delay := j.calculateDelay(attempt)
+			fmt.Printf("Attempt %d failed for %s, retrying in %v: %v\n", attempt+1, url, delay, err)
+			time.Sleep(delay)
+		}
+	}
+	
+	return "", fmt.Errorf("failed after %d attempts: %w", j.retryConfig.MaxRetries+1, lastErr)
+}
+
+// attemptExtraction performs a single extraction attempt
+func (j *JinaClient) attemptExtraction(url string, attempt int) (string, error) {
 	// Construct Jina Reader URL
 	jinaURL := fmt.Sprintf("%s/%s", j.baseURL, url)
 	
@@ -65,9 +132,8 @@ func (j *JinaClient) ExtractContent(url string) (string, error) {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 	
-	// Set headers
-	req.Header.Set("User-Agent", j.userAgent)
-	req.Header.Set("Accept", "text/plain")
+	// Set enhanced headers to mimic real browser behavior
+	j.setEnhancedHeaders(req, url, attempt)
 	
 	// Make request
 	resp, err := j.httpClient.Do(req)
@@ -95,13 +161,46 @@ func (j *JinaClient) ExtractContent(url string) (string, error) {
 		return "", fmt.Errorf("content too short (%d chars), might be an error page", len(contentStr))
 	}
 	
-	// Log processing time (for debugging)
-	processingTime := time.Since(startTime)
-	if processingTime > 10*time.Second {
-		fmt.Printf("Warning: Jina processing took %v for URL: %s\n", processingTime, url)
+	return contentStr, nil
+}
+
+// setEnhancedHeaders sets realistic browser headers to avoid anti-scraping measures
+func (j *JinaClient) setEnhancedHeaders(req *http.Request, url string, attempt int) {
+	// Rotate user agent on retries
+	userAgent := j.userAgents[attempt%len(j.userAgents)]
+	req.Header.Set("User-Agent", userAgent)
+	
+	// Set realistic browser headers
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+	req.Header.Set("DNT", "1")
+	req.Header.Set("Connection", "keep-alive")
+	req.Header.Set("Upgrade-Insecure-Requests", "1")
+	
+	// Set referer header for some sources that require it
+	if strings.Contains(url, "seattleschild.com") || strings.Contains(url, "parentmap.com") {
+		req.Header.Set("Referer", "https://www.google.com/")
 	}
 	
-	return contentStr, nil
+	// Cache control for retry attempts
+	if attempt > 0 {
+		req.Header.Set("Cache-Control", "no-cache")
+		req.Header.Set("Pragma", "no-cache")
+	}
+}
+
+// calculateDelay calculates exponential backoff delay
+func (j *JinaClient) calculateDelay(attempt int) time.Duration {
+	delay := float64(j.retryConfig.InitialDelay) * 
+		(j.retryConfig.BackoffFactor * float64(attempt)) + 
+		(rand.Float64() * 0.1 * float64(j.retryConfig.InitialDelay)) // Add jitter
+	
+	if delay > float64(j.retryConfig.MaxDelay) {
+		delay = float64(j.retryConfig.MaxDelay)
+	}
+	
+	return time.Duration(delay)
 }
 
 // ExtractContentWithMetadata extracts content and returns detailed metadata
@@ -162,9 +261,16 @@ func (j *JinaClient) IsJinaAvailable() bool {
 	return resp.StatusCode == 200
 }
 
-// SetUserAgent allows customizing the user agent string
-func (j *JinaClient) SetUserAgent(userAgent string) {
-	j.userAgent = userAgent
+// SetUserAgents allows customizing the user agent strings for rotation
+func (j *JinaClient) SetUserAgents(userAgents []string) {
+	if len(userAgents) > 0 {
+		j.userAgents = userAgents
+	}
+}
+
+// AddUserAgent adds a new user agent to the rotation list
+func (j *JinaClient) AddUserAgent(userAgent string) {
+	j.userAgents = append(j.userAgents, userAgent)
 }
 
 // GetStats returns basic usage statistics (for monitoring)

@@ -46,9 +46,10 @@ type Activity struct {
 	// Registration
 	Registration Registration `json:"registration"`
 
-	// Content
-	Images []Image  `json:"images,omitempty"`
-	Tags   []string `json:"tags"`
+	// Content & Links
+	Images    []Image  `json:"images,omitempty"`
+	DetailURL string   `json:"detailUrl,omitempty"` // direct link to event/activity details
+	Tags      []string `json:"tags"`
 
 	// Provider
 	Provider Provider `json:"provider"`
@@ -68,9 +69,13 @@ type Schedule struct {
 	Type       string     `json:"type"`                 // one-time|recurring|multi-day|ongoing
 	StartDate  string     `json:"startDate"`            // ISO date (YYYY-MM-DD)
 	EndDate    string     `json:"endDate,omitempty"`    // ISO date, optional
+	StartTime  string     `json:"startTime,omitempty"`  // HH:MM format (24-hour) - primary start time
+	EndTime    string     `json:"endTime,omitempty"`    // HH:MM format (24-hour) - primary end time
+	Timezone   string     `json:"timezone,omitempty"`   // "America/Los_Angeles" for Seattle
+	IsAllDay   bool       `json:"isAllDay"`             // true for all-day events
 	Frequency  string     `json:"frequency,omitempty"`  // daily|weekly|monthly|seasonal
 	DaysOfWeek []string   `json:"daysOfWeek,omitempty"` // monday, tuesday, etc.
-	Times      []TimeSlot `json:"times"`
+	Times      []TimeSlot `json:"times"`                // additional time slots for age-specific times
 	Duration   string     `json:"duration,omitempty"`   // "45 minutes", "2 hours"
 	Sessions   int        `json:"sessions,omitempty"`   // total number of sessions
 }
@@ -95,14 +100,16 @@ type AgeGroup struct {
 type Location struct {
 	Name          string      `json:"name"`                    // venue name
 	Address       string      `json:"address"`                 // full street address
-	Neighborhood  string      `json:"neighborhood,omitempty"`  // Capitol Hill, Ballard, etc.
 	City          string      `json:"city"`                    // Seattle, Bellevue, etc.
-	Region        string      `json:"region"`                  // Seattle Metro, Eastside, etc.
+	State         string      `json:"state,omitempty"`         // WA
 	ZipCode       string      `json:"zipCode,omitempty"`       // postal code
+	Neighborhood  string      `json:"neighborhood,omitempty"`  // Capitol Hill, Ballard, etc.
+	Region        string      `json:"region"`                  // Seattle Metro, Eastside, etc.
 	Coordinates   Coordinates `json:"coordinates,omitempty"`   // lat/lng
-	VenueType     string      `json:"venueType"`               // indoor|outdoor|both
-	Accessibility bool        `json:"accessibility"`           // ADA accessible
+	VenueType     string      `json:"venueType"`               // indoor|outdoor|mixed
+	Accessibility string      `json:"accessibility,omitempty"` // ADA accessible details
 	Parking       string      `json:"parking,omitempty"`       // parking availability info
+	PublicTransit string      `json:"publicTransit,omitempty"` // public transit information
 }
 
 // Coordinates represents geographical coordinates
@@ -130,21 +137,26 @@ type Discount struct {
 
 // Registration contains signup and contact information
 type Registration struct {
-	Required bool   `json:"required"`             // whether registration is required
-	Method   string `json:"method"`               // online|phone|in-person|walk-in
-	URL      string `json:"url,omitempty"`        // registration URL
-	Phone    string `json:"phone,omitempty"`      // contact phone
-	Email    string `json:"email,omitempty"`      // contact email
-	Deadline string `json:"deadline,omitempty"`   // registration deadline (ISO date)
-	OpenDate string `json:"openDate,omitempty"`   // when registration opens (ISO date)
-	Status   string `json:"status"`               // open|waitlist|closed|sold-out
+	Required     bool   `json:"required"`             // whether registration is required
+	Method       string `json:"method"`               // online|phone|in-person|walk-in
+	URL          string `json:"url,omitempty"`        // registration URL
+	Phone        string `json:"phone,omitempty"`      // contact phone
+	Email        string `json:"email,omitempty"`      // contact email
+	Deadline     string `json:"deadline,omitempty"`   // registration deadline (ISO date)
+	OpenDate     string `json:"openDate,omitempty"`   // when registration opens (ISO date)
+	Status       string `json:"status"`               // open|waitlist|closed|sold-out
+	ContactPhone string `json:"contactPhone,omitempty"` // formatted contact phone
+	ContactEmail string `json:"contactEmail,omitempty"` // formatted contact email
 }
 
 // Image represents an activity image
 type Image struct {
-	URL     string `json:"url"`                // image URL
-	Alt     string `json:"alt"`                // alt text for accessibility
-	Caption string `json:"caption,omitempty"`  // optional caption
+	URL        string `json:"url"`                  // image URL
+	AltText    string `json:"altText,omitempty"`    // alt text for accessibility
+	Caption    string `json:"caption,omitempty"`    // optional caption
+	SourceType string `json:"sourceType,omitempty"` // event|venue|activity|gallery
+	Width      int    `json:"width,omitempty"`      // image width in pixels
+	Height     int    `json:"height,omitempty"`     // image height in pixels
 }
 
 // Provider represents the organization offering the activity
@@ -216,7 +228,7 @@ const (
 const (
 	VenueTypeIndoor  = "indoor"
 	VenueTypeOutdoor = "outdoor"
-	VenueTypeBoth    = "both"
+	VenueTypeMixed   = "mixed"
 )
 
 // Family type constants

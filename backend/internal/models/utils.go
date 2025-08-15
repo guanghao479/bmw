@@ -131,6 +131,59 @@ func ValidatePricingType(pricingType string) bool {
 	return false
 }
 
+// ValidateVenueType checks if the venue type is valid
+func ValidateVenueType(venueType string) bool {
+	validTypes := []string{
+		VenueTypeIndoor,
+		VenueTypeOutdoor,
+		VenueTypeMixed,
+	}
+	
+	for _, validType := range validTypes {
+		if venueType == validType {
+			return true
+		}
+	}
+	return false
+}
+
+// ValidateImageSourceType checks if the image source type is valid
+func ValidateImageSourceType(sourceType string) bool {
+	validTypes := []string{
+		"event",
+		"venue", 
+		"activity",
+		"gallery",
+	}
+	
+	for _, validType := range validTypes {
+		if sourceType == validType {
+			return true
+		}
+	}
+	return false
+}
+
+// ValidateImageURL performs enhanced URL validation for images
+func ValidateImageURL(url string) bool {
+	if !IsValidURL(url) {
+		return false
+	}
+	
+	// Check for common image extensions
+	imageExtensions := []string{".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"}
+	urlLower := strings.ToLower(url)
+	
+	for _, ext := range imageExtensions {
+		if strings.Contains(urlLower, ext) {
+			return true
+		}
+	}
+	
+	// Allow URLs that might have query parameters or no extension (many CDNs)
+	return true
+}
+
 // IsValidEmail performs basic email validation
 func IsValidEmail(email string) bool {
 	if email == "" {

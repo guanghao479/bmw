@@ -48,9 +48,9 @@ func TestActivityModel(t *testing.T) {
 			City:         "Seattle",
 			Region:       "Seattle Metro",
 			ZipCode:      "98101",
-			VenueType:    VenueTypeIndoor,
-			Accessibility: true,
-			Parking:      "street",
+			VenueType:     VenueTypeIndoor,
+			Accessibility: "wheelchair accessible, elevator available",
+			Parking:       "street",
 		},
 		Pricing: Pricing{
 			Type:             PricingTypePaid,
