@@ -10,6 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - If the task require external knowledge or certain package, also research to get latest knowledge (Use Task tool for research)
 - Don't over plan it, always think MVP.
 - Once you write the plan, firstly ask me to review it. Do not continue until I approve the plan.
+- Follow TDD approach, always think about how to test and verify each step by yourself and by me. Write down tests and verification steps for each todo item.
 
 ### While implementing
 - You should update the plan as you work.
