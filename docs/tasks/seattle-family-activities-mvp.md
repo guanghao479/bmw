@@ -510,6 +510,7 @@ type Activity struct {
 - **Auto-deployment**: Push to main branch triggers full deployment
 - **Monitoring**: CloudWatch alarms and SNS notifications configured
 - **Performance**: Sub-3 second load time, 90+ accessibility score
+- **Setup Guide**: See [GitHub Pages Setup Documentation](../GITHUB_PAGES_SETUP.md)
 
 ### Total Development Time - ACTUAL vs ESTIMATED
 
