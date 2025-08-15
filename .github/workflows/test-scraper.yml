@@ -1,0 +1,180 @@
+name: Test Scraper and Data Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_sources:
+        description: 'Test specific sources (comma-separated: peps,seattleschild,parentmap,tinybeans,westseattlemacaroni,seattlefunforkids)'
+        required: false
+        default: 'peps,seattleschild,parentmap'
+      run_full_scrape:
+        description: 'Run full scraping process'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  test-scraper:
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+        cache-dependency-path: backend/go.sum
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-west-2
+
+    - name: Install dependencies
+      working-directory: backend
+      run: go mod download
+
+    - name: Run unit tests
+      working-directory: backend
+      run: go test ./... -v
+
+    - name: Run integration tests (if enabled)
+      if: inputs.run_full_scrape == 'true'
+      working-directory: backend
+      run: |
+        # Set up environment variables
+        export AWS_REGION=us-west-2
+        export S3_BUCKET=seattle-family-activities-mvp-data-usw2
+        export OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+        export JINA_API_KEY=${{ secrets.JINA_API_KEY }}
+        
+        # Run integration tests
+        go test ./cmd/lambda -v -tags=integration -timeout=10m
+
+    - name: Test individual services
+      working-directory: backend
+      run: |
+        # Test S3 service
+        echo "Testing S3 connectivity..."
+        aws s3 ls s3://seattle-family-activities-mvp-data-usw2/ --region us-west-2
+        
+        # Test if latest.json exists and is valid
+        if aws s3 cp s3://seattle-family-activities-mvp-data-usw2/events/latest.json latest.json --region us-west-2; then
+          echo "✅ latest.json exists"
+          activities_count=$(jq '.activities | length' latest.json)
+          echo "Current activities count: $activities_count"
+          last_updated=$(jq -r '.metadata.lastUpdated' latest.json)
+          echo "Last updated: $last_updated"
+        else
+          echo "⚠️ latest.json not found"
+        fi
+
+    - name: Manual Lambda invocation
+      if: inputs.run_full_scrape == 'true'
+      run: |
+        echo "Invoking Lambda function for full scrape..."
+        aws lambda invoke \
+          --function-name seattle-family-activities-scraper \
+          --payload '{}' \
+          --region us-west-2 \
+          response.json
+        
+        cat response.json
+        
+        # Check if invocation was successful
+        if grep -q '"StatusCode": 200' response.json; then
+          echo "✅ Lambda invocation successful"
+        else
+          echo "❌ Lambda invocation failed"
+          exit 1
+        fi
+
+    - name: Verify updated data
+      if: inputs.run_full_scrape == 'true'
+      run: |
+        # Wait a moment for S3 upload
+        sleep 10
+        
+        # Download and check updated data
+        aws s3 cp s3://seattle-family-activities-mvp-data-usw2/events/latest.json updated.json --region us-west-2
+        
+        new_activities_count=$(jq '.activities | length' updated.json)
+        new_last_updated=$(jq -r '.metadata.lastUpdated' updated.json)
+        
+        echo "Updated activities count: $new_activities_count"
+        echo "New last updated: $new_last_updated"
+        
+        # Check that we have activities
+        if [ "$new_activities_count" -gt 0 ]; then
+          echo "✅ Scraping successful - found $new_activities_count activities"
+        else
+          echo "❌ No activities found after scraping"
+          exit 1
+        fi
+
+    - name: Data quality check
+      run: |
+        # Download current data
+        aws s3 cp s3://seattle-family-activities-mvp-data-usw2/events/latest.json data.json --region us-west-2
+        
+        # Check data quality
+        echo "Performing data quality checks..."
+        
+        # Check required fields
+        required_activities=$(jq '[.activities[] | select(.title and .description and .location)] | length' data.json)
+        total_activities=$(jq '.activities | length' data.json)
+        
+        echo "Activities with required fields: $required_activities/$total_activities"
+        
+        # Check for variety in sources
+        unique_sources=$(jq -r '[.activities[].source.domain] | unique | length' data.json)
+        echo "Unique source domains: $unique_sources"
+        
+        # Check for recent data
+        last_updated=$(jq -r '.metadata.lastUpdated' data.json)
+        echo "Last updated: $last_updated"
+        
+        # Quality thresholds
+        if [ "$required_activities" -gt 5 ] && [ "$unique_sources" -gt 1 ]; then
+          echo "✅ Data quality checks passed"
+        else
+          echo "⚠️ Data quality below expectations"
+        fi
+
+    - name: Test frontend data compatibility
+      run: |
+        # Download data and test frontend compatibility
+        aws s3 cp s3://seattle-family-activities-mvp-data-usw2/events/latest.json frontend-test.json --region us-west-2
+        
+        # Check that data structure matches what frontend expects
+        echo "Testing frontend data compatibility..."
+        
+        # Check for activities array
+        if jq -e '.activities' frontend-test.json > /dev/null; then
+          echo "✅ Activities array present"
+        else
+          echo "❌ Missing activities array"
+          exit 1
+        fi
+        
+        # Check for metadata
+        if jq -e '.metadata' frontend-test.json > /dev/null; then
+          echo "✅ Metadata present"
+        else
+          echo "❌ Missing metadata"
+          exit 1
+        fi
+        
+        # Check sample activity structure
+        sample_activity=$(jq '.activities[0]' frontend-test.json)
+        if echo "$sample_activity" | jq -e '.title and .description and .location' > /dev/null; then
+          echo "✅ Activity structure is compatible"
+        else
+          echo "❌ Activity structure incompatible with frontend"
+          exit 1
+        fi

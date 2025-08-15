@@ -1,0 +1,294 @@
+name: Deploy Seattle Family Activities MVP
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      deploy_backend:
+        description: 'Deploy backend infrastructure and Lambda'
+        required: false
+        default: 'true'
+        type: boolean
+      deploy_frontend:
+        description: 'Deploy frontend to GitHub Pages'
+        required: false
+        default: 'true'
+        type: boolean
+
+jobs:
+  # Backend deployment - CDK Infrastructure and Lambda
+  deploy-backend:
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_backend == 'true' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: infrastructure/package-lock.json
+
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+        cache-dependency-path: backend/go.sum
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-west-2
+
+    - name: Install CDK dependencies
+      working-directory: infrastructure
+      run: npm ci
+
+    - name: Install Go dependencies
+      working-directory: backend
+      run: go mod download
+
+    - name: Run Go tests
+      working-directory: backend
+      run: go test ./... -v
+
+    - name: Build Lambda function
+      working-directory: backend
+      run: |
+        GOOS=linux GOARCH=amd64 go build -o bootstrap cmd/lambda/main.go
+        zip lambda-deployment.zip bootstrap
+
+    - name: Deploy CDK infrastructure
+      working-directory: infrastructure
+      run: |
+        npx cdk deploy --require-approval never --outputs-file outputs.json
+      env:
+        CDK_DEFAULT_ACCOUNT: ${{ secrets.AWS_ACCOUNT_ID }}
+        CDK_DEFAULT_REGION: us-west-2
+
+    - name: Upload Lambda deployment package
+      working-directory: backend
+      run: |
+        aws lambda update-function-code \
+          --function-name seattle-family-activities-scraper \
+          --zip-file fileb://lambda-deployment.zip \
+          --region us-west-2
+
+    - name: Test Lambda function
+      run: |
+        aws lambda invoke \
+          --function-name seattle-family-activities-scraper \
+          --payload '{}' \
+          --region us-west-2 \
+          response.json
+        cat response.json
+
+    - name: Check S3 data
+      run: |
+        aws s3 ls s3://seattle-family-activities-mvp-data-usw2/events/ --region us-west-2
+        aws s3 cp s3://seattle-family-activities-mvp-data-usw2/events/latest.json latest.json --region us-west-2
+        echo "Latest data file size: $(wc -c < latest.json) bytes"
+        echo "Number of activities: $(jq '.activities | length' latest.json)"
+
+  # Frontend deployment - GitHub Pages
+  deploy-frontend:
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_frontend == 'true' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: deploy-backend
+    
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+
+    - name: Test frontend JavaScript
+      run: |
+        # Basic JavaScript syntax check
+        node -c app/script.js
+        echo "Frontend JavaScript syntax is valid"
+
+    - name: Validate HTML
+      run: |
+        # Check for basic HTML structure
+        grep -q "<html" app/index.html
+        grep -q "<body" app/index.html
+        grep -q "script.js" app/index.html
+        echo "HTML structure is valid"
+
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: './app'
+
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+
+  # End-to-end testing
+  test-e2e:
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-frontend]
+    if: always() && (needs.deploy-backend.result == 'success' || needs.deploy-frontend.result == 'success')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js for testing
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Test S3 CORS configuration
+      run: |
+        curl -H "Origin: https://guanghao479.github.io" \
+             -H "Access-Control-Request-Method: GET" \
+             -H "Access-Control-Request-Headers: X-Requested-With" \
+             -X OPTIONS \
+             https://seattle-family-activities-mvp-data-usw2.s3.us-west-2.amazonaws.com/activities/latest.json \
+             -v
+
+    - name: Test S3 data endpoint
+      run: |
+        response=$(curl -s https://seattle-family-activities-mvp-data-usw2.s3.us-west-2.amazonaws.com/activities/latest.json)
+        echo "$response" | jq '.'
+        activities_count=$(echo "$response" | jq '.activities | length')
+        echo "Found $activities_count activities"
+        
+        if [ "$activities_count" -gt 0 ]; then
+          echo "✅ S3 data endpoint is working"
+        else
+          echo "❌ No activities found in S3 data"
+          exit 1
+        fi
+
+    - name: Test frontend accessibility
+      run: |
+        # Install playwright for testing
+        npm install -g playwright
+        npx playwright install chromium
+        
+        # Create a simple test script
+        cat > test-frontend.js << 'EOF'
+        const { chromium } = require('playwright');
+        
+        (async () => {
+          const browser = await chromium.launch();
+          const page = await browser.newPage();
+          
+          try {
+            // Test the GitHub Pages deployment
+            await page.goto('https://guanghao479.github.io/bmw/', { waitUntil: 'networkidle' });
+            
+            // Check if the page loads
+            const title = await page.title();
+            console.log('Page title:', title);
+            
+            // Check if main elements exist
+            const searchInput = await page.$('#searchInput');
+            const filterButtons = await page.$$('.filter-btn');
+            const contentGrid = await page.$('#contentGrid');
+            
+            if (searchInput && filterButtons.length > 0 && contentGrid) {
+              console.log('✅ Frontend elements loaded successfully');
+            } else {
+              console.log('❌ Missing frontend elements');
+              process.exit(1);
+            }
+            
+            // Wait for data to load and check if activities are displayed
+            await page.waitForTimeout(5000);
+            const cards = await page.$$('.card');
+            console.log(`Found ${cards.length} activity cards`);
+            
+            if (cards.length > 0) {
+              console.log('✅ Activities are being displayed');
+            } else {
+              console.log('⚠️ No activities displayed (may be using sample data)');
+            }
+            
+          } catch (error) {
+            console.error('❌ Frontend test failed:', error);
+            process.exit(1);
+          } finally {
+            await browser.close();
+          }
+        })();
+        EOF
+        
+        node test-frontend.js
+
+    - name: Performance audit
+      run: |
+        # Install lighthouse
+        npm install -g lighthouse
+        
+        # Run lighthouse audit
+        lighthouse https://guanghao479.github.io/bmw/ \
+          --only-categories=performance,accessibility \
+          --output=json \
+          --output-path=./lighthouse-report.json \
+          --chrome-flags="--headless"
+        
+        # Parse results
+        performance_score=$(cat lighthouse-report.json | jq '.categories.performance.score * 100')
+        accessibility_score=$(cat lighthouse-report.json | jq '.categories.accessibility.score * 100')
+        
+        echo "Performance Score: $performance_score/100"
+        echo "Accessibility Score: $accessibility_score/100"
+        
+        # Set minimum thresholds
+        if (( $(echo "$performance_score >= 70" | bc -l) )); then
+          echo "✅ Performance score meets threshold"
+        else
+          echo "⚠️ Performance score below threshold (70)"
+        fi
+        
+        if (( $(echo "$accessibility_score >= 90" | bc -l) )); then
+          echo "✅ Accessibility score meets threshold"
+        else
+          echo "❌ Accessibility score below threshold (90)"
+          exit 1
+        fi
+
+  # Cleanup and notifications
+  notify-status:
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-frontend, test-e2e]
+    if: always()
+    
+    steps:
+    - name: Notify deployment status
+      run: |
+        echo "🚀 Deployment Summary:"
+        echo "Backend: ${{ needs.deploy-backend.result }}"
+        echo "Frontend: ${{ needs.deploy-frontend.result }}" 
+        echo "E2E Tests: ${{ needs.test-e2e.result }}"
+        
+        if [[ "${{ needs.deploy-backend.result }}" == "success" && "${{ needs.deploy-frontend.result }}" == "success" ]]; then
+          echo "✅ Full deployment successful!"
+          echo "🌐 Frontend: https://guanghao479.github.io/bmw/"
+          echo "📊 S3 Data: https://seattle-family-activities-mvp-data-usw2.s3.us-west-2.amazonaws.com/activities/latest.json"
+        else
+          echo "❌ Deployment had issues - check individual job results"
+        fi

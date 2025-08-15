@@ -27,10 +27,11 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       }),
       cors: [
         {
-          allowedOrigins: ['https://guanghaoding.github.io', 'http://localhost:*'],
-          allowedMethods: [s3.HttpMethods.GET],
+          allowedOrigins: ['https://guanghao479.github.io', 'http://localhost:*'],
+          allowedMethods: [s3.HttpMethods.GET, s3.HttpMethods.HEAD],
           allowedHeaders: ['*'],
-          maxAge: 300
+          exposedHeaders: ['ETag'],
+          maxAge: 3600
         }
       ],
       lifecycleRules: [
@@ -73,8 +74,8 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
 
     // Lambda function for scraping (Go runtime)
     const scraperFunction = new GoFunction(this, 'EventScraperFunction', {
-      entry: '../backend/cmd/scraper',
-      functionName: 'SeattleFamilyActivities-EventScraper',
+      entry: '../backend/cmd/lambda',
+      functionName: 'seattle-family-activities-scraper',
       timeout: Duration.minutes(15),
       memorySize: 1024,
       role: scraperRole,
@@ -167,8 +168,8 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
     });
 
     new CfnOutput(this, 'EventsDataURL', {
-      value: `https://${eventsBucket.bucketName}.s3.us-west-2.amazonaws.com/events/events.json`,
-      description: 'Direct URL to events JSON file',
+      value: `https://${eventsBucket.bucketName}.s3.us-west-2.amazonaws.com/events/latest.json`,
+      description: 'Direct URL to latest events JSON file',
       exportName: 'SeattleFamilyActivities-EventsDataURL'
     });
   }

@@ -4,214 +4,406 @@ class FamilyEventsApp {
         this.allData = [];
         this.currentFilter = 'all';
         this.searchTerm = '';
+        this.lastUpdated = null;
+        this.refreshInterval = null;
+        this.config = this.loadConfiguration();
         
         this.init();
     }
 
+    // Load configuration based on environment
+    loadConfiguration() {
+        const isDevelopment = window.location.hostname === 'localhost' || 
+                             window.location.hostname === '127.0.0.1' ||
+                             window.location.hostname.includes('github.dev');
+        
+        const baseConfig = {
+            refreshIntervalMs: 30 * 60 * 1000, // 30 minutes
+            retryAttempts: 3,
+            retryDelay: 1000,
+            cacheKey: 'familyEvents_cached_data',
+            cacheTimestamp: 'familyEvents_cache_timestamp',
+            maxCacheAge: 24 * 60 * 60 * 1000, // 24 hours
+            environment: isDevelopment ? 'development' : 'production'
+        };
+
+        // Environment-specific configurations
+        if (isDevelopment) {
+            return {
+                ...baseConfig,
+                s3Endpoint: 'https://seattle-family-activities-mvp-data-usw2.s3.us-west-2.amazonaws.com/activities/latest.json',
+                refreshIntervalMs: 5 * 60 * 1000, // 5 minutes for development
+                debugMode: true
+            };
+        } else {
+            return {
+                ...baseConfig,
+                s3Endpoint: 'https://seattle-family-activities-mvp-data-usw2.s3.us-west-2.amazonaws.com/activities/latest.json',
+                debugMode: false
+            };
+        }
+    }
+
     async init() {
         this.showLoading();
-        this.loadData();
+        await this.loadData();
         this.setupEventListeners();
         this.renderContent();
+        this.setupAutoRefresh();
         this.hideLoading();
     }
 
-    // Load embedded data
-    loadData() {
-        const data = {
-            "events": [
-                {
-                    "id": 1,
-                    "title": "Summer Family Festival",
-                    "description": "Join us for a day filled with live music, food trucks, face painting, and family-friendly activities in the heart of downtown.",
-                    "category": "event",
-                    "image": "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=400&h=300&fit=crop",
-                    "date": "2025-08-15",
-                    "time": "10:00 AM - 6:00 PM",
-                    "location": "Central Park",
-                    "price": "Free",
-                    "age_range": "All ages",
-                    "featured": true
-                },
-                {
-                    "id": 2,
-                    "title": "Kids Movie Night Under Stars",
-                    "description": "Bring your blankets and enjoy a classic family movie under the stars. Popcorn and refreshments available.",
-                    "category": "event",
-                    "image": "https://images.unsplash.com/photo-1440404653325-ab127d49abc1?w=400&h=300&fit=crop",
-                    "date": "2025-08-20",
-                    "time": "7:30 PM - 10:00 PM",
-                    "location": "Riverside Park Amphitheater",
-                    "price": "$5 per family",
-                    "age_range": "3-12 years",
-                    "featured": false
-                },
-                {
-                    "id": 3,
-                    "title": "Science Discovery Day",
-                    "description": "Interactive science experiments, planetarium shows, and hands-on learning experiences for curious minds.",
-                    "category": "event",
-                    "image": "https://images.unsplash.com/photo-1581833971358-2c8b550f87b3?w=400&h=300&fit=crop",
-                    "date": "2025-08-25",
-                    "time": "9:00 AM - 4:00 PM",
-                    "location": "City Science Museum",
-                    "price": "$12 adults, $8 children",
-                    "age_range": "5-16 years",
-                    "featured": true
-                },
-                {
-                    "id": 4,
-                    "title": "Art & Craft Fair",
-                    "description": "Local artisans showcase their work with interactive workshops for children and families.",
-                    "category": "event",
-                    "image": "https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?w=400&h=300&fit=crop",
-                    "date": "2025-09-01",
-                    "time": "10:00 AM - 5:00 PM",
-                    "location": "Town Square",
-                    "price": "Free entry, workshop fees vary",
-                    "age_range": "All ages",
-                    "featured": false
+    // Load data from S3 with offline fallback
+    async loadData() {
+        try {
+            // Try to fetch fresh data from S3
+            const freshData = await this.fetchFromS3();
+            if (freshData) {
+                this.processData(freshData);
+                this.cacheData(freshData);
+                const count = this.allData.length;
+                this.showDataStatus(`Fresh data loaded: ${count} activities (${this.config.environment})`, 'success');
+                return;
+            }
+        } catch (error) {
+            console.warn('Failed to fetch fresh data:', error);
+            this.showDataStatus(`Using cached data (${this.config.environment})`, 'warning');
+        }
+
+        // Fall back to cached data
+        const cachedData = this.getCachedData();
+        if (cachedData) {
+            this.processData(cachedData);
+            this.showDataStatus('Loaded from cache', 'info');
+            return;
+        }
+
+        // Final fallback to embedded sample data
+        this.loadSampleData();
+        this.showDataStatus('Sample data loaded', 'warning');
+    }
+
+    // Fetch data from S3 endpoint
+    async fetchFromS3() {
+        if (this.config.debugMode) {
+            console.log(`Fetching data from S3: ${this.config.s3Endpoint}`);
+        }
+
+        for (let attempt = 1; attempt <= this.config.retryAttempts; attempt++) {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+                const response = await fetch(this.config.s3Endpoint, {
+                    signal: controller.signal,
+                    headers: {
+                        'Cache-Control': 'no-cache'
+                    }
+                });
+
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
-            ],
-            "activities": [
-                {
-                    "id": 5,
-                    "title": "Swimming Lessons",
-                    "description": "Professional swimming instruction for beginners to advanced swimmers. Small class sizes and certified instructors.",
-                    "category": "activity",
-                    "image": "https://images.unsplash.com/photo-1530549387789-4c1017266635?w=400&h=300&fit=crop",
-                    "date": "Mondays & Wednesdays",
-                    "time": "4:00 PM - 5:00 PM",
-                    "location": "Community Pool",
-                    "price": "$80/month",
-                    "age_range": "4-16 years",
-                    "featured": false
-                },
-                {
-                    "id": 6,
-                    "title": "Kids Yoga Classes",
-                    "description": "Fun and engaging yoga sessions designed specifically for children. Improves flexibility, focus, and mindfulness.",
-                    "category": "activity",
-                    "image": "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=300&fit=crop",
-                    "date": "Saturdays",
-                    "time": "9:00 AM - 10:00 AM",
-                    "location": "Harmony Wellness Center",
-                    "price": "$15 per session",
-                    "age_range": "5-12 years",
-                    "featured": true
-                },
-                {
-                    "id": 7,
-                    "title": "STEM Robotics Club",
-                    "description": "Build and program robots while learning coding, engineering, and problem-solving skills.",
-                    "category": "activity",
-                    "image": "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=400&h=300&fit=crop",
-                    "date": "Thursdays",
-                    "time": "3:30 PM - 5:30 PM",
-                    "location": "Tech Learning Center",
-                    "price": "$120/month",
-                    "age_range": "8-14 years",
-                    "featured": false
-                },
-                {
-                    "id": 8,
-                    "title": "Dance Classes for Kids",
-                    "description": "Learn various dance styles including hip-hop, ballet, and contemporary. Great for building confidence and coordination.",
-                    "category": "activity",
-                    "image": "https://images.unsplash.com/photo-1547036967-23d11aacaee0?w=400&h=300&fit=crop",
-                    "date": "Tuesdays & Fridays",
-                    "time": "5:00 PM - 6:00 PM",
-                    "location": "Movement Studio",
-                    "price": "$90/month",
-                    "age_range": "6-16 years",
-                    "featured": false
+
+                const data = await response.json();
+                
+                // Validate data structure
+                if (!data.activities || !Array.isArray(data.activities)) {
+                    throw new Error('Invalid data structure from S3');
                 }
-            ],
-            "venues": [
+
+                if (this.config.debugMode) {
+                    console.log(`S3 fetch successful: ${data.activities.length} activities, last updated: ${data.metadata?.lastUpdated}`);
+                }
+
+                return data;
+            } catch (error) {
+                if (this.config.debugMode) {
+                    console.warn(`S3 fetch attempt ${attempt}/${this.config.retryAttempts} failed:`, error);
+                }
+                
+                if (attempt < this.config.retryAttempts) {
+                    await new Promise(resolve => setTimeout(resolve, this.config.retryDelay * attempt));
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    // Process data from S3 (new schema) to legacy format for compatibility
+    processData(data) {
+        if (!data.activities) {
+            console.error('No activities in data:', data);
+            return;
+        }
+
+        this.lastUpdated = data.metadata?.lastUpdated || new Date().toISOString();
+        
+        // Convert new schema activities to legacy format for existing UI compatibility
+        this.allData = data.activities.map(activity => this.convertToLegacyFormat(activity));
+    }
+
+    // Convert new activity schema to legacy format
+    convertToLegacyFormat(activity) {
+        return {
+            id: activity.id,
+            title: activity.title,
+            description: activity.description,
+            category: this.mapCategoryToLegacy(activity.type, activity.category),
+            image: this.generateImageUrl(activity.category, activity.subcategory),
+            date: this.formatSchedule(activity.schedule),
+            time: this.formatTime(activity.schedule),
+            location: activity.location?.name || activity.location?.address || 'Location TBD',
+            price: this.formatPrice(activity.pricing),
+            age_range: this.formatAgeRange(activity.ageGroups),
+            featured: activity.featured || false
+        };
+    }
+
+    // Map new schema types/categories to legacy categories
+    mapCategoryToLegacy(type, category) {
+        const typeMap = {
+            'class': 'activity',
+            'camp': 'activity', 
+            'event': 'event',
+            'performance': 'event',
+            'free-activity': 'activity'
+        };
+        return typeMap[type] || 'activity';
+    }
+
+    // Generate appropriate Unsplash image URL based on category
+    generateImageUrl(category, subcategory) {
+        const imageMap = {
+            'arts-creativity': 'photo-1513475382585-d06e58bcb0e0',
+            'active-sports': 'photo-1530549387789-4c1017266635',
+            'educational-stem': 'photo-1581833971358-2c8b550f87b3',
+            'entertainment-events': 'photo-1533174072545-7a4b6ad7a6c3',
+            'camps-programs': 'photo-1578662996442-48f60103fc96',
+            'free-community': 'photo-1507003211169-0a1dd7228f2d'
+        };
+        
+        const imageId = imageMap[category] || imageMap['entertainment-events'];
+        return `https://images.unsplash.com/${imageId}?w=400&h=300&fit=crop`;
+    }
+
+    // Format schedule for display
+    formatSchedule(schedule) {
+        if (!schedule) return 'TBD';
+        
+        if (schedule.type === 'recurring' && schedule.daysOfWeek) {
+            return schedule.daysOfWeek.map(day => 
+                day.charAt(0).toUpperCase() + day.slice(1)
+            ).join(', ');
+        }
+        
+        if (schedule.startDate) {
+            return schedule.startDate;
+        }
+        
+        return 'TBD';
+    }
+
+    // Format time for display
+    formatTime(schedule) {
+        if (!schedule || !schedule.times || !schedule.times[0]) {
+            return 'TBD';
+        }
+        
+        const time = schedule.times[0];
+        if (time.startTime && time.endTime) {
+            return `${time.startTime} - ${time.endTime}`;
+        }
+        
+        return time.startTime || 'TBD';
+    }
+
+    // Format pricing for display
+    formatPrice(pricing) {
+        if (!pricing || pricing.type === 'free') {
+            return 'Free';
+        }
+        
+        if (pricing.cost && pricing.currency) {
+            const symbol = pricing.currency === 'USD' ? '$' : pricing.currency;
+            return `${symbol}${pricing.cost}${pricing.unit ? `/${pricing.unit}` : ''}`;
+        }
+        
+        return pricing.description || 'Price varies';
+    }
+
+    // Format age range for display
+    formatAgeRange(ageGroups) {
+        if (!ageGroups || ageGroups.length === 0) {
+            return 'All ages';
+        }
+        
+        const ageGroup = ageGroups[0];
+        if (ageGroup.description) {
+            return ageGroup.description;
+        }
+        
+        if (ageGroup.minAge && ageGroup.maxAge) {
+            const unit = ageGroup.unit === 'months' ? 'mo' : 'yr';
+            return `${ageGroup.minAge}-${ageGroup.maxAge} ${unit}`;
+        }
+        
+        return ageGroup.category || 'All ages';
+    }
+
+    // Cache data in localStorage
+    cacheData(data) {
+        try {
+            localStorage.setItem(this.config.cacheKey, JSON.stringify(data));
+            localStorage.setItem(this.config.cacheTimestamp, Date.now().toString());
+        } catch (error) {
+            console.warn('Failed to cache data:', error);
+        }
+    }
+
+    // Get cached data from localStorage
+    getCachedData() {
+        try {
+            const cached = localStorage.getItem(this.config.cacheKey);
+            const timestamp = localStorage.getItem(this.config.cacheTimestamp);
+            
+            if (cached && timestamp) {
+                const age = Date.now() - parseInt(timestamp);
+                
+                if (age < this.config.maxCacheAge) {
+                    if (this.config.debugMode) {
+                        console.log(`Using cached data (age: ${Math.round(age / 1000 / 60)} minutes)`);
+                    }
+                    return JSON.parse(cached);
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to get cached data:', error);
+        }
+        
+        return null;
+    }
+
+    // Load sample data as final fallback
+    loadSampleData() {
+        const sampleData = {
+            activities: [
                 {
-                    "id": 9,
-                    "title": "Adventure Playground",
-                    "description": "Large outdoor playground with climbing structures, slides, swings, and a splash pad. Perfect for active families.",
-                    "category": "venue",
-                    "image": "https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop",
-                    "date": "Daily",
-                    "time": "6:00 AM - 8:00 PM",
-                    "location": "Maple Avenue Park",
-                    "price": "Free",
-                    "age_range": "2-12 years",
-                    "featured": true
-                },
-                {
-                    "id": 10,
-                    "title": "Children's Library",
-                    "description": "Extensive collection of children's books, storytelling sessions, and quiet reading areas. Free wifi and computers available.",
-                    "category": "venue",
-                    "image": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=300&fit=crop",
-                    "date": "Monday - Saturday",
-                    "time": "9:00 AM - 8:00 PM",
-                    "location": "Downtown Library Branch",
-                    "price": "Free",
-                    "age_range": "All ages",
-                    "featured": false
-                },
-                {
-                    "id": 11,
-                    "title": "Indoor Trampoline Park",
-                    "description": "Safe, supervised indoor trampoline facilities with foam pits, dodgeball courts, and special toddler areas.",
-                    "category": "venue",
-                    "image": "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=300&fit=crop",
-                    "date": "Daily",
-                    "time": "9:00 AM - 9:00 PM",
-                    "location": "Bounce Zone",
-                    "price": "$18 per hour",
-                    "age_range": "3+ years",
-                    "featured": false
-                },
-                {
-                    "id": 12,
-                    "title": "Family Bowling Center",
-                    "description": "Modern bowling facility with bumper lanes for kids, arcade games, and party packages. Snack bar on-site.",
-                    "category": "venue",
-                    "image": "https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop",
-                    "date": "Daily",
-                    "time": "10:00 AM - 11:00 PM",
-                    "location": "Strike Zone Bowling",
-                    "price": "$12 per game",
-                    "age_range": "All ages",
-                    "featured": false
-                },
-                {
-                    "id": 13,
-                    "title": "Nature Discovery Center",
-                    "description": "Interactive exhibits about local wildlife, nature trails, and educational programs. Perfect for outdoor learning.",
-                    "category": "venue",
-                    "image": "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=300&fit=crop",
-                    "date": "Tuesday - Sunday",
-                    "time": "9:00 AM - 5:00 PM",
-                    "location": "Greenwood Nature Preserve",
-                    "price": "$8 adults, $5 children",
-                    "age_range": "All ages",
-                    "featured": true
+                    id: 'sample_1',
+                    title: 'Sample Family Event',
+                    description: 'This is sample data. The app will load real Seattle activities when connected.',
+                    type: 'event',
+                    category: 'entertainment-events',
+                    schedule: { type: 'one-time', startDate: '2025-08-15', times: [{ startTime: '10:00', endTime: '16:00' }] },
+                    location: { name: 'Sample Location', address: 'Seattle, WA' },
+                    pricing: { type: 'free' },
+                    ageGroups: [{ description: 'All ages' }],
+                    featured: true
                 }
             ]
         };
         
-        // Combine all data types into a single array
-        this.allData = [
-            ...data.events,
-            ...data.activities,
-            ...data.venues
-        ];
+        this.processData(sampleData);
+    }
+
+    // Setup auto-refresh functionality
+    setupAutoRefresh() {
+        // Clear any existing interval
+        if (this.refreshInterval) {
+            clearInterval(this.refreshInterval);
+        }
+        
+        // Set up new refresh interval
+        this.refreshInterval = setInterval(async () => {
+            console.log('Auto-refreshing data...');
+            await this.refreshData();
+        }, this.config.refreshIntervalMs);
+        
+        // Listen for visibility change to refresh when page becomes visible
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                this.refreshData();
+            }
+        });
+    }
+
+    // Refresh data manually
+    async refreshData() {
+        try {
+            const freshData = await this.fetchFromS3();
+            if (freshData) {
+                const oldCount = this.allData.length;
+                this.processData(freshData);
+                this.cacheData(freshData);
+                this.renderContent();
+                
+                const newCount = this.allData.length;
+                if (newCount !== oldCount) {
+                    this.showDataStatus(`Updated! ${newCount} activities available`, 'success');
+                }
+            }
+        } catch (error) {
+            console.warn('Auto-refresh failed:', error);
+        }
+    }
+
+    // Show data status message to user
+    showDataStatus(message, type = 'info') {
+        // Create or update status element
+        let statusElement = document.getElementById('data-status');
+        if (!statusElement) {
+            statusElement = document.createElement('div');
+            statusElement.id = 'data-status';
+            statusElement.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 12px 16px;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: 500;
+                z-index: 1000;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+                max-width: 300px;
+            `;
+            document.body.appendChild(statusElement);
+        }
+        
+        // Set colors based on type
+        const colors = {
+            success: { bg: '#d4edda', text: '#155724', border: '#c3e6cb' },
+            warning: { bg: '#fff3cd', text: '#856404', border: '#ffeaa7' },
+            error: { bg: '#f8d7da', text: '#721c24', border: '#f5c6cb' },
+            info: { bg: '#d1ecf1', text: '#0c5460', border: '#bee5eb' }
+        };
+        
+        const color = colors[type] || colors.info;
+        statusElement.style.backgroundColor = color.bg;
+        statusElement.style.color = color.text;
+        statusElement.style.border = `1px solid ${color.border}`;
+        statusElement.textContent = message;
+        
+        // Show and auto-hide
+        statusElement.style.opacity = '1';
+        setTimeout(() => {
+            statusElement.style.opacity = '0';
+        }, 5000);
     }
 
     // Setup event listeners for interactivity
     setupEventListeners() {
         // Search input
         const searchInput = document.getElementById('searchInput');
-        searchInput.addEventListener('input', (e) => {
-            this.searchTerm = e.target.value.toLowerCase();
-            this.renderContent();
-        });
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                this.searchTerm = e.target.value.toLowerCase();
+                this.renderContent();
+            });
+        }
 
         // Filter buttons
         const filterButtons = document.querySelectorAll('.filter-btn');
@@ -234,6 +426,55 @@ class FamilyEventsApp {
                 this.handleCardClick(card);
             }
         });
+
+        // Add manual refresh button
+        this.addRefreshButton();
+    }
+
+    // Add manual refresh button
+    addRefreshButton() {
+        // Check if refresh button already exists
+        if (document.getElementById('refresh-btn')) return;
+
+        const refreshBtn = document.createElement('button');
+        refreshBtn.id = 'refresh-btn';
+        refreshBtn.innerHTML = '🔄 Refresh';
+        refreshBtn.style.cssText = `
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            z-index: 999;
+            backdrop-filter: blur(10px);
+            transition: all 0.2s ease;
+        `;
+
+        refreshBtn.addEventListener('click', async () => {
+            refreshBtn.disabled = true;
+            refreshBtn.innerHTML = '🔄 Refreshing...';
+            
+            await this.refreshData();
+            
+            refreshBtn.disabled = false;
+            refreshBtn.innerHTML = '🔄 Refresh';
+        });
+
+        refreshBtn.addEventListener('mouseenter', () => {
+            refreshBtn.style.background = 'rgba(255, 255, 255, 1)';
+            refreshBtn.style.transform = 'translateY(-1px)';
+        });
+
+        refreshBtn.addEventListener('mouseleave', () => {
+            refreshBtn.style.background = 'rgba(255, 255, 255, 0.9)';
+            refreshBtn.style.transform = 'translateY(0)';
+        });
+
+        document.body.appendChild(refreshBtn);
     }
 
     // Filter and search data
