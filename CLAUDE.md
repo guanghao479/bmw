@@ -233,12 +233,15 @@ cdk destroy                              # Clean up resources
 - **Scraper testing** (`.github/workflows/test-scraper.yml`): Manual trigger for testing
 - **Automated testing**: CORS validation, data quality checks, accessibility audits
 - **Performance monitoring**: Lighthouse integration with quality thresholds
+- **Security**: OIDC authentication with AWS (no long-lived access keys)
 
 ### Infrastructure as Code
 - **AWS CDK**: TypeScript stack definition in `infrastructure/lib/mvp-stack.ts`
 - **Deployment**: Automated via GitHub Actions on main branch push
-- **Environment management**: Dev/prod configuration via GitHub secrets
+- **Environment management**: Dev/prod configuration via GitHub secrets and OIDC
+- **Authentication**: OpenID Connect (OIDC) for secure AWS access without access keys
 - **Rollback**: CDK stack versioning and automated rollback capabilities
+- **Setup guide**: See `docs/aws-oidc-setup.md` for OIDC configuration instructions
 
 ## Monitoring & Alerts
 

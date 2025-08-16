@@ -72,6 +72,42 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       }
     });
 
+    // OIDC Identity Provider for GitHub Actions
+    const githubOidcProvider = new iam.OpenIdConnectProvider(this, 'GitHubOidcProvider', {
+      url: 'https://token.actions.githubusercontent.com',
+      clientIds: ['sts.amazonaws.com'],
+      thumbprints: ['6938fd4d98bab03faadb97b34396831e3780aea1']
+    });
+
+    // IAM Role for GitHub Actions with OIDC trust policy
+    const githubActionsRole = new iam.Role(this, 'GitHubActionsDeploymentRole', {
+      roleName: 'GitHubActions-SeattleFamilyActivities',
+      assumedBy: new iam.WebIdentityPrincipal(
+        githubOidcProvider.openIdConnectProviderArn,
+        {
+          'StringLike': {
+            'token.actions.githubusercontent.com:sub': 'repo:guanghao479/bmw:*'
+          },
+          'StringEquals': {
+            'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com'
+          }
+        }
+      ),
+      description: 'IAM role for GitHub Actions to deploy Seattle Family Activities infrastructure',
+      maxSessionDuration: Duration.hours(1),
+      managedPolicies: [
+        // Core AWS service policies required for CDK deployment
+        iam.ManagedPolicy.fromAwsManagedPolicyName('AWSLambda_FullAccess'),
+        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonS3FullAccess'),
+        iam.ManagedPolicy.fromAwsManagedPolicyName('CloudWatchFullAccess'),
+        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonEventBridgeFullAccess'),
+        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSNSFullAccess'),
+        // CDK deployment policies
+        iam.ManagedPolicy.fromAwsManagedPolicyName('IAMFullAccess'),
+        iam.ManagedPolicy.fromAwsManagedPolicyName('AWSCloudFormationFullAccess')
+      ]
+    });
+
     // Lambda function for scraping (Go runtime)
     const scraperFunction = new GoFunction(this, 'EventScraperFunction', {
       entry: '../backend/cmd/lambda',
@@ -171,6 +207,12 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       value: `https://${eventsBucket.bucketName}.s3.us-west-2.amazonaws.com/events/latest.json`,
       description: 'Direct URL to latest events JSON file',
       exportName: 'SeattleFamilyActivities-EventsDataURL'
+    });
+
+    new CfnOutput(this, 'GitHubActionsRoleArn', {
+      value: githubActionsRole.roleArn,
+      description: 'IAM Role ARN for GitHub Actions OIDC authentication',
+      exportName: 'SeattleFamilyActivities-GitHubActionsRoleArn'
     });
   }
 }
