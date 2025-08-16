@@ -100,8 +100,8 @@ jobs:
 
     - name: Check S3 data
       run: |
-        aws s3 ls s3://seattle-family-activities-mvp-data-usw2/events/ --region us-west-2
-        aws s3 cp s3://seattle-family-activities-mvp-data-usw2/events/latest.json latest.json --region us-west-2
+        aws s3 ls s3://seattle-family-activities-mvp-data-usw2/activities/ --region us-west-2
+        aws s3 cp s3://seattle-family-activities-mvp-data-usw2/activities/latest.json latest.json --region us-west-2
         echo "Latest data file size: $(wc -c < latest.json) bytes"
         echo "Number of activities: $(jq '.activities | length' latest.json)"
 
