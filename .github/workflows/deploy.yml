@@ -187,7 +187,7 @@ jobs:
     - name: Test frontend accessibility
       run: |
         # Install playwright for testing
-        npm install -g playwright
+        npm install playwright
         npx playwright install chromium
         
         # Create a simple test script
