@@ -119,6 +119,7 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       environment: {
         S3_BUCKET: eventsBucket.bucketName,
         OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+        JINA_API_KEY: process.env.JINA_API_KEY || '',
         // AWS_REGION is automatically set by Lambda runtime
         LOG_LEVEL: 'INFO'
       },
