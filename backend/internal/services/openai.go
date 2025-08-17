@@ -396,7 +396,9 @@ Source URL: %s
 Content to analyze:
 %s
 
-Extract the activities as structured JSON following the schema provided in the system prompt. Focus on accuracy and completeness.`, sourceURL, sourceURL, content)
+CRITICAL: You MUST respond with valid JSON only. Do not include explanations, markdown, or plain text. If you cannot extract activities, respond with: {"activities": []}
+
+Your response must start with { and end with } and be valid JSON that can be parsed programmatically.`, sourceURL, sourceURL, content)
 }
 
 // extractDomain extracts domain from URL
