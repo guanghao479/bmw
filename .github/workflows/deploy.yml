@@ -70,7 +70,7 @@ jobs:
     - name: Build Lambda function
       working-directory: backend
       run: |
-        GOOS=linux GOARCH=amd64 go build -o bootstrap cmd/lambda/main.go
+        GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o bootstrap cmd/lambda/main.go
         zip lambda-deployment.zip bootstrap
 
     - name: Deploy CDK infrastructure
