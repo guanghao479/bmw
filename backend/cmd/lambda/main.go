@@ -103,7 +103,7 @@ func GetSeattleSources() []SeattleSource {
 			URL:        "https://tinybeans.com/seattle",
 			Domain:     "tinybeans.com",
 			Priority:   8,
-			Enabled:    true,
+			Enabled:    false, // Disabled per user request - ParentMap only
 			Timeout:    60,
 			RetryCount: 2,
 		},
@@ -112,7 +112,7 @@ func GetSeattleSources() []SeattleSource {
 			URL:        "https://westseattle.macaronikid.com/",
 			Domain:     "westseattle.macaronikid.com",
 			Priority:   7,
-			Enabled:    true,
+			Enabled:    false, // Disabled per user request - ParentMap only
 			Timeout:    60,
 			RetryCount: 2,
 		},
@@ -130,7 +130,7 @@ func GetSeattleSources() []SeattleSource {
 			URL:        "https://www.peps.org/",
 			Domain:     "peps.org",
 			Priority:   5,
-			Enabled:    true,
+			Enabled:    false, // Disabled per user request - ParentMap only
 			Timeout:    90, // Increased timeout for SSL certificate issues
 			RetryCount: 3,  // More retries for SSL handshake problems
 		},
