@@ -90,7 +90,7 @@ func TestS3Client_UploadDownloadActivities(t *testing.T) {
 				Region:       "Seattle Metro",
 				ZipCode:      "98101",
 				VenueType:    models.VenueTypeIndoor,
-				Accessibility: true,
+				Accessibility: "wheelchair accessible",
 				Parking:      "street",
 			},
 			Pricing: models.Pricing{

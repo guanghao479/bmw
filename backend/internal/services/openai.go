@@ -117,6 +117,11 @@ func (o *OpenAIClient) ExtractActivities(content, sourceURL string) (*OpenAIExtr
 	// Clean the response - remove markdown code blocks if present
 	cleanedContent := o.cleanJSONResponse(responseContent)
 	
+	// Validate that the response looks like JSON before parsing
+	if err := o.validateJSONResponse(cleanedContent); err != nil {
+		return nil, fmt.Errorf("invalid JSON response from OpenAI: %w\nResponse: %s", err, cleanedContent)
+	}
+	
 	var activitiesData struct {
 		Activities []models.Activity `json:"activities"`
 	}
@@ -801,4 +806,65 @@ func (o *OpenAIClient) cleanJSONResponse(response string) string {
 	cleaned = strings.TrimSpace(cleaned)
 	
 	return cleaned
+}
+
+// validateJSONResponse performs basic validation before attempting JSON parsing
+func (o *OpenAIClient) validateJSONResponse(response string) error {
+	response = strings.TrimSpace(response)
+	
+	// Check if response is empty
+	if response == "" {
+		return fmt.Errorf("empty response")
+	}
+	
+	// Check if response starts with common plain text patterns (the bug we're fixing)
+	plainTextPatterns := []string{
+		"I'm unable to",
+		"I cannot",
+		"I'm sorry",
+		"Sorry, I",
+		"I don't have",
+		"The content appears",
+		"This content seems",
+		"Unable to extract",
+		"Cannot extract",
+	}
+	
+	responseLower := strings.ToLower(response)
+	for _, pattern := range plainTextPatterns {
+		if strings.HasPrefix(responseLower, strings.ToLower(pattern)) {
+			return fmt.Errorf("response appears to be plain text instead of JSON (starts with: %q)", pattern)
+		}
+	}
+	
+	// Check if response looks like JSON (basic validation)
+	if !strings.HasPrefix(response, "{") {
+		return fmt.Errorf("response does not start with '{' (got: %q)", response[:min(50, len(response))])
+	}
+	
+	if !strings.HasSuffix(response, "}") {
+		return fmt.Errorf("response does not end with '}' (ends with: %q)", response[max(0, len(response)-50):])
+	}
+	
+	// Check if it contains the required "activities" key
+	if !strings.Contains(response, `"activities"`) {
+		return fmt.Errorf("response does not contain required 'activities' key")
+	}
+	
+	return nil
+}
+
+// Helper functions for min/max
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

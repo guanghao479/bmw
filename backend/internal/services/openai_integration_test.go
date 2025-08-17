@@ -48,6 +48,36 @@ Parking available on street
 Wheelchair accessible
 `
 
+// Problematic content that might trigger plain text responses
+const testProblematicContent = `
+<!DOCTYPE html>
+<html><head><title>Access Denied</title></head>
+<body>
+<h1>Access Denied</h1>
+<p>Your request has been blocked. Please try again later.</p>
+<script>window.location.redirect='/';</script>
+</body></html>
+
+Some corrupted characters: ����� ���� ����
+
+Mixed content with JavaScript:
+function analytics() { ga('send', 'pageview'); }
+var config = {"api": "blocked", "status": 403};
+
+Error: Cannot read property 'content' of undefined
+Stack trace: at Object.parse (/app/parser.js:42:13)
+`
+
+// Content that looks like an error page
+const testErrorPageContent = `
+Sorry, we're experiencing technical difficulties.
+The page you requested is temporarily unavailable.
+Please check back later or contact support.
+Error ID: ERR_503_UNAVAILABLE
+Server: nginx/1.18.0
+Time: 2025-08-17 05:07:27 UTC
+`
+
 const testSeattleLibraryContent = `
 Seattle Public Library - Children's Programs
 
@@ -447,5 +477,76 @@ func BenchmarkOpenAIClient_ExtractActivities(b *testing.B) {
 		if err != nil {
 			b.Fatalf("Failed to extract activities: %v", err)
 		}
+	}
+}
+
+// TestOpenAIClient_ProblematicContent tests the fix for JSON parsing issues
+// This reproduces the issue where OpenAI returns plain text instead of JSON
+func TestOpenAIClient_ProblematicContent(t *testing.T) {
+	if os.Getenv("SKIP_INTEGRATION_TESTS") == "true" {
+		t.Skip("Skipping integration test")
+	}
+	
+	if os.Getenv("OPENAI_API_KEY") == "" {
+		t.Skip("OPENAI_API_KEY not set, skipping OpenAI integration test")
+	}
+
+	client := NewOpenAIClient()
+	
+	testCases := []struct {
+		name     string
+		content  string
+		url      string
+	}{
+		{
+			name:    "Corrupted HTML content",
+			content: testProblematicContent,
+			url:     "https://example.com/blocked",
+		},
+		{
+			name:    "Error page content", 
+			content: testErrorPageContent,
+			url:     "https://example.com/error",
+		},
+		{
+			name:    "Very short content",
+			content: "Page not found. 404 error.",
+			url:     "https://example.com/404",
+		},
+	}
+	
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// This should NOT panic or fail JSON parsing
+			response, err := client.ExtractActivities(tc.content, tc.url)
+			
+			if err != nil {
+				// Check if it's a JSON parsing error (the bug we're fixing)
+				if strings.Contains(err.Error(), "invalid character") {
+					t.Errorf("JSON parsing failed (the bug we're fixing): %v", err)
+				} else if strings.Contains(err.Error(), "too short") {
+					// This is expected for very short content
+					t.Logf("Expected error for short content: %v", err)
+				} else {
+					t.Logf("Other error (may be expected): %v", err)
+				}
+			} else {
+				// Success case - should return empty activities for problematic content
+				t.Logf("Successfully processed problematic content, got %d activities", len(response.Activities))
+				
+				// For problematic content, we expect either 0 activities or valid ones
+				if len(response.Activities) > 0 {
+					// If activities were extracted, they should be valid
+					for i, activity := range response.Activities {
+						if activity.Title == "" {
+							t.Errorf("Activity %d has empty title", i)
+						}
+						if activity.Type == "" {
+							t.Errorf("Activity %d has empty type", i)
+						}
+					}
+				}
+			}
+		})
 	}
 }
