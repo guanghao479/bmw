@@ -43,7 +43,7 @@ func NewOpenAIClient() *OpenAIClient {
 		client:      openai.NewClient(apiKey),
 		model:       "gpt-4o-mini",
 		temperature: 0.1,
-		maxTokens:   4000,
+		maxTokens:   8000,  // Increased to handle larger JSON responses
 	}
 }
 
@@ -122,13 +122,33 @@ func (o *OpenAIClient) ExtractActivities(content, sourceURL string) (*OpenAIExtr
 		return nil, fmt.Errorf("invalid JSON response from OpenAI: %w\nResponse: %s", err, cleanedContent)
 	}
 	
-	var activitiesData struct {
-		Activities []models.Activity `json:"activities"`
+	// Parse simplified JSON structure
+	var simplifiedData struct {
+		Activities []struct {
+			Title       string `json:"title"`
+			Description string `json:"description"`
+			Type        string `json:"type"`
+			Category    string `json:"category"`
+			AgeGroups   string `json:"age_groups"`
+			Date        string `json:"date"`
+			Time        string `json:"time"`
+			Location    string `json:"location"`
+			Price       string `json:"price"`
+			URL         string `json:"url"`
+			Image       string `json:"image"`
+		} `json:"activities"`
 	}
 
-	err = json.Unmarshal([]byte(cleanedContent), &activitiesData)
+	err = json.Unmarshal([]byte(cleanedContent), &simplifiedData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse OpenAI response JSON: %w\nResponse: %s", err, cleanedContent)
+	}
+	
+	// Convert simplified data to full Activity models
+	activitiesData := struct {
+		Activities []models.Activity
+	}{
+		Activities: o.convertSimplifiedActivities(simplifiedData.Activities, sourceURL),
 	}
 
 	// Calculate processing metrics
@@ -266,95 +286,21 @@ FAMILY TYPES:
 - "family": Designed for whole family participation
 
 OUTPUT FORMAT:
-Return a JSON object with this exact structure:
+Return a JSON object with this SIMPLIFIED structure (extract ALL activities, not just 5):
 {
   "activities": [
     {
-      "id": "",
       "title": "Activity Name",
-      "description": "Detailed description",
-      "type": "class|camp|event|performance|free-activity",
-      "category": "category from list above",
-      "subcategory": "specific subcategory if applicable",
-      "images": [
-        {
-          "url": "https://example.com/image.jpg",
-          "alt_text": "Description of image for accessibility",
-          "source_type": "event|venue|activity|gallery",
-          "width": 400,
-          "height": 300
-        }
-      ],
-      "schedule": {
-        "type": "one-time|recurring|multi-day|ongoing",
-        "start_date": "YYYY-MM-DD",
-        "end_date": "YYYY-MM-DD",
-        "start_time": "HH:MM",
-        "end_time": "HH:MM",
-        "timezone": "America/Los_Angeles",
-        "is_all_day": false,
-        "frequency": "weekly|daily|monthly",
-        "days_of_week": ["monday", "tuesday"],
-        "duration": "45 minutes",
-        "sessions": 8,
-        "times": [
-          {
-            "start_time": "HH:MM",
-            "end_time": "HH:MM",
-            "age_group": "age group from list"
-          }
-        ]
-      },
-      "age_groups": [
-        {
-          "category": "age group from list",
-          "min_age": 24,
-          "max_age": 48,
-          "unit": "months|years",
-          "description": "2-4 years"
-        }
-      ],
-      "family_type": "parent-child|drop-off|family",
-      "location": {
-        "name": "Venue Name",
-        "address": "Full street address",
-        "city": "Seattle",
-        "state": "WA",
-        "zip_code": "98101",
-        "neighborhood": "Capitol Hill",
-        "region": "Seattle Metro",
-        "latitude": 47.6062,
-        "longitude": -122.3321,
-        "venue_type": "indoor|outdoor|mixed",
-        "accessibility": "wheelchair accessible, elevator available",
-        "parking": "free|paid|street|none",
-        "public_transit": "Metro bus lines 10, 11, 49"
-      },
-      "pricing": {
-        "type": "free|paid|donation|variable",
-        "cost": 0.0,
-        "currency": "USD",
-        "unit": "session|class|month|drop-in",
-        "description": "Free with registration",
-        "includes_supplies": true
-      },
-      "registration": {
-        "required": true,
-        "method": "online|phone|in-person|walk-in",
-        "url": "https://example.com/register",
-        "deadline": "YYYY-MM-DD",
-        "status": "open|closed|waitlist|full",
-        "contact_phone": "(206) 555-0123",
-        "contact_email": "info@example.com"
-      },
-      "detail_url": "https://example.com/event-details",
-      "tags": ["music", "toddler", "parent-child"],
-      "provider": {
-        "name": "Organization Name",
-        "type": "business|nonprofit|government|library",
-        "website": "https://example.com",
-        "verified": true
-      }
+      "description": "Brief description",
+      "type": "event|class|camp|performance|free-activity",
+      "category": "arts-creativity|active-sports|educational-stem|entertainment-events|camps-programs|free-community",
+      "age_groups": "toddler, preschool|all-ages|elementary|teen",
+      "date": "2025-08-16",
+      "time": "10:00 AM - 12:00 PM",
+      "location": "Venue Name, Seattle, WA",
+      "price": "Free|$25|TBD",
+      "url": "https://registration-or-details-link.com",
+      "image": "https://image-url.jpg"
     }
   ]
 }
@@ -389,7 +335,10 @@ EXTRACTION RULES:
 - Phone numbers should be formatted consistently: (206) 555-0123
 
 ⚡ EXTRACTION PRIORITY:
-Focus on accuracy and completeness over quantity. It's better to extract fewer activities with complete, high-quality data (especially images, precise times, and working links) than many incomplete ones. Each activity should have at least one image if any are available in the content.`
+EXTRACT ALL ACTIVITIES: With the simplified 9-field format, extract every single family activity found in the content.
+Focus on capturing all available activities rather than limiting quantity. The simplified JSON structure allows for complete responses without truncation.
+
+IMPORTANT: Extract ALL activities found in the content (aim for 15-25 activities from ParentMap-style sources). Do not limit to 5 activities - the simplified format prevents JSON truncation.`
 }
 
 // buildUserPrompt creates the user prompt with content and source URL
@@ -867,4 +816,147 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// convertSimplifiedActivities converts simplified JSON to full Activity models
+func (o *OpenAIClient) convertSimplifiedActivities(simplified []struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Type        string `json:"type"`
+	Category    string `json:"category"`
+	AgeGroups   string `json:"age_groups"`
+	Date        string `json:"date"`
+	Time        string `json:"time"`
+	Location    string `json:"location"`
+	Price       string `json:"price"`
+	URL         string `json:"url"`
+	Image       string `json:"image"`
+}, sourceURL string) []models.Activity {
+	activities := make([]models.Activity, len(simplified))
+	
+	for i, simple := range simplified {
+		activity := models.Activity{
+			Title:       simple.Title,
+			Description: simple.Description,
+			Type:        simple.Type,
+			Category:    o.mapCategory(simple.Category),
+			Status:      models.ActivityStatusActive,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+			
+			// Parse schedule from simplified fields
+			Schedule: models.Schedule{
+				Type:      models.ScheduleTypeOneTime,
+				StartDate: simple.Date,
+				Timezone:  "America/Los_Angeles",
+			},
+			
+			// Parse location
+			Location: models.Location{
+				Name:   o.extractVenueName(simple.Location),
+				City:   o.extractCity(simple.Location),
+				State:  "WA",
+				Region: "Seattle Metro",
+			},
+			
+			// Parse pricing
+			Pricing: models.Pricing{
+				Type:        o.inferPricingType(simple.Price),
+				Description: simple.Price,
+				Currency:    "USD",
+			},
+			
+			// Registration/detail URL
+			Registration: models.Registration{
+				URL: simple.URL,
+			},
+			DetailURL: simple.URL,
+			
+			// Add image if provided
+			Images: o.createImageArray(simple.Image),
+			
+			// Source information
+			Source: models.Source{
+				URL:         sourceURL,
+				Domain:      o.extractDomain(sourceURL),
+				ScrapedAt:   time.Now(),
+				LastChecked: time.Now(),
+				Reliability: "high",
+			},
+		}
+		
+		// Generate ID
+		activity.ID = models.GenerateActivityID(
+			activity.Title,
+			activity.Schedule.StartDate,
+			activity.Location.Name,
+		)
+		
+		activities[i] = activity
+	}
+	
+	return activities
+}
+
+// Helper functions for conversion
+func (o *OpenAIClient) mapCategory(category string) string {
+	// Categories are stored as strings directly in the model
+	switch category {
+	case "arts-creativity":
+		return "arts-creativity"
+	case "active-sports":
+		return "active-sports"
+	case "educational-stem":
+		return "educational-stem"
+	case "entertainment-events":
+		return "entertainment-events"
+	case "camps-programs":
+		return "camps-programs"
+	case "free-community":
+		return "free-community"
+	default:
+		return "entertainment-events"
+	}
+}
+
+func (o *OpenAIClient) inferPricingType(price string) string {
+	lower := strings.ToLower(price)
+	if strings.Contains(lower, "free") {
+		return models.PricingTypeFree
+	} else if strings.Contains(lower, "$") {
+		return models.PricingTypePaid
+	} else {
+		return models.PricingTypeVariable
+	}
+}
+
+func (o *OpenAIClient) extractVenueName(location string) string {
+	// Extract venue name from "Venue Name, City, State" format
+	parts := strings.Split(location, ",")
+	if len(parts) > 0 {
+		return strings.TrimSpace(parts[0])
+	}
+	return location
+}
+
+func (o *OpenAIClient) extractCity(location string) string {
+	// Extract city from "Venue Name, City, State" format
+	parts := strings.Split(location, ",")
+	if len(parts) >= 2 {
+		return strings.TrimSpace(parts[1])
+	}
+	return "Seattle" // Default
+}
+
+func (o *OpenAIClient) createImageArray(imageURL string) []models.Image {
+	if imageURL == "" {
+		return []models.Image{}
+	}
+	return []models.Image{
+		{
+			URL:        imageURL,
+			SourceType: "event",
+			AltText:    "Event image",
+		},
+	}
 }

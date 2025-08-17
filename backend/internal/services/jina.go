@@ -1,6 +1,7 @@
 package services
 
 import (
+	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -148,8 +149,19 @@ func (j *JinaClient) attemptExtraction(url string, attempt int) (string, error) 
 		return "", fmt.Errorf("jina returned status %d: %s", resp.StatusCode, string(body))
 	}
 	
+	// Handle gzip encoding if present
+	var reader io.Reader = resp.Body
+	if resp.Header.Get("Content-Encoding") == "gzip" {
+		gzipReader, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			return "", fmt.Errorf("failed to create gzip reader: %w", err)
+		}
+		defer gzipReader.Close()
+		reader = gzipReader
+	}
+	
 	// Read response body
-	content, err := io.ReadAll(resp.Body)
+	content, err := io.ReadAll(reader)
 	if err != nil {
 		return "", fmt.Errorf("failed to read jina response: %w", err)
 	}
@@ -170,10 +182,10 @@ func (j *JinaClient) setEnhancedHeaders(req *http.Request, url string, attempt i
 	userAgent := j.userAgents[attempt%len(j.userAgents)]
 	req.Header.Set("User-Agent", userAgent)
 	
-	// Set realistic browser headers
+	// Set realistic browser headers - disable compression for debugging
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8")
 	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+	req.Header.Set("Accept-Encoding", "identity")  // Disable compression to debug encoding issues
 	req.Header.Set("DNT", "1")
 	req.Header.Set("Connection", "keep-alive")
 	req.Header.Set("Upgrade-Insecure-Requests", "1")

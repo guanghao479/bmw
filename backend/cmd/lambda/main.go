@@ -80,10 +80,10 @@ func GetSeattleSources() []SeattleSource {
 	return []SeattleSource{
 		{
 			Name:       "Seattle's Child",
-			URL:        "https://www.seattleschild.com/things-to-do-with-kids-in-seattle-this-weekend/",
+			URL:        "https://www.seattleschild.com/events-calendar/",
 			Domain:     "seattleschild.com",
 			Priority:   10,
-			Enabled:    true,
+			Enabled:    false, // Temporarily disabled due to 403 protection
 			Timeout:    90, // Increased timeout for anti-scraping protection
 			RetryCount: 3,  // More retries for 403 errors
 		},
@@ -125,7 +125,7 @@ func GetSeattleSources() []SeattleSource {
 		},
 		{
 			Name:       "PEPS Events",
-			URL:        "https://www.peps.org/calendar/",
+			URL:        "https://www.peps.org/",
 			Domain:     "peps.org",
 			Priority:   5,
 			Enabled:    true,

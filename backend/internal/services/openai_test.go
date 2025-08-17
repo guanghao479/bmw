@@ -234,8 +234,8 @@ func TestOpenAIClient_ValidateJSONResponse(t *testing.T) {
 	}
 }
 
-// TestOpenAIClient_Configuration tests client configuration
-func TestOpenAIClient_Configuration(t *testing.T) {
+// TestOpenAIClient_ConfigurationUnit tests client configuration
+func TestOpenAIClient_ConfigurationUnit(t *testing.T) {
 	// Test default configuration
 	t.Setenv("OPENAI_API_KEY", "test-key")
 	
