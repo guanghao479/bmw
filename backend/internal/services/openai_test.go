@@ -249,8 +249,8 @@ func TestOpenAIClient_ConfigurationUnit(t *testing.T) {
 		t.Errorf("Expected temperature 0.1, got %f", client.temperature)
 	}
 	
-	if client.maxTokens != 4000 {
-		t.Errorf("Expected maxTokens 4000, got %d", client.maxTokens)
+	if client.maxTokens != 8000 {
+		t.Errorf("Expected maxTokens 8000, got %d", client.maxTokens)
 	}
 	
 	// Test custom configuration

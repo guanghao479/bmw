@@ -315,6 +315,8 @@ func isAWSConnectionError(err error) bool {
 		"SignatureDoesNotMatch",
 		"AccessDenied",
 		"NoSuchBucket",
+		"PermanentRedirect",
+		"endpoint",
 	}
 	
 	for _, awsErr := range awsErrors {
