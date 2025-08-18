@@ -153,7 +153,7 @@ class FamilyEventsApp {
             title: activity.title,
             description: activity.description,
             category: this.mapCategoryToLegacy(activity.type, activity.category),
-            image: this.generateImageUrl(activity.category, activity.subcategory),
+            image: this.getActivityImage(activity),
             date: this.formatSchedule(activity.schedule),
             time: this.formatTime(activity.schedule),
             location: activity.location?.name || activity.location?.address || 'Location TBD',
@@ -188,6 +188,21 @@ class FamilyEventsApp {
         
         const imageId = imageMap[category] || imageMap['entertainment-events'];
         return `https://images.unsplash.com/${imageId}?w=400&h=300&fit=crop`;
+    }
+
+    // Get activity image - use real image if available, fallback to generated
+    getActivityImage(activity) {
+        // Check if activity has real images from scraping
+        if (activity.images && activity.images.length > 0) {
+            // Use the first available image
+            const realImage = activity.images[0];
+            if (realImage && realImage.url && realImage.url.startsWith('http')) {
+                return realImage.url;
+            }
+        }
+        
+        // Fallback to category-based Unsplash image
+        return this.generateImageUrl(activity.category, activity.subcategory);
     }
 
     // Format schedule for display
