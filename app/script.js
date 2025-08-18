@@ -1,3 +1,37 @@
+// Simple Router for SPA Navigation
+class Router {
+    constructor(app) {
+        this.app = app;
+        this.routes = {
+            '': () => this.app.showListView(),
+            'activity': (id) => this.app.showDetailView(id)
+        };
+        
+        // Listen for hash changes
+        window.addEventListener('hashchange', () => this.handleRoute());
+        window.addEventListener('load', () => this.handleRoute());
+    }
+    
+    handleRoute() {
+        const hash = window.location.hash.slice(1); // Remove #
+        const [route, param] = hash.split('/');
+        
+        if (this.routes[route]) {
+            this.routes[route](param);
+        } else {
+            this.routes['']();
+        }
+    }
+    
+    navigate(path) {
+        window.location.hash = path;
+    }
+    
+    back() {
+        window.history.back();
+    }
+}
+
 // Family Events App - Dynamic Content Loading and Interaction
 class FamilyEventsApp {
     constructor() {
@@ -7,6 +41,8 @@ class FamilyEventsApp {
         this.lastUpdated = null;
         this.refreshInterval = null;
         this.config = this.loadConfiguration();
+        this.router = new Router(this);
+        this.currentView = 'list'; // 'list' or 'detail'
         
         this.init();
     }
@@ -142,6 +178,9 @@ class FamilyEventsApp {
 
         this.lastUpdated = data.metadata?.lastUpdated || new Date().toISOString();
         
+        // Store original data for detail page access
+        this.originalData = data;
+        
         // Convert new schema activities to legacy format for existing UI compatibility
         this.allData = data.activities.map(activity => this.convertToLegacyFormat(activity));
     }
@@ -159,7 +198,8 @@ class FamilyEventsApp {
             location: activity.location?.name || activity.location?.address || 'Location TBD',
             price: this.formatPrice(activity.pricing),
             age_range: this.formatAgeRange(activity.ageGroups),
-            featured: activity.featured || false
+            featured: activity.featured || false,
+            detail_url: activity.detailURL || activity.registration?.url || null
         };
     }
 
@@ -305,17 +345,50 @@ class FamilyEventsApp {
     // Load sample data as final fallback
     loadSampleData() {
         const sampleData = {
+            metadata: {
+                lastUpdated: new Date().toISOString(),
+                totalActivities: 1,
+                sources: ['sample'],
+                nextUpdate: new Date().toISOString(),
+                version: '1.0.0',
+                region: 'Seattle',
+                coverage: 'sample'
+            },
             activities: [
                 {
                     id: 'sample_1',
                     title: 'Sample Family Event',
-                    description: 'This is sample data. The app will load real Seattle activities when connected.',
+                    description: 'This is sample data. The app will load real Seattle activities when connected. Click to see the detail page!',
                     type: 'event',
                     category: 'entertainment-events',
-                    schedule: { type: 'one-time', startDate: '2025-08-15', times: [{ startTime: '10:00', endTime: '16:00' }] },
-                    location: { name: 'Sample Location', address: 'Seattle, WA' },
-                    pricing: { type: 'free' },
-                    ageGroups: [{ description: 'All ages' }],
+                    schedule: { 
+                        type: 'one-time', 
+                        startDate: '2025-08-15', 
+                        times: [{ startTime: '10:00', endTime: '16:00' }],
+                        duration: '6 hours'
+                    },
+                    location: { 
+                        name: 'Sample Location', 
+                        address: '123 Sample St, Seattle, WA 98101',
+                        neighborhood: 'Capitol Hill',
+                        parking: 'Street parking available'
+                    },
+                    pricing: { 
+                        type: 'free',
+                        description: 'Free for all families' 
+                    },
+                    registration: {
+                        required: false,
+                        status: 'open',
+                        method: 'walk-in'
+                    },
+                    provider: {
+                        name: 'Sample Organization',
+                        type: 'community',
+                        description: 'A sample community organization'
+                    },
+                    ageGroups: [{ description: 'All ages', category: 'all-ages' }],
+                    tags: ['sample', 'demo', 'family-friendly'],
                     featured: true
                 }
             ]
@@ -441,6 +514,14 @@ class FamilyEventsApp {
                 this.handleCardClick(card);
             }
         });
+
+        // Breadcrumb back button
+        const breadcrumbBack = document.getElementById('breadcrumbBack');
+        if (breadcrumbBack) {
+            breadcrumbBack.addEventListener('click', () => {
+                this.router.navigate('');
+            });
+        }
 
         // Add manual refresh button
         this.addRefreshButton();
@@ -611,53 +692,402 @@ class FamilyEventsApp {
 
     // Handle card click interactions
     handleCardClick(card) {
-        const itemId = parseInt(card.dataset.id);
-        const item = this.allData.find(i => i.id === itemId);
-        
-        if (item) {
-            this.showItemDetails(item);
-        }
+        const itemId = card.dataset.id;
+        this.router.navigate(`activity/${itemId}`);
     }
 
-    // Show detailed view of an item (mock implementation)
-    showItemDetails(item) {
-        // Create a modal or detailed view
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay';
-        modal.innerHTML = `
-            <div class="modal-content">
-                <button class="modal-close">&times;</button>
-                <img src="${item.image}" alt="${item.title}" class="modal-image">
-                <div class="modal-info">
-                    <h2>${item.title}</h2>
-                    <p class="modal-description">${item.description}</p>
-                    <div class="modal-details">
-                        <p><strong>📅 When:</strong> ${item.date} at ${item.time}</p>
-                        <p><strong>📍 Where:</strong> ${item.location}</p>
-                        <p><strong>💰 Price:</strong> ${item.price}</p>
-                        ${item.age_range ? `<p><strong>👶 Age Range:</strong> ${item.age_range}</p>` : ''}
+    // Show list view
+    showListView() {
+        this.currentView = 'list';
+        document.querySelector('.container').style.display = 'block';
+        document.getElementById('detailPage').classList.remove('show');
+        setTimeout(() => {
+            document.getElementById('detailPage').style.display = 'none';
+        }, 300);
+    }
+    
+    // Show detail view for specific activity
+    showDetailView(activityId) {
+        const item = this.allData.find(i => i.id == activityId);
+        
+        if (!item) {
+            console.error('Activity not found:', activityId);
+            this.router.navigate('');
+            return;
+        }
+        
+        this.currentView = 'detail';
+        this.renderDetailPage(item);
+        
+        // Hide list view and show detail page
+        document.querySelector('.container').style.display = 'none';
+        const detailPage = document.getElementById('detailPage');
+        detailPage.style.display = 'block';
+        setTimeout(() => detailPage.classList.add('show'), 10);
+    }
+    
+    // Render the detail page content
+    renderDetailPage(item) {
+        const detailContent = document.getElementById('detailContent');
+        
+        // Get original activity data from backend if available
+        const originalActivity = this.getOriginalActivityData(item.id);
+        
+        detailContent.innerHTML = `
+            <div class="detail-header">
+                <div class="detail-image-container">
+                    <img src="${item.image}" alt="${item.title}" class="detail-image" 
+                         onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0xNzUgMTI1SDE0MFYxNzVIMTc1VjE1MEgyMjVWMTc1SDI2MFYxMjVIMjI1VjEwMEgxNzVWMTI1WiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4K'; this.onerror=null;">
+                    ${this.renderImageGallery(originalActivity)}
+                </div>
+                
+                <div class="detail-category">${this.formatCategory(item.category)}</div>
+                <h1 class="detail-title">${item.title}</h1>
+                <p class="detail-description">${item.description}</p>
+            </div>
+            
+            ${this.renderScheduleSection(originalActivity || item)}
+            ${this.renderLocationSection(originalActivity || item)}
+            ${this.renderPricingSection(originalActivity || item)}
+            ${this.renderRegistrationSection(originalActivity || item)}
+            ${this.renderProviderSection(originalActivity)}
+            ${this.renderAdditionalInfo(originalActivity || item)}
+        `;
+    }
+    
+    // Get original activity data from the backend if available
+    getOriginalActivityData(itemId) {
+        // Try to find the original activity data from the backend
+        if (this.originalData && this.originalData.activities) {
+            return this.originalData.activities.find(a => a.id == itemId);
+        }
+        return null;
+    }
+    
+    // Render image gallery if multiple images available
+    renderImageGallery(originalActivity) {
+        if (!originalActivity || !originalActivity.images || originalActivity.images.length <= 1) {
+            return '';
+        }
+        
+        const thumbnails = originalActivity.images.slice(1).map((img, index) => 
+            `<img src="${img.url}" alt="${img.altText || ''}" 
+                 class="detail-image-thumbnail" 
+                 onclick="this.closest('.detail-image-container').querySelector('.detail-image').src='${img.url}'">`
+        ).join('');
+        
+        return `<div class="detail-image-gallery">${thumbnails}</div>`;
+    }
+    
+    // Render schedule section
+    renderScheduleSection(item) {
+        const schedule = item.schedule || {};
+        const times = schedule.times || [];
+        
+        let scheduleContent = `
+            <div class="detail-info-grid">
+                <div class="detail-info-item">
+                    <div class="detail-info-label">Date</div>
+                    <div class="detail-info-value">${item.date || schedule.startDate || 'TBD'}</div>
+                </div>
+                <div class="detail-info-item">
+                    <div class="detail-info-label">Time</div>
+                    <div class="detail-info-value">${item.time || this.formatTime(schedule)}</div>
+                </div>
+        `;
+        
+        if (schedule.type) {
+            scheduleContent += `
+                <div class="detail-info-item">
+                    <div class="detail-info-label">Schedule Type</div>
+                    <div class="detail-info-value">${this.formatScheduleType(schedule.type)}</div>
+                </div>
+            `;
+        }
+        
+        if (schedule.duration) {
+            scheduleContent += `
+                <div class="detail-info-item">
+                    <div class="detail-info-label">Duration</div>
+                    <div class="detail-info-value">${schedule.duration}</div>
+                </div>
+            `;
+        }
+        
+        scheduleContent += `</div>`;
+        
+        // Add time slots if available
+        if (times.length > 1) {
+            const timeSlots = times.map(time => 
+                `<div class="schedule-time">
+                    ${time.startTime} - ${time.endTime}
+                    ${time.ageGroup ? `<br><small>${time.ageGroup}</small>` : ''}
+                </div>`
+            ).join('');
+            
+            scheduleContent += `
+                <div class="schedule-times">
+                    ${timeSlots}
+                </div>
+            `;
+        }
+        
+        return `
+            <div class="detail-section">
+                <h3 class="detail-section-title">
+                    📅 Schedule & Timing
+                </h3>
+                ${scheduleContent}
+            </div>
+        `;
+    }
+    
+    // Render location section
+    renderLocationSection(item) {
+        const location = item.location || {};
+        
+        return `
+            <div class="detail-section">
+                <h3 class="detail-section-title">
+                    📍 Location
+                </h3>
+                <div class="detail-info-grid">
+                    <div class="detail-info-item">
+                        <div class="detail-info-label">Venue</div>
+                        <div class="detail-info-value">${location.name || item.location || 'TBD'}</div>
                     </div>
-                    <button class="modal-cta">Learn More</button>
+                    ${location.address ? `
+                    <div class="detail-info-item">
+                        <div class="detail-info-label">Address</div>
+                        <div class="detail-info-value">${location.address}</div>
+                    </div>
+                    ` : ''}
+                    ${location.neighborhood ? `
+                    <div class="detail-info-item">
+                        <div class="detail-info-label">Neighborhood</div>
+                        <div class="detail-info-value">${location.neighborhood}</div>
+                    </div>
+                    ` : ''}
+                    ${location.parking ? `
+                    <div class="detail-info-item">
+                        <div class="detail-info-label">Parking</div>
+                        <div class="detail-info-value">${location.parking}</div>
+                    </div>
+                    ` : ''}
+                    ${location.accessibility ? `
+                    <div class="detail-info-item">
+                        <div class="detail-info-label">Accessibility</div>
+                        <div class="detail-info-value">${location.accessibility}</div>
+                    </div>
+                    ` : ''}
                 </div>
             </div>
         `;
-
-        document.body.appendChild(modal);
-
-        // Add modal styles if not already present
-        if (!document.querySelector('#modal-styles')) {
-            this.addModalStyles();
+    }
+    
+    // Render pricing section
+    renderPricingSection(item) {
+        const pricing = item.pricing || {};
+        
+        let pricingContent = `
+            <div class="pricing-details">
+                <div class="price-main">${item.price || this.formatPrice(pricing)}</div>
+        `;
+        
+        if (pricing.description) {
+            pricingContent += `<div class="price-description">${pricing.description}</div>`;
         }
-
-        // Close modal functionality
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal || e.target.classList.contains('modal-close')) {
-                modal.remove();
-            }
-        });
-
-        // Animate modal in
-        setTimeout(() => modal.classList.add('show'), 10);
+        
+        if (pricing.includesSupplies) {
+            pricingContent += `<div class="price-description">✅ Supplies included</div>`;
+        }
+        
+        // Add discounts if available
+        if (pricing.discounts && pricing.discounts.length > 0) {
+            const discounts = pricing.discounts.map(discount => 
+                `<span class="discount-item">${discount.description || discount.type}</span>`
+            ).join('');
+            
+            pricingContent += `
+                <div class="discounts-list">
+                    <strong>Available Discounts:</strong><br>
+                    ${discounts}
+                </div>
+            `;
+        }
+        
+        pricingContent += `</div>`;
+        
+        return `
+            <div class="detail-section">
+                <h3 class="detail-section-title">
+                    💰 Pricing
+                </h3>
+                ${pricingContent}
+            </div>
+        `;
+    }
+    
+    // Render registration section
+    renderRegistrationSection(item) {
+        const registration = item.registration || {};
+        
+        let registrationContent = `
+            <div class="detail-info-grid">
+                <div class="detail-info-item">
+                    <div class="detail-info-label">Registration</div>
+                    <div class="detail-info-value">
+                        ${registration.required !== false ? 'Required' : 'Not Required'}
+                    </div>
+                </div>
+        `;
+        
+        if (registration.status) {
+            registrationContent += `
+                <div class="detail-info-item">
+                    <div class="detail-info-label">Status</div>
+                    <div class="detail-info-value">
+                        <span class="registration-status ${registration.status}">
+                            ${this.formatRegistrationStatus(registration.status)}
+                        </span>
+                    </div>
+                </div>
+            `;
+        }
+        
+        if (registration.deadline) {
+            registrationContent += `
+                <div class="detail-info-item">
+                    <div class="detail-info-label">Deadline</div>
+                    <div class="detail-info-value">${registration.deadline}</div>
+                </div>
+            `;
+        }
+        
+        registrationContent += `</div>`;
+        
+        // Add contact methods
+        if (registration.phone || registration.email || registration.url) {
+            registrationContent += `
+                <div class="contact-methods">
+                    ${registration.url ? `
+                        <a href="${registration.url}" target="_blank" class="contact-method">
+                            🌐 Register Online
+                        </a>
+                    ` : ''}
+                    ${registration.phone ? `
+                        <a href="tel:${registration.phone}" class="contact-method">
+                            📞 ${registration.phone}
+                        </a>
+                    ` : ''}
+                    ${registration.email ? `
+                        <a href="mailto:${registration.email}" class="contact-method">
+                            ✉️ ${registration.email}
+                        </a>
+                    ` : ''}
+                </div>
+            `;
+        }
+        
+        return `
+            <div class="detail-section">
+                <h3 class="detail-section-title">
+                    📝 Registration
+                </h3>
+                ${registrationContent}
+            </div>
+        `;
+    }
+    
+    // Render provider section
+    renderProviderSection(originalActivity) {
+        if (!originalActivity || !originalActivity.provider) {
+            return '';
+        }
+        
+        const provider = originalActivity.provider;
+        
+        return `
+            <div class="detail-section">
+                <h3 class="detail-section-title">
+                    🏢 About the Provider
+                </h3>
+                <div class="provider-info">
+                    <div class="provider-logo">
+                        ${provider.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div class="provider-details">
+                        <h4>${provider.name}</h4>
+                        <p>${provider.description || provider.type}</p>
+                        ${provider.website ? `
+                            <a href="${provider.website}" target="_blank" class="contact-method">
+                                🌐 Visit Website
+                            </a>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Render additional information
+    renderAdditionalInfo(item) {
+        let content = '';
+        
+        // Age groups
+        if (item.age_range || (item.ageGroups && item.ageGroups.length > 0)) {
+            const ageGroups = item.ageGroups ? 
+                item.ageGroups.map(ag => ag.description || ag.category).join(', ') : 
+                item.age_range;
+                
+            content += `
+                <div class="detail-section">
+                    <h3 class="detail-section-title">
+                        👶 Age Groups
+                    </h3>
+                    <div class="age-groups">
+                        ${ageGroups.split(',').map(age => `<span class="age-group">${age.trim()}</span>`).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Tags
+        if (item.tags && item.tags.length > 0) {
+            content += `
+                <div class="detail-section">
+                    <h3 class="detail-section-title">
+                        🏷️ Tags
+                    </h3>
+                    <div class="tags-container">
+                        ${item.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        
+        return content;
+    }
+    
+    // Helper methods for formatting
+    formatScheduleType(type) {
+        const typeMap = {
+            'one-time': 'One-time Event',
+            'recurring': 'Recurring',
+            'multi-day': 'Multi-day',
+            'ongoing': 'Ongoing'
+        };
+        return typeMap[type] || type;
+    }
+    
+    formatRegistrationStatus(status) {
+        const statusMap = {
+            'open': '✅ Open',
+            'waitlist': '⏳ Waitlist',
+            'closed': '❌ Closed',
+            'sold-out': '🎫 Sold Out'
+        };
+        return statusMap[status] || status;
     }
 
     // Add modal styles
