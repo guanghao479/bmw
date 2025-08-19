@@ -607,7 +607,7 @@ class FamilyEventsApp {
                     <p class="card-description">${item.description}</p>
                     <div class="card-meta">
                         <div>
-                            <div class="card-date">${this.formatDate(item.date)} • ${item.time}</div>
+                            <div class="card-date">${this.formatDate(this.getActivityDate(item))} • ${item.time}</div>
                             <div class="card-location">📍 ${item.location}</div>
                             ${item.age_range ? `<div class="card-age">👶 ${item.age_range}</div>` : ''}
                         </div>
@@ -630,13 +630,29 @@ class FamilyEventsApp {
 
     // Format date for display
     formatDate(dateString) {
+        if (!dateString) {
+            return 'TBD';
+        }
+        
         // Handle recurring dates
         if (dateString.includes('day')) {
             return dateString;
         }
         
         try {
-            const date = new Date(dateString);
+            // Handle YYYY-MM-DD format safely to avoid timezone issues
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+                const [year, month, day] = dateString.split('-');
+                const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                return date.toLocaleDateString('en-US', {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric'
+                });
+            }
+            
+            // Fallback for other date formats
+            const date = new Date(dateString + 'T12:00:00'); // Add noon to avoid timezone shifts
             return date.toLocaleDateString('en-US', {
                 weekday: 'short',
                 month: 'short',
