@@ -352,10 +352,22 @@ class FamilyEventsApp {
 
     // Load sample data as final fallback
     loadSampleData() {
+        // Generate dates
+        const todayDate = this.getTodayDateString();
+        const tomorrowDate = this.getTomorrowDateString();
+        const weekendDate = this.getWeekendDateString();
+        
+        if (this.config.debugMode) {
+            console.log('Sample data dates generated:');
+            console.log(`  Today: ${todayDate}`);
+            console.log(`  Tomorrow: ${tomorrowDate}`);
+            console.log(`  Weekend: ${weekendDate}`);
+        }
+        
         const sampleData = {
             metadata: {
                 lastUpdated: new Date().toISOString(),
-                totalActivities: 1,
+                totalActivities: 3,
                 sources: ['sample'],
                 nextUpdate: new Date().toISOString(),
                 version: '1.0.0',
@@ -365,18 +377,18 @@ class FamilyEventsApp {
             activities: [
                 {
                     id: 'sample_1',
-                    title: 'Sample Family Event',
-                    description: 'This is sample data. The app will load real Seattle activities when connected. Click to see the detail page!',
+                    title: 'Today\'s Family Event',
+                    description: 'This is sample data for today. The app will load real Seattle activities when connected.',
                     type: 'event',
                     category: 'entertainment-events',
                     schedule: { 
                         type: 'one-time', 
-                        startDate: new Date().toISOString().split('T')[0], // Today's date
+                        startDate: todayDate, // Today's date
                         times: [{ startTime: '10:00', endTime: '16:00' }],
                         duration: '6 hours'
                     },
                     location: { 
-                        name: 'Sample Location', 
+                        name: 'Today Sample Location', 
                         address: '123 Sample St, Seattle, WA 98101',
                         neighborhood: 'Capitol Hill',
                         parking: 'Street parking available'
@@ -398,6 +410,69 @@ class FamilyEventsApp {
                     ageGroups: [{ description: 'All ages', category: 'all-ages' }],
                     tags: ['sample', 'demo', 'family-friendly'],
                     featured: true
+                },
+                {
+                    id: 'sample_2',
+                    title: 'Tomorrow\'s Weekend Fun',
+                    description: 'Sample activity for tomorrow to test date filtering.',
+                    type: 'activity',
+                    category: 'active-sports',
+                    schedule: { 
+                        type: 'one-time', 
+                        startDate: tomorrowDate, // Tomorrow's date
+                        times: [{ startTime: '09:00', endTime: '12:00' }],
+                        duration: '3 hours'
+                    },
+                    location: { 
+                        name: 'Tomorrow Sample Park', 
+                        address: '456 Park Ave, Seattle, WA 98102',
+                        neighborhood: 'Fremont'
+                    },
+                    pricing: { 
+                        type: 'paid',
+                        cost: 15,
+                        currency: 'USD',
+                        unit: 'per-person'
+                    },
+                    registration: {
+                        required: true,
+                        status: 'open',
+                        method: 'online'
+                    },
+                    ageGroups: [{ description: '5-12 years', category: 'elementary' }],
+                    tags: ['sample', 'sports', 'kids'],
+                    featured: false
+                },
+                {
+                    id: 'sample_3',
+                    title: 'Weekend Workshop',
+                    description: 'Sample weekend activity to test weekend highlighting.',
+                    type: 'class',
+                    category: 'arts-creativity',
+                    schedule: { 
+                        type: 'one-time', 
+                        startDate: weekendDate, // Next weekend
+                        times: [{ startTime: '14:00', endTime: '17:00' }],
+                        duration: '3 hours'
+                    },
+                    location: { 
+                        name: 'Weekend Art Studio', 
+                        address: '789 Creative Blvd, Seattle, WA 98103'
+                    },
+                    pricing: { 
+                        type: 'paid',
+                        cost: 25,
+                        currency: 'USD',
+                        unit: 'per-person'
+                    },
+                    registration: {
+                        required: true,
+                        status: 'open',
+                        method: 'online'
+                    },
+                    ageGroups: [{ description: 'All ages', category: 'all-ages' }],
+                    tags: ['sample', 'arts', 'weekend'],
+                    featured: false
                 }
             ]
         };
@@ -1130,7 +1205,12 @@ class FamilyEventsApp {
             const date = new Date(today);
             date.setDate(today.getDate() + i);
             
-            const dateString = date.toISOString().split('T')[0]; // YYYY-MM-DD
+            // Use local date conversion to avoid timezone issues
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const dateString = `${year}-${month}-${day}`;
+            
             const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
             const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
             const isToday = i === 0;
@@ -1171,9 +1251,53 @@ class FamilyEventsApp {
             if (tab.date === 'all') {
                 tab.count = this.allData.length;
             } else {
-                tab.count = this.allData.filter(item => this.getActivityDate(item) === tab.date).length;
+                const activitiesForDate = this.allData.filter(item => {
+                    const itemDate = this.getActivityDate(item);
+                    return itemDate === tab.date;
+                });
+                tab.count = activitiesForDate.length;
+                
+                // Debug logging for sample data
+                if (this.config.debugMode && activitiesForDate.length > 0) {
+                    console.log(`Date tab ${tab.date} (${tab.label}): ${tab.count} activities`);
+                    activitiesForDate.forEach(activity => {
+                        console.log(`  - ${activity.title} (date: ${this.getActivityDate(activity)})`);
+                    });
+                }
             }
         });
+    }
+    
+    // Get today's date string in YYYY-MM-DD format (local timezone)
+    getTodayDateString() {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+    
+    // Get tomorrow's date string in YYYY-MM-DD format
+    getTomorrowDateString() {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const year = tomorrow.getFullYear();
+        const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+        const day = String(tomorrow.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+    
+    // Get next weekend date string (Saturday) in YYYY-MM-DD format
+    getWeekendDateString() {
+        const today = new Date();
+        const daysUntilSaturday = (6 - today.getDay() + 7) % 7; // Days until next Saturday
+        const saturday = new Date(today);
+        saturday.setDate(today.getDate() + (daysUntilSaturday === 0 ? 7 : daysUntilSaturday)); // If today is Saturday, get next Saturday
+        
+        const year = saturday.getFullYear();
+        const month = String(saturday.getMonth() + 1).padStart(2, '0');
+        const day = String(saturday.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     }
     
     // Get activity date in YYYY-MM-DD format
@@ -1184,16 +1308,28 @@ class FamilyEventsApp {
             return originalActivity.schedule.startDate;
         }
         
-        // Fallback to parsing from formatted date
+        // Fallback to parsing from formatted date in legacy data
         if (item.date && item.date !== 'TBD' && !item.date.includes('day')) {
             try {
-                // Try to parse the date string
-                const parsedDate = new Date(item.date);
+                // Handle different date formats
+                let parsedDate;
+                
+                // If it's already in YYYY-MM-DD format
+                if (/^\d{4}-\d{2}-\d{2}$/.test(item.date)) {
+                    return item.date;
+                }
+                
+                // Try to parse other formats
+                parsedDate = new Date(item.date);
                 if (!isNaN(parsedDate.getTime())) {
-                    return parsedDate.toISOString().split('T')[0];
+                    // Convert to local date string to avoid timezone issues
+                    const year = parsedDate.getFullYear();
+                    const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+                    const day = String(parsedDate.getDate()).padStart(2, '0');
+                    return `${year}-${month}-${day}`;
                 }
             } catch (e) {
-                // Ignore parsing errors
+                console.warn('Error parsing date:', item.date, e);
             }
         }
         
