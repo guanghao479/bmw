@@ -553,28 +553,7 @@ class FamilyEventsApp {
     // Render all content
     renderContent() {
         const filteredData = this.getFilteredData();
-        
-        // Separate featured and regular items
-        const featuredItems = filteredData.filter(item => item.featured);
-        const regularItems = filteredData.filter(item => !item.featured);
-
-        this.renderFeaturedSection(featuredItems);
-        this.renderMainContent(regularItems);
-    }
-
-    // Render featured section
-    renderFeaturedSection(featuredItems) {
-        const featuredGrid = document.getElementById('featuredGrid');
-        
-        if (featuredItems.length === 0) {
-            featuredGrid.innerHTML = '<p>No featured items match your criteria.</p>';
-            return;
-        }
-
-        featuredGrid.innerHTML = featuredItems
-            .slice(0, 4) // Limit to 4 featured items
-            .map(item => this.createCardHTML(item, true))
-            .join('');
+        this.renderMainContent(filteredData);
     }
 
     // Render main content
@@ -597,12 +576,11 @@ class FamilyEventsApp {
     }
 
     // Create HTML for a single card
-    createCardHTML(item, isFeatured = false) {
+    createCardHTML(item) {
         const categoryClass = `category-${item.category}`;
-        const featuredClass = isFeatured ? 'featured' : '';
         
         return `
-            <div class="card ${featuredClass}" data-id="${item.id}">
+            <div class="card" data-id="${item.id}">
                 <img src="${item.image}" alt="${item.title}" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0xNzUgMTI1SDE0MFYxNzVIMTc1VjE1MEgyMjVWMTc1SDI2MFYxMjVIMjI1VjEwMEgxNzVWMTI1WiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4K'; this.onerror=null;">
                 <div class="card-content">
                     <span class="card-category ${categoryClass}">${this.formatCategory(item.category)}</span>
