@@ -900,3 +900,220 @@ body {
         height: 160px;
     }
 }
+
+/* Date Tabs Navigation */
+.date-tabs-section {
+    margin: var(--space-6) 0 var(--space-4) 0;
+}
+
+.date-tabs-container {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    max-width: 100%;
+    position: relative;
+}
+
+.date-nav-btn {
+    background: var(--bg-primary);
+    border: 1px solid var(--neutral-200);
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-lg);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    z-index: 10;
+}
+
+.date-nav-btn:hover {
+    background: var(--neutral-100);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+}
+
+.date-nav-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.date-tabs-scroll {
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.date-tabs-scroll::-webkit-scrollbar {
+    display: none;
+}
+
+.date-tabs {
+    display: flex;
+    gap: var(--space-1);
+    padding: var(--space-1) 0;
+    min-width: min-content;
+}
+
+.date-tab {
+    background: var(--bg-primary);
+    border: 1px solid var(--neutral-200);
+    border-radius: var(--radius-lg);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    position: relative;
+}
+
+.date-tab:hover {
+    background: var(--neutral-100);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+.date-tab.active {
+    background: var(--primary);
+    color: var(--text-inverse);
+    border-color: var(--primary);
+    font-weight: var(--font-weight-semibold);
+}
+
+.date-tab.today {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+    color: var(--text-inverse);
+    border-color: var(--primary);
+    font-weight: var(--font-weight-semibold);
+    box-shadow: var(--shadow-md);
+}
+
+.date-tab.weekend {
+    background: linear-gradient(135deg, #e0e7ff 0%, #cffafe 100%);
+    color: #4338ca;
+    border-color: #c7d2fe;
+}
+
+.date-tab.weekend:hover {
+    background: linear-gradient(135deg, #c7d2fe 0%, #a5f3fc 100%);
+    color: #3730a3;
+}
+
+.date-tab.weekend.active {
+    background: linear-gradient(135deg, #4338ca 0%, #0891b2 100%);
+    color: var(--text-inverse);
+    border-color: #4338ca;
+}
+
+.date-tab.no-activities {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.date-tab.no-activities:hover {
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    transform: none;
+    box-shadow: none;
+}
+
+/* Activity count badge */
+.date-tab .count {
+    background: rgba(0, 0, 0, 0.15);
+    color: inherit;
+    padding: 1px var(--space-1);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    min-width: 16px;
+    text-align: center;
+    line-height: 1.2;
+}
+
+.date-tab.active .count,
+.date-tab.today .count {
+    background: rgba(255, 255, 255, 0.25);
+    color: var(--text-inverse);
+}
+
+.date-tab.weekend .count {
+    background: rgba(67, 56, 202, 0.2);
+    color: #3730a3;
+}
+
+.date-tab.weekend.active .count {
+    background: rgba(255, 255, 255, 0.25);
+    color: var(--text-inverse);
+}
+
+/* Responsive adjustments for date tabs */
+@media (max-width: 768px) {
+    .date-tabs-container {
+        gap: var(--space-1);
+    }
+    
+    .date-nav-btn {
+        padding: var(--space-1) var(--space-2);
+        font-size: var(--font-size-base);
+    }
+    
+    .date-tab {
+        padding: var(--space-1) var(--space-2);
+        font-size: var(--font-size-xs);
+    }
+}
+
+@media (max-width: 480px) {
+    .date-tabs-section {
+        margin: var(--space-4) 0 var(--space-3) 0;
+    }
+    
+    .date-tab {
+        min-width: 60px;
+        justify-content: center;
+    }
+    
+    .date-tab .count {
+        font-size: 10px;
+    }
+}
+
+/* Loading state for date tabs */
+.date-tabs.loading {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+/* Smooth scroll indicators */
+.date-tabs-scroll::before,
+.date-tabs-scroll::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 20px;
+    pointer-events: none;
+    z-index: 5;
+    transition: opacity 0.3s ease;
+}
+
+.date-tabs-scroll::before {
+    left: 0;
+    background: linear-gradient(to right, var(--bg-primary), transparent);
+}
+
+.date-tabs-scroll::after {
+    right: 0;
+    background: linear-gradient(to left, var(--bg-primary), transparent);
+}

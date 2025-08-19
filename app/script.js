@@ -43,6 +43,9 @@ class FamilyEventsApp {
         this.config = this.loadConfiguration();
         this.router = new Router(this);
         this.currentView = 'list'; // 'list' or 'detail'
+        this.selectedDate = 'all'; // 'all' or specific date (YYYY-MM-DD)
+        this.dateTabs = [];
+        this.currentTabIndex = 0;
         
         this.init();
     }
@@ -183,6 +186,11 @@ class FamilyEventsApp {
         
         // Convert new schema activities to legacy format for existing UI compatibility
         this.allData = data.activities.map(activity => this.convertToLegacyFormat(activity));
+        
+        // Update date tabs when data changes
+        if (this.dateTabs && this.dateTabs.length > 0) {
+            this.updateDateTabsDisplay();
+        }
     }
 
     // Convert new activity schema to legacy format
@@ -363,7 +371,7 @@ class FamilyEventsApp {
                     category: 'entertainment-events',
                     schedule: { 
                         type: 'one-time', 
-                        startDate: '2025-08-15', 
+                        startDate: new Date().toISOString().split('T')[0], // Today's date
                         times: [{ startTime: '10:00', endTime: '16:00' }],
                         duration: '6 hours'
                     },
@@ -525,6 +533,9 @@ class FamilyEventsApp {
 
         // Add manual refresh button
         this.addRefreshButton();
+        
+        // Setup date tabs
+        this.setupDateTabs();
     }
 
     // Add manual refresh button
@@ -585,8 +596,11 @@ class FamilyEventsApp {
                                 item.title.toLowerCase().includes(this.searchTerm) ||
                                 item.description.toLowerCase().includes(this.searchTerm) ||
                                 item.location.toLowerCase().includes(this.searchTerm);
+            
+            // Filter by selected date
+            const matchesDate = this.selectedDate === 'all' || this.getActivityDate(item) === this.selectedDate;
 
-            return matchesFilter && matchesSearch;
+            return matchesFilter && matchesSearch && matchesDate;
         });
     }
 
@@ -1088,6 +1102,189 @@ class FamilyEventsApp {
             'sold-out': '🎫 Sold Out'
         };
         return statusMap[status] || status;
+    }
+    
+    // Setup date tabs functionality
+    setupDateTabs() {
+        this.generateDateTabs();
+        this.setupDateTabsEventListeners();
+        this.updateDateTabsDisplay();
+    }
+    
+    // Generate date tabs for the next 30 days
+    generateDateTabs() {
+        const today = new Date();
+        this.dateTabs = [];
+        
+        // Add "All Dates" tab
+        this.dateTabs.push({
+            date: 'all',
+            label: 'All Dates',
+            isToday: false,
+            isWeekend: false,
+            count: 0
+        });
+        
+        // Generate tabs for next 30 days
+        for (let i = 0; i < 30; i++) {
+            const date = new Date(today);
+            date.setDate(today.getDate() + i);
+            
+            const dateString = date.toISOString().split('T')[0]; // YYYY-MM-DD
+            const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+            const isToday = i === 0;
+            const isTomorrow = i === 1;
+            
+            let label;
+            if (isToday) {
+                label = 'Today';
+            } else if (isTomorrow) {
+                label = 'Tomorrow';
+            } else {
+                // Format label based on proximity
+                if (i < 7) {
+                    // This week: "Mon 18", "Tue 19"
+                    label = date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' });
+                } else {
+                    // Future weeks: "Nov 25", "Dec 2"
+                    label = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                }
+            }
+            
+            this.dateTabs.push({
+                date: dateString,
+                label: label,
+                isToday: isToday,
+                isWeekend: isWeekend,
+                count: 0
+            });
+        }
+        
+        // Update activity counts for each date
+        this.updateDateTabCounts();
+    }
+    
+    // Update activity counts for each date tab
+    updateDateTabCounts() {
+        this.dateTabs.forEach(tab => {
+            if (tab.date === 'all') {
+                tab.count = this.allData.length;
+            } else {
+                tab.count = this.allData.filter(item => this.getActivityDate(item) === tab.date).length;
+            }
+        });
+    }
+    
+    // Get activity date in YYYY-MM-DD format
+    getActivityDate(item) {
+        // Try to get date from original activity data
+        const originalActivity = this.getOriginalActivityData(item.id);
+        if (originalActivity && originalActivity.schedule && originalActivity.schedule.startDate) {
+            return originalActivity.schedule.startDate;
+        }
+        
+        // Fallback to parsing from formatted date
+        if (item.date && item.date !== 'TBD' && !item.date.includes('day')) {
+            try {
+                // Try to parse the date string
+                const parsedDate = new Date(item.date);
+                if (!isNaN(parsedDate.getTime())) {
+                    return parsedDate.toISOString().split('T')[0];
+                }
+            } catch (e) {
+                // Ignore parsing errors
+            }
+        }
+        
+        return null; // No valid date found
+    }
+    
+    // Setup event listeners for date tabs
+    setupDateTabsEventListeners() {
+        // Tab click handlers will be added when tabs are rendered
+        
+        // Navigation arrows
+        const prevBtn = document.getElementById('datePrevBtn');
+        const nextBtn = document.getElementById('dateNextBtn');
+        
+        if (prevBtn) {
+            prevBtn.addEventListener('click', () => this.scrollDateTabs('prev'));
+        }
+        
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => this.scrollDateTabs('next'));
+        }
+    }
+    
+    // Update date tabs display
+    updateDateTabsDisplay() {
+        const dateTabsContainer = document.getElementById('dateTabs');
+        if (!dateTabsContainer) return;
+        
+        this.updateDateTabCounts();
+        
+        dateTabsContainer.innerHTML = this.dateTabs.map(tab => {
+            const classes = ['date-tab'];
+            
+            if (tab.date === this.selectedDate) classes.push('active');
+            if (tab.isToday) classes.push('today');
+            if (tab.isWeekend) classes.push('weekend');
+            if (tab.count === 0 && tab.date !== 'all') classes.push('no-activities');
+            
+            return `
+                <button class="${classes.join(' ')}" data-date="${tab.date}">
+                    ${tab.label}
+                    ${tab.count > 0 ? `<span class="count">${tab.count}</span>` : ''}
+                </button>
+            `;
+        }).join('');
+        
+        // Add click event listeners to new tabs
+        dateTabsContainer.querySelectorAll('.date-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                const date = e.target.closest('.date-tab').dataset.date;
+                this.selectDateTab(date);
+            });
+        });
+    }
+    
+    // Select a date tab
+    selectDateTab(date) {
+        this.selectedDate = date;
+        this.updateDateTabsDisplay();
+        this.renderContent();
+        
+        // Scroll selected tab into view
+        const selectedTab = document.querySelector(`[data-date="${date}"]`);
+        if (selectedTab) {
+            selectedTab.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'nearest', 
+                inline: 'center' 
+            });
+        }
+    }
+    
+    // Scroll date tabs horizontally
+    scrollDateTabs(direction) {
+        const scrollContainer = document.getElementById('dateTabsScroll');
+        if (!scrollContainer) return;
+        
+        const scrollAmount = 200; // pixels
+        const currentScroll = scrollContainer.scrollLeft;
+        
+        if (direction === 'prev') {
+            scrollContainer.scrollTo({
+                left: currentScroll - scrollAmount,
+                behavior: 'smooth'
+            });
+        } else {
+            scrollContainer.scrollTo({
+                left: currentScroll + scrollAmount,
+                behavior: 'smooth'
+            });
+        }
     }
 
     // Add modal styles
