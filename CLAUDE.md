@@ -2,48 +2,6 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-<process>
-
-## Process Plan & Execution [CRITICAL - ALWAYS FOLLOW]
-
-For each task, go through plan phase first, then execute based on the plan. **NEVER skip any step.**
-
-### Plan Phase [MANDATORY CHECKPOINTS]
-1. **MUST use TodoWrite tool** to create initial task breakdown
-2. **MUST research first** - If task requires external knowledge or packages, use Task tool for research BEFORE planning
-3. **MUST create detailed plan** with implementation steps and reasoning
-4. **MUST follow TDD approach** - Write down what to test and verify for each step (both automated tests and manual verification)
-5. **MUST think MVP** - Don't over-plan, focus on minimal viable implementation
-6. **MUST write plan document** - Create docs/tasks/TASK_NAME.md with the complete plan
-7. **CHECKPOINT: STOP and ask for user approval** - Do not continue until user approves the plan
-
-### Execution Phase [MANDATORY FOR EACH STEP]
-For each implementation step:
-1. **MUST mark todo as in_progress** before starting work
-2. **MUST follow TDD approach** - Write tests first, then implement
-3. **MUST test thoroughly** - Run all unit tests, integration tests, and manual verification
-4. **MUST seek approval from user** - Get confirmation before proceeding
-5. **MUST update documentation** - Once approved, update both:
-   - docs/tasks/TASK_NAME.md - Append detailed descriptions of changes made
-   - CLAUDE.md - Update if architecture, processes, or technical details changed
-6. **MUST commit and push changes** - With descriptive commit messages
-7. **MUST mark todo as completed** - Update todo status immediately after commit
-8. **Then proceed to next task**
-
-### After Implementation [FINAL CHECKPOINTS]
-1. **MUST verify all todos marked complete** - Check TodoWrite tool shows all tasks done
-2. **MUST ask user to review** final implementation
-3. **MUST commit and push** final changes with proper commit message
-4. **MUST update CLAUDE.md** if any new learnings or process improvements discovered
-
-### Critical Reminders
-- **NEVER skip updating documentation** - Both task doc and CLAUDE.md must be updated
-- **NEVER proceed without testing** - All tests must pass before seeking approval  
-- **NEVER forget TodoWrite tool** - Track progress throughout implementation
-- **NEVER commit without user approval** - Always get confirmation first
-
-</process>
-
 ## Testing Directory Policy [CRITICAL - ALWAYS FOLLOW]
 
 **ALL testing artifacts, temporary files, build outputs, and test data MUST go in `/testing/` directory.**

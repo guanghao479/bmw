@@ -235,7 +235,7 @@ class FamilyEventsApp {
         };
         
         const imageId = imageMap[category] || imageMap['entertainment-events'];
-        return `https://images.unsplash.com/${imageId}?w=400&h=300&fit=crop`;
+        return `https://images.unsplash.com/${imageId}?w=800&h=600&fit=crop&auto=format&q=80`;
     }
 
     // Get activity image - use real image if available, fallback to generated
