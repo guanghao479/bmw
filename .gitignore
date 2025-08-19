@@ -3,3 +3,12 @@
 # Environment files with secrets
 .envrc
 .env
+
+# Testing directory - ALL test artifacts go here
+testing/
+
+# Go build artifacts
+*.exe
+*.dll
+*.so
+*.dylib

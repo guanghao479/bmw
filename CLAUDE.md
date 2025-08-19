@@ -2,7 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Process Plan & Execution [VERY IMPORTANT - FOLLOW STRICTLY]
+<process>
+
+## Process Plan & Execution [CRITICAL - ALWAYS FOLLOW]
 
 For each task, go through plan phase first, then execute based on the plan. **NEVER skip any step.**
 
@@ -39,6 +41,35 @@ For each implementation step:
 - **NEVER proceed without testing** - All tests must pass before seeking approval  
 - **NEVER forget TodoWrite tool** - Track progress throughout implementation
 - **NEVER commit without user approval** - Always get confirmation first
+
+</process>
+
+## Testing Directory Policy [CRITICAL - ALWAYS FOLLOW]
+
+**ALL testing artifacts, temporary files, build outputs, and test data MUST go in `/testing/` directory.**
+
+### Mandatory Rules:
+1. **NEVER create test files outside `/testing/` directory**
+2. **ALL temporary files** → `/testing/temp/`
+3. **ALL build artifacts** → `/testing/build/`
+4. **ALL test responses/data** → `/testing/data/`
+5. **ALL compiled binaries** → `/testing/bin/`
+
+### Examples of what goes in `/testing/`:
+- Compiled Go binaries (lambda, bootstrap, etc.)
+- JSON response files (response.json, latest_check.json, etc.)
+- Test output files
+- Temporary scripts
+- Debug logs
+- Sample data files
+
+### How to obey this rule:
+- Before creating ANY file, ask: "Is this a test/temp/build artifact?"
+- If YES → put it in `/testing/` subdirectory
+- Use absolute paths like `/Users/guanghaoding/personal-projects/bmw/testing/build/lambda`
+- When running commands, redirect output to `/testing/` when possible
+
+**This prevents repository pollution and maintains clean development environment.**
 
 ## Project Overview
 
