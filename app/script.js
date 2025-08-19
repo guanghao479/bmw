@@ -557,7 +557,13 @@ class FamilyEventsApp {
                                 item.location.toLowerCase().includes(this.searchTerm);
             
             // Filter by selected date
-            const matchesDate = this.selectedDate === 'all' || this.getActivityDate(item) === this.selectedDate;
+            const activityDate = this.getActivityDate(item);
+            const matchesDate = this.selectedDate === 'all' || activityDate === this.selectedDate;
+            
+            // Debug logging for date filtering
+            if (this.config.debugMode && this.selectedDate !== 'all' && activityDate) {
+                console.log(`Filtering: activity "${item.title}" has date "${activityDate}", selected "${this.selectedDate}", matches: ${matchesDate}`);
+            }
 
             return matchesFilter && matchesSearch && matchesDate;
         });
@@ -1066,13 +1072,19 @@ class FamilyEventsApp {
         
         // Generate tabs for next 30 days
         for (let i = 0; i < 30; i++) {
-            const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+            const date = new Date(today);
+            date.setDate(today.getDate() + i);
             
             // Use direct date component access to avoid timezone issues
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const day = String(date.getDate()).padStart(2, '0');
             const dateString = `${year}-${month}-${day}`;
+            
+            // Debug logging for date generation
+            if (this.config.debugMode && i < 5) {
+                console.log(`Date tab ${i}: ${dateString} (${date.toDateString()})`);
+            }
             
             const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
             const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
