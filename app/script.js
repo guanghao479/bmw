@@ -628,7 +628,28 @@ class FamilyEventsApp {
         return categoryMap[category] || category;
     }
 
-    // Format date for display
+    // Date utility functions - centralized and DRY
+    parseDate(dateString) {
+        // Parse any date string into a Date object safely (timezone-aware)
+        if (!dateString || dateString === 'TBD') {
+            return null;
+        }
+        
+        try {
+            // Handle YYYY-MM-DD format safely to avoid timezone issues
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+                const [year, month, day] = dateString.split('-');
+                return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+            }
+            
+            // Fallback for other date formats
+            return new Date(dateString + 'T12:00:00'); // Add noon to avoid timezone shifts
+        } catch {
+            return null;
+        }
+    }
+    
+    // Format date for card display
     formatDate(dateString) {
         if (!dateString) {
             return 'TBD';
@@ -639,27 +660,31 @@ class FamilyEventsApp {
             return dateString;
         }
         
-        try {
-            // Handle YYYY-MM-DD format safely to avoid timezone issues
-            if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-                const [year, month, day] = dateString.split('-');
-                const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-                return date.toLocaleDateString('en-US', {
-                    weekday: 'short',
-                    month: 'short',
-                    day: 'numeric'
-                });
-            }
-            
-            // Fallback for other date formats
-            const date = new Date(dateString + 'T12:00:00'); // Add noon to avoid timezone shifts
-            return date.toLocaleDateString('en-US', {
-                weekday: 'short',
-                month: 'short',
-                day: 'numeric'
-            });
-        } catch {
+        const date = this.parseDate(dateString);
+        if (!date) {
             return dateString;
+        }
+        
+        return date.toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric'
+        });
+    }
+    
+    // Format date for tab labels
+    formatDateTabLabel(dateString, daysFromToday) {
+        const date = this.parseDate(dateString);
+        if (!date) {
+            return dateString;
+        }
+        
+        if (daysFromToday < 7) {
+            // This week: "Mon 18", "Tue 19"
+            return date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' });
+        } else {
+            // Future weeks: "Nov 25", "Dec 2"
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         }
     }
 
@@ -1113,14 +1138,7 @@ class FamilyEventsApp {
             } else if (isTomorrow) {
                 label = 'Tomorrow';
             } else {
-                // Format label based on proximity
-                if (i < 7) {
-                    // This week: "Mon 18", "Tue 19"
-                    label = date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' });
-                } else {
-                    // Future weeks: "Nov 25", "Dec 2"
-                    label = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                }
+                label = this.formatDateTabLabel(dateString, i);
             }
             
             this.dateTabs.push({
@@ -1179,22 +1197,18 @@ class FamilyEventsApp {
         
         // Fallback to parsing from formatted date in legacy data
         if (item.date && item.date !== 'TBD' && !item.date.includes('day')) {
-            try {
-                // If it's already in YYYY-MM-DD format, return as-is
-                if (/^\d{4}-\d{2}-\d{2}$/.test(item.date)) {
-                    return item.date;
-                }
-                
-                // For other date formats, parse carefully to avoid timezone issues
-                const parsedDate = new Date(item.date + 'T12:00:00'); // Add noon time to avoid timezone shifts
-                if (!isNaN(parsedDate.getTime())) {
-                    const year = parsedDate.getFullYear();
-                    const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
-                    const day = String(parsedDate.getDate()).padStart(2, '0');
-                    return `${year}-${month}-${day}`;
-                }
-            } catch (e) {
-                console.warn('Error parsing date:', item.date, e);
+            // If it's already in YYYY-MM-DD format, return as-is
+            if (/^\d{4}-\d{2}-\d{2}$/.test(item.date)) {
+                return item.date;
+            }
+            
+            // Use centralized date parsing
+            const parsedDate = this.parseDate(item.date);
+            if (parsedDate) {
+                const year = parsedDate.getFullYear();
+                const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+                const day = String(parsedDate.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
             }
         }
         
