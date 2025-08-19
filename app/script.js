@@ -593,7 +593,7 @@ class FamilyEventsApp {
         const categoryClass = `category-${item.category}`;
         
         return `
-            <article class="card" data-id="${item.id}" role="button" tabindex="0" aria-label="View details for ${item.title}">
+            <div class="card" data-id="${item.id}" role="button" tabindex="0" aria-label="View details for ${item.title}">
                 <img src="${item.image}" alt="${item.title} activity" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0xNzUgMTI1SDE0MFYxNzVIMTc1VjE1MEgyMjVWMTc1SDI2MFYxMjVIMjI1VjEwMEgxNzVWMTI1WiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4K'; this.onerror=null;">
                 <div class="card-content">
                     <span class="card-category ${categoryClass}">${this.formatCategory(item.category)}</span>
