@@ -117,9 +117,9 @@ class FamilyEventsApp {
             return;
         }
 
-        // Final fallback to embedded sample data
-        this.loadSampleData();
-        this.showDataStatus('Sample data loaded', 'warning');
+        // No data available - show error message
+        this.showError('Unable to load family activities from our Seattle events database. Please check your internet connection and try refreshing the page.');
+        this.showDataStatus('Failed to load S3 data', 'error');
     }
 
     // Fetch data from S3 endpoint
@@ -350,135 +350,6 @@ class FamilyEventsApp {
         return null;
     }
 
-    // Load sample data as final fallback
-    loadSampleData() {
-        // Generate dates
-        const todayDate = this.getTodayDateString();
-        const tomorrowDate = this.getTomorrowDateString();
-        const weekendDate = this.getWeekendDateString();
-        
-        if (this.config.debugMode) {
-            console.log('Sample data dates generated:');
-            console.log(`  Today: ${todayDate}`);
-            console.log(`  Tomorrow: ${tomorrowDate}`);
-            console.log(`  Weekend: ${weekendDate}`);
-        }
-        
-        const sampleData = {
-            metadata: {
-                lastUpdated: new Date().toISOString(),
-                totalActivities: 3,
-                sources: ['sample'],
-                nextUpdate: new Date().toISOString(),
-                version: '1.0.0',
-                region: 'Seattle',
-                coverage: 'sample'
-            },
-            activities: [
-                {
-                    id: 'sample_1',
-                    title: 'Today\'s Family Event',
-                    description: 'This is sample data for today. The app will load real Seattle activities when connected.',
-                    type: 'event',
-                    category: 'entertainment-events',
-                    schedule: { 
-                        type: 'one-time', 
-                        startDate: todayDate, // Today's date
-                        times: [{ startTime: '10:00', endTime: '16:00' }],
-                        duration: '6 hours'
-                    },
-                    location: { 
-                        name: 'Today Sample Location', 
-                        address: '123 Sample St, Seattle, WA 98101',
-                        neighborhood: 'Capitol Hill',
-                        parking: 'Street parking available'
-                    },
-                    pricing: { 
-                        type: 'free',
-                        description: 'Free for all families' 
-                    },
-                    registration: {
-                        required: false,
-                        status: 'open',
-                        method: 'walk-in'
-                    },
-                    provider: {
-                        name: 'Sample Organization',
-                        type: 'community',
-                        description: 'A sample community organization'
-                    },
-                    ageGroups: [{ description: 'All ages', category: 'all-ages' }],
-                    tags: ['sample', 'demo', 'family-friendly'],
-                    featured: true
-                },
-                {
-                    id: 'sample_2',
-                    title: 'Tomorrow\'s Weekend Fun',
-                    description: 'Sample activity for tomorrow to test date filtering.',
-                    type: 'activity',
-                    category: 'active-sports',
-                    schedule: { 
-                        type: 'one-time', 
-                        startDate: tomorrowDate, // Tomorrow's date
-                        times: [{ startTime: '09:00', endTime: '12:00' }],
-                        duration: '3 hours'
-                    },
-                    location: { 
-                        name: 'Tomorrow Sample Park', 
-                        address: '456 Park Ave, Seattle, WA 98102',
-                        neighborhood: 'Fremont'
-                    },
-                    pricing: { 
-                        type: 'paid',
-                        cost: 15,
-                        currency: 'USD',
-                        unit: 'per-person'
-                    },
-                    registration: {
-                        required: true,
-                        status: 'open',
-                        method: 'online'
-                    },
-                    ageGroups: [{ description: '5-12 years', category: 'elementary' }],
-                    tags: ['sample', 'sports', 'kids'],
-                    featured: false
-                },
-                {
-                    id: 'sample_3',
-                    title: 'Weekend Workshop',
-                    description: 'Sample weekend activity to test weekend highlighting.',
-                    type: 'class',
-                    category: 'arts-creativity',
-                    schedule: { 
-                        type: 'one-time', 
-                        startDate: weekendDate, // Next weekend
-                        times: [{ startTime: '14:00', endTime: '17:00' }],
-                        duration: '3 hours'
-                    },
-                    location: { 
-                        name: 'Weekend Art Studio', 
-                        address: '789 Creative Blvd, Seattle, WA 98103'
-                    },
-                    pricing: { 
-                        type: 'paid',
-                        cost: 25,
-                        currency: 'USD',
-                        unit: 'per-person'
-                    },
-                    registration: {
-                        required: true,
-                        status: 'open',
-                        method: 'online'
-                    },
-                    ageGroups: [{ description: 'All ages', category: 'all-ages' }],
-                    tags: ['sample', 'arts', 'weekend'],
-                    featured: false
-                }
-            ]
-        };
-        
-        this.processData(sampleData);
-    }
 
     // Setup auto-refresh functionality
     setupAutoRefresh() {
@@ -1257,7 +1128,7 @@ class FamilyEventsApp {
                 });
                 tab.count = activitiesForDate.length;
                 
-                // Debug logging for sample data
+                // Debug logging
                 if (this.config.debugMode && activitiesForDate.length > 0) {
                     console.log(`Date tab ${tab.date} (${tab.label}): ${tab.count} activities`);
                     activitiesForDate.forEach(activity => {
@@ -1274,29 +1145,6 @@ class FamilyEventsApp {
         const year = today.getFullYear();
         const month = String(today.getMonth() + 1).padStart(2, '0');
         const day = String(today.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    }
-    
-    // Get tomorrow's date string in YYYY-MM-DD format
-    getTomorrowDateString() {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const year = tomorrow.getFullYear();
-        const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
-        const day = String(tomorrow.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    }
-    
-    // Get next weekend date string (Saturday) in YYYY-MM-DD format
-    getWeekendDateString() {
-        const today = new Date();
-        const daysUntilSaturday = (6 - today.getDay() + 7) % 7; // Days until next Saturday
-        const saturday = new Date(today);
-        saturday.setDate(today.getDate() + (daysUntilSaturday === 0 ? 7 : daysUntilSaturday)); // If today is Saturday, get next Saturday
-        
-        const year = saturday.getFullYear();
-        const month = String(saturday.getMonth() + 1).padStart(2, '0');
-        const day = String(saturday.getDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
     }
     
