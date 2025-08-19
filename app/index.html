@@ -18,57 +18,58 @@
         </header>
 
         <!-- Search and Filter Bar -->
-        <section class="search-section">
+        <section class="search-section" aria-label="Search and filter activities">
             <div class="search-container">
-                <input type="text" id="searchInput" placeholder="Search events, activities..." class="search-input">
-                <div class="filter-buttons">
-                    <button class="filter-btn active" data-filter="all">All</button>
-                    <button class="filter-btn" data-filter="events">Events</button>
-                    <button class="filter-btn" data-filter="activities">Activities</button>
-                    <button class="filter-btn" data-filter="venues">Venues</button>
+                <label for="searchInput" class="sr-only">Search activities</label>
+                <input type="text" id="searchInput" placeholder="Search events, activities..." class="search-input" aria-label="Search events, activities, and venues">
+                <div class="filter-buttons" role="group" aria-label="Filter activities by category">
+                    <button class="filter-btn active" data-filter="all" aria-pressed="true">All</button>
+                    <button class="filter-btn" data-filter="events" aria-pressed="false">Events</button>
+                    <button class="filter-btn" data-filter="activities" aria-pressed="false">Activities</button>
+                    <button class="filter-btn" data-filter="venues" aria-pressed="false">Venues</button>
                 </div>
             </div>
         </section>
 
         <!-- Date Tabs Navigation -->
-        <section class="date-tabs-section">
+        <section class="date-tabs-section" aria-label="Filter activities by date">
             <div class="date-tabs-container">
-                <button class="date-nav-btn prev" id="datePrevBtn">‹</button>
-                <div class="date-tabs-scroll" id="dateTabsScroll">
+                <button class="date-nav-btn prev" id="datePrevBtn" aria-label="Previous dates">‹</button>
+                <div class="date-tabs-scroll" id="dateTabsScroll" role="tablist" aria-label="Select date to filter activities">
                     <div class="date-tabs" id="dateTabs">
                         <!-- Date tabs will be generated dynamically -->
                     </div>
                 </div>
-                <button class="date-nav-btn next" id="dateNextBtn">›</button>
+                <button class="date-nav-btn next" id="dateNextBtn" aria-label="Next dates">›</button>
             </div>
         </section>
 
         <!-- Main Content Grid -->
-        <section class="main-content">
+        <main class="main-content" role="main" aria-label="Family activities and events">
             <div class="content-grid" id="contentGrid">
                 <!-- Dynamic content will be loaded here -->
             </div>
-        </section>
+        </main>
 
         <!-- Loading State -->
-        <div class="loading" id="loading">
-            <div class="loading-spinner"></div>
+        <div class="loading" id="loading" aria-live="polite" aria-label="Loading content">
+            <div class="loading-spinner" aria-hidden="true"></div>
             <p>Loading amazing family activities...</p>
         </div>
     </div>
 
     <!-- Activity Detail Page -->
-    <div class="detail-page" id="detailPage" style="display: none;">
+    <div class="detail-page" id="detailPage" style="display: none;" role="dialog" aria-labelledby="detailTitle" aria-modal="true">
         <div class="detail-container">
             <!-- Breadcrumb Navigation -->
-            <nav class="breadcrumb">
-                <button class="breadcrumb-back" id="breadcrumbBack">
+            <nav class="breadcrumb" aria-label="Breadcrumb navigation">
+                <button class="breadcrumb-back" id="breadcrumbBack" aria-label="Go back to activities list">
                     ← Back to Activities
                 </button>
             </nav>
 
             <!-- Detail Content -->
-            <div class="detail-content" id="detailContent">
+            <div class="detail-content" id="detailContent" role="main">
                 <!-- Dynamic detail content will be loaded here -->
             </div>
         </div>

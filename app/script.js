@@ -451,10 +451,14 @@ class FamilyEventsApp {
         const filterButtons = document.querySelectorAll('.filter-btn');
         filterButtons.forEach(btn => {
             btn.addEventListener('click', (e) => {
-                // Remove active class from all buttons
-                filterButtons.forEach(button => button.classList.remove('active'));
-                // Add active class to clicked button
+                // Remove active class and set aria-pressed to false for all buttons
+                filterButtons.forEach(button => {
+                    button.classList.remove('active');
+                    button.setAttribute('aria-pressed', 'false');
+                });
+                // Add active class and set aria-pressed to true for clicked button
                 e.target.classList.add('active');
+                e.target.setAttribute('aria-pressed', 'true');
                 
                 this.currentFilter = e.target.dataset.filter;
                 this.renderContent();
@@ -464,6 +468,15 @@ class FamilyEventsApp {
         // Card click interactions
         document.addEventListener('click', (e) => {
             if (e.target.closest('.card')) {
+                const card = e.target.closest('.card');
+                this.handleCardClick(card);
+            }
+        });
+
+        // Card keyboard interactions
+        document.addEventListener('keydown', (e) => {
+            if (e.target.closest('.card') && (e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault();
                 const card = e.target.closest('.card');
                 this.handleCardClick(card);
             }
@@ -580,8 +593,8 @@ class FamilyEventsApp {
         const categoryClass = `category-${item.category}`;
         
         return `
-            <div class="card" data-id="${item.id}">
-                <img src="${item.image}" alt="${item.title}" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0xNzUgMTI1SDE0MFYxNzVIMTc1VjE1MEgyMjVWMTc1SDI2MFYxMjVIMjI1VjEwMEgxNzVWMTI1WiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4K'; this.onerror=null;">
+            <article class="card" data-id="${item.id}" role="button" tabindex="0" aria-label="View details for ${item.title}">
+                <img src="${item.image}" alt="${item.title} activity" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0xNzUgMTI1SDE0MFYxNzVIMTc1VjE1MEgyMjVWMTc1SDI2MFYxMjVIMjI1VjEwMEgxNzVWMTI1WiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4K'; this.onerror=null;">
                 <div class="card-content">
                     <span class="card-category ${categoryClass}">${this.formatCategory(item.category)}</span>
                     <h3 class="card-title">${item.title}</h3>
@@ -1186,16 +1199,24 @@ class FamilyEventsApp {
         
         dateTabsContainer.innerHTML = this.dateTabs.map(tab => {
             const classes = ['date-tab'];
+            const isSelected = tab.date === this.selectedDate;
             
-            if (tab.date === this.selectedDate) classes.push('active');
+            if (isSelected) classes.push('active');
             if (tab.isToday) classes.push('today');
             if (tab.isWeekend) classes.push('weekend');
             if (tab.count === 0 && tab.date !== 'all') classes.push('no-activities');
             
+            const countText = tab.count > 0 ? `${tab.count} activities` : 'no activities';
+            const ariaLabel = `${tab.label}, ${countText}${isSelected ? ', selected' : ''}`;
+            
             return `
-                <button class="${classes.join(' ')}" data-date="${tab.date}">
+                <button class="${classes.join(' ')}" 
+                        data-date="${tab.date}"
+                        role="tab"
+                        aria-selected="${isSelected}"
+                        aria-label="${ariaLabel}">
                     ${tab.label}
-                    ${tab.count > 0 ? `<span class="count">${tab.count}</span>` : ''}
+                    ${tab.count > 0 ? `<span class="count" aria-hidden="true">${tab.count}</span>` : ''}
                 </button>
             `;
         }).join('');
