@@ -79,7 +79,7 @@ type SeattleSource struct {
 
 // GetSeattleSources returns the list of Seattle family activity sources to scrape
 func GetSeattleSources() []SeattleSource {
-	return []SeattleSource{
+	sources := []SeattleSource{
 		{
 			Name:       "Seattle's Child",
 			URL:        "https://www.seattleschild.com/events-calendar/",
@@ -88,15 +88,6 @@ func GetSeattleSources() []SeattleSource {
 			Enabled:    false, // Temporarily disabled due to 403 protection
 			Timeout:    90, // Increased timeout for anti-scraping protection
 			RetryCount: 3,  // More retries for 403 errors
-		},
-		{
-			Name:       "ParentMap Calendar",
-			URL:        "https://www.parentmap.com/calendar",
-			Domain:     "parentmap.com",
-			Priority:   9,
-			Enabled:    true,
-			Timeout:    60,
-			RetryCount: 2,
 		},
 		{
 			Name:       "Tinybeans Seattle",
@@ -135,6 +126,46 @@ func GetSeattleSources() []SeattleSource {
 			RetryCount: 3,  // More retries for SSL handshake problems
 		},
 	}
+	
+	// Add ParentMap sources for multiple dates (next 14 days)
+	parentMapSources := generateParentMapSources()
+	sources = append(sources, parentMapSources...)
+	
+	return sources
+}
+
+// generateParentMapSources creates ParentMap sources for the next 14 days
+func generateParentMapSources() []SeattleSource {
+	var sources []SeattleSource
+	now := time.Now()
+	
+	// Generate sources for next 14 days
+	for i := 0; i < 14; i++ {
+		date := now.AddDate(0, 0, i)
+		dateStr := date.Format("2006-01-02") // YYYY-MM-DD format
+		
+		// Format name to include date for identification
+		name := fmt.Sprintf("ParentMap Calendar (%s)", date.Format("Jan 2"))
+		if i == 0 {
+			name = "ParentMap Calendar (Today)"
+		} else if i == 1 {
+			name = "ParentMap Calendar (Tomorrow)"
+		}
+		
+		source := SeattleSource{
+			Name:       name,
+			URL:        fmt.Sprintf("https://www.parentmap.com/calendar?date=%s", dateStr),
+			Domain:     "parentmap.com",
+			Priority:   9 - (i / 7), // Slight priority decrease for future dates
+			Enabled:    true,
+			Timeout:    60,
+			RetryCount: 2,
+		}
+		
+		sources = append(sources, source)
+	}
+	
+	return sources
 }
 
 // ScrapingOrchestrator handles the complete scraping workflow
