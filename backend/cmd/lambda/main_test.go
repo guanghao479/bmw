@@ -39,7 +39,7 @@ func TestGetSeattleSources(t *testing.T) {
 	}
 	
 	// Verify we have expected Seattle sources
-	expectedSources := []string{"Seattle's Child", "ParentMap Calendar", "Tinybeans Seattle"}
+	expectedSources := []string{"Seattle's Child", "Tinybeans Seattle"}
 	foundSources := make(map[string]bool)
 	
 	for _, source := range sources {
@@ -51,6 +51,20 @@ func TestGetSeattleSources(t *testing.T) {
 			t.Errorf("Expected source '%s' not found", expected)
 		}
 	}
+	
+	// Verify we have ParentMap sources (should be multiple date-specific ones)
+	parentMapCount := 0
+	for _, source := range sources {
+		if strings.Contains(source.Name, "ParentMap Calendar") {
+			parentMapCount++
+		}
+	}
+	
+	if parentMapCount == 0 {
+		t.Error("Expected at least one ParentMap Calendar source")
+	}
+	
+	t.Logf("Found %d ParentMap sources", parentMapCount)
 	
 	t.Logf("Found %d Seattle sources configured", len(sources))
 }
@@ -328,13 +342,30 @@ func TestLambdaResponse_Structure(t *testing.T) {
 func TestSeattleSource_Configuration(t *testing.T) {
 	sources := GetSeattleSources()
 	
-	// Verify priorities are unique and reasonable
-	priorities := make(map[int]string)
+	// Verify priorities are reasonable (allow duplicates for ParentMap date sources)
+	priorities := make(map[int][]string)
 	for _, source := range sources {
-		if existing, exists := priorities[source.Priority]; exists {
-			t.Errorf("Duplicate priority %d for sources '%s' and '%s'", source.Priority, existing, source.Name)
+		priorities[source.Priority] = append(priorities[source.Priority], source.Name)
+	}
+	
+	// Check for excessive duplicates (more than 14 sources with same priority)
+	for priority, sourceNames := range priorities {
+		if len(sourceNames) > 14 {
+			t.Errorf("Too many sources with priority %d: %v", priority, sourceNames)
 		}
-		priorities[source.Priority] = source.Name
+		// Allow ParentMap sources to share priorities
+		if len(sourceNames) > 1 {
+			allParentMap := true
+			for _, name := range sourceNames {
+				if !strings.Contains(name, "ParentMap Calendar") {
+					allParentMap = false
+					break
+				}
+			}
+			if !allParentMap {
+				t.Errorf("Non-ParentMap sources sharing priority %d: %v", priority, sourceNames)
+			}
+		}
 	}
 	
 	// Verify all sources are enabled for MVP

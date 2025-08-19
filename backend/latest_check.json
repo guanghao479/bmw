@@ -1,0 +1,159 @@
+{
+  "metadata": {
+    "lastUpdated": "2025-08-16T06:20:55.109050118Z",
+    "totalActivities": 2,
+    "sources": [
+      "scraped"
+    ],
+    "nextUpdate": "2025-08-16T12:20:55.109050183Z",
+    "version": "1.0.0",
+    "region": "us-west-2",
+    "coverage": "Seattle Metro Area"
+  },
+  "activities": [
+    {
+      "id": "1",
+      "title": "Newborn Program",
+      "description": "The PEPS Newborn program is for new parents and their 0-4 month old babies. Groups meet in the homes of group members for 12 weeks.",
+      "type": "class",
+      "category": "camps-programs",
+      "subcategory": "parent support",
+      "schedule": {
+        "type": "ongoing",
+        "startDate": "",
+        "frequency": "weekly",
+        "times": [
+          {
+            "startTime": "",
+            "endTime": ""
+          }
+        ],
+        "duration": "12 weeks",
+        "sessions": 12
+      },
+      "ageGroups": null,
+      "familyType": "",
+      "location": {
+        "name": "Various Homes",
+        "address": "TBD",
+        "neighborhood": "Seattle Metro",
+        "city": "Seattle",
+        "region": "Seattle Metro",
+        "coordinates": {
+          "lat": 0,
+          "lng": 0
+        },
+        "venueType": "",
+        "accessibility": true,
+        "parking": "street"
+      },
+      "pricing": {
+        "type": "variable",
+        "currency": "USD",
+        "unit": "session",
+        "description": "Flexible pricing available",
+        "includesSupplies": false
+      },
+      "registration": {
+        "required": true,
+        "method": "online",
+        "url": "https://www.peps.org/programs/newborn",
+        "status": "open"
+      },
+      "tags": [
+        "parent support",
+        "infant",
+        "parent-child"
+      ],
+      "provider": {
+        "name": "PEPS",
+        "type": "nonprofit",
+        "website": "https://www.peps.org",
+        "verified": true
+      },
+      "source": {
+        "url": "https://www.peps.org/calendar/",
+        "domain": "peps.org",
+        "scrapedAt": "2025-08-16T06:20:16.359554836Z",
+        "lastChecked": "2025-08-16T06:20:16.359554956Z",
+        "reliability": "high"
+      },
+      "featured": false,
+      "createdAt": "2025-08-16T06:20:16.359555054Z",
+      "updatedAt": "2025-08-16T06:20:16.359555141Z",
+      "status": "active"
+    },
+    {
+      "id": "2",
+      "title": "Baby Peppers",
+      "description": "Baby Peppers is for parents and older infants to attend together. When a group begins, all babies are between five and twelve months old.",
+      "type": "class",
+      "category": "camps-programs",
+      "subcategory": "parent support",
+      "schedule": {
+        "type": "ongoing",
+        "startDate": "",
+        "frequency": "weekly",
+        "times": [
+          {
+            "startTime": "",
+            "endTime": ""
+          }
+        ],
+        "duration": "12 weeks",
+        "sessions": 12
+      },
+      "ageGroups": null,
+      "familyType": "",
+      "location": {
+        "name": "Various Homes",
+        "address": "TBD",
+        "neighborhood": "Seattle Metro",
+        "city": "Seattle",
+        "region": "Seattle Metro",
+        "coordinates": {
+          "lat": 0,
+          "lng": 0
+        },
+        "venueType": "",
+        "accessibility": true,
+        "parking": "street"
+      },
+      "pricing": {
+        "type": "variable",
+        "currency": "USD",
+        "unit": "session",
+        "description": "Flexible pricing available",
+        "includesSupplies": false
+      },
+      "registration": {
+        "required": true,
+        "method": "online",
+        "url": "https://www.peps.org/programs/baby-peppers",
+        "status": "open"
+      },
+      "tags": [
+        "parent support",
+        "toddler",
+        "parent-child"
+      ],
+      "provider": {
+        "name": "PEPS",
+        "type": "nonprofit",
+        "website": "https://www.peps.org",
+        "verified": true
+      },
+      "source": {
+        "url": "https://www.peps.org/calendar/",
+        "domain": "peps.org",
+        "scrapedAt": "2025-08-16T06:20:16.359555276Z",
+        "lastChecked": "2025-08-16T06:20:16.359555344Z",
+        "reliability": "high"
+      },
+      "featured": false,
+      "createdAt": "2025-08-16T06:20:16.359555416Z",
+      "updatedAt": "2025-08-16T06:20:16.359555476Z",
+      "status": "active"
+    }
+  ]
+}

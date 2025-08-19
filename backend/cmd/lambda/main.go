@@ -93,7 +93,7 @@ func GetSeattleSources() []SeattleSource {
 			Name:       "Tinybeans Seattle",
 			URL:        "https://tinybeans.com/seattle",
 			Domain:     "tinybeans.com",
-			Priority:   8,
+			Priority:   4,
 			Enabled:    false, // Disabled per user request - ParentMap only
 			Timeout:    60,
 			RetryCount: 2,
@@ -156,7 +156,7 @@ func generateParentMapSources() []SeattleSource {
 			Name:       name,
 			URL:        fmt.Sprintf("https://www.parentmap.com/calendar?date=%s", dateStr),
 			Domain:     "parentmap.com",
-			Priority:   9 - (i / 7), // Slight priority decrease for future dates
+			Priority:   9, // All ParentMap sources get priority 9
 			Enabled:    true,
 			Timeout:    60,
 			RetryCount: 2,
