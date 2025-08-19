@@ -1037,7 +1037,9 @@ class FamilyEventsApp {
     
     // Generate date tabs for the next 30 days
     generateDateTabs() {
+        // Create today using local date to avoid timezone issues
         const today = new Date();
+        today.setHours(0, 0, 0, 0); // Normalize to start of day
         this.dateTabs = [];
         
         // Add "All Dates" tab
@@ -1051,10 +1053,9 @@ class FamilyEventsApp {
         
         // Generate tabs for next 30 days
         for (let i = 0; i < 30; i++) {
-            const date = new Date(today);
-            date.setDate(today.getDate() + i);
+            const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
             
-            // Use local date conversion to avoid timezone issues
+            // Use direct date component access to avoid timezone issues
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const day = String(date.getDate()).padStart(2, '0');
@@ -1131,24 +1132,21 @@ class FamilyEventsApp {
         // Try to get date from original activity data
         const originalActivity = this.getOriginalActivityData(item.id);
         if (originalActivity && originalActivity.schedule && originalActivity.schedule.startDate) {
+            // Backend dates are already in YYYY-MM-DD format, return as-is
             return originalActivity.schedule.startDate;
         }
         
         // Fallback to parsing from formatted date in legacy data
         if (item.date && item.date !== 'TBD' && !item.date.includes('day')) {
             try {
-                // Handle different date formats
-                let parsedDate;
-                
-                // If it's already in YYYY-MM-DD format
+                // If it's already in YYYY-MM-DD format, return as-is
                 if (/^\d{4}-\d{2}-\d{2}$/.test(item.date)) {
                     return item.date;
                 }
                 
-                // Try to parse other formats
-                parsedDate = new Date(item.date);
+                // For other date formats, parse carefully to avoid timezone issues
+                const parsedDate = new Date(item.date + 'T12:00:00'); // Add noon time to avoid timezone shifts
                 if (!isNaN(parsedDate.getTime())) {
-                    // Convert to local date string to avoid timezone issues
                     const year = parsedDate.getFullYear();
                     const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
                     const day = String(parsedDate.getDate()).padStart(2, '0');
