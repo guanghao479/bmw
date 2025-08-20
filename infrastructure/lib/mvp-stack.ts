@@ -1,6 +1,7 @@
 import { Stack, StackProps, Duration, CfnOutput, RemovalPolicy } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
@@ -45,6 +46,97 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       removalPolicy: RemovalPolicy.DESTROY // For MVP - allows easy cleanup
     });
 
+    // DynamoDB Table 1: Family Activities (Business Data)
+    const familyActivitiesTable = new dynamodb.Table(this, 'FamilyActivitiesTable', {
+      tableName: 'seattle-family-activities',
+      partitionKey: { name: 'PK', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'SK', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: RemovalPolicy.DESTROY, // For MVP - allows easy cleanup
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true
+      },
+      encryption: dynamodb.TableEncryption.AWS_MANAGED
+    });
+
+    // Add Global Secondary Indexes to Family Activities Table
+    familyActivitiesTable.addGlobalSecondaryIndex({
+      indexName: 'location-date-index',
+      partitionKey: { name: 'LocationKey', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'DateTypeKey', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.INCLUDE,
+      nonKeyAttributes: ['venue_name', 'event_name', 'program_name', 'attraction_name', 'category', 'age_groups', 'pricing', 'status']
+    });
+
+    familyActivitiesTable.addGlobalSecondaryIndex({
+      indexName: 'category-age-index',
+      partitionKey: { name: 'CategoryAgeKey', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'DateFeaturedKey', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.INCLUDE,
+      nonKeyAttributes: ['schedule', 'pricing', 'location', 'description']
+    });
+
+    familyActivitiesTable.addGlobalSecondaryIndex({
+      indexName: 'venue-activity-index',
+      partitionKey: { name: 'VenueKey', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'TypeDateKey', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.INCLUDE,
+      nonKeyAttributes: ['venue_name', 'event_name', 'program_name', 'schedule', 'status']
+    });
+
+    familyActivitiesTable.addGlobalSecondaryIndex({
+      indexName: 'provider-index',
+      partitionKey: { name: 'ProviderKey', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'TypeStatusKey', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.INCLUDE,
+      nonKeyAttributes: ['venue_name', 'event_name', 'program_name', 'status', 'updated_at']
+    });
+
+    // DynamoDB Table 2: Source Management (Source Configuration)
+    const sourceManagementTable = new dynamodb.Table(this, 'SourceManagementTable', {
+      tableName: 'seattle-source-management',
+      partitionKey: { name: 'PK', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'SK', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: RemovalPolicy.DESTROY, // For MVP - allows easy cleanup
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true
+      },
+      encryption: dynamodb.TableEncryption.AWS_MANAGED
+    });
+
+    // Add Global Secondary Index to Source Management Table
+    sourceManagementTable.addGlobalSecondaryIndex({
+      indexName: 'status-priority-index',
+      partitionKey: { name: 'StatusKey', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'PriorityKey', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.INCLUDE,
+      nonKeyAttributes: ['source_name', 'base_url', 'scraping_config', 'data_quality', 'status']
+    });
+
+    // DynamoDB Table 3: Scraping Operations (Dynamic Scraping State)
+    const scrapingOperationsTable = new dynamodb.Table(this, 'ScrapingOperationsTable', {
+      tableName: 'seattle-scraping-operations',
+      partitionKey: { name: 'PK', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'SK', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: RemovalPolicy.DESTROY, // For MVP - allows easy cleanup
+      timeToLiveAttribute: 'TTL', // Auto-expire old scraping data after 90 days
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: false // Not needed for operational data
+      },
+      encryption: dynamodb.TableEncryption.AWS_MANAGED
+    });
+
+    // Add Global Secondary Index to Scraping Operations Table
+    scrapingOperationsTable.addGlobalSecondaryIndex({
+      indexName: 'next-run-index',
+      partitionKey: { name: 'NextRunKey', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'PrioritySourceKey', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.INCLUDE,
+      nonKeyAttributes: ['source_id', 'scheduled_time', 'task_type', 'status', 'retry_count']
+    });
+
     // IAM role for Lambda function
     const scraperRole = new iam.Role(this, 'ScraperLambdaRole', {
       assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
@@ -65,6 +157,31 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
               resources: [
                 eventsBucket.bucketArn,
                 `${eventsBucket.bucketArn}/*`
+              ]
+            })
+          ]
+        }),
+        DynamoDBAccess: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              effect: iam.Effect.ALLOW,
+              actions: [
+                'dynamodb:PutItem',
+                'dynamodb:GetItem',
+                'dynamodb:UpdateItem',
+                'dynamodb:DeleteItem',
+                'dynamodb:Query',
+                'dynamodb:Scan',
+                'dynamodb:BatchGetItem',
+                'dynamodb:BatchWriteItem'
+              ],
+              resources: [
+                familyActivitiesTable.tableArn,
+                sourceManagementTable.tableArn,
+                scrapingOperationsTable.tableArn,
+                `${familyActivitiesTable.tableArn}/index/*`,
+                `${sourceManagementTable.tableArn}/index/*`,
+                `${scrapingOperationsTable.tableArn}/index/*`
               ]
             })
           ]
@@ -99,6 +216,7 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
         // Core AWS service policies required for CDK deployment
         iam.ManagedPolicy.fromAwsManagedPolicyName('AWSLambda_FullAccess'),
         iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonS3FullAccess'),
+        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonDynamoDBFullAccess'),
         iam.ManagedPolicy.fromAwsManagedPolicyName('CloudWatchFullAccess'),
         iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonEventBridgeFullAccess'),
         iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSNSFullAccess'),
@@ -118,6 +236,9 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       role: scraperRole,
       environment: {
         S3_BUCKET: eventsBucket.bucketName,
+        FAMILY_ACTIVITIES_TABLE: familyActivitiesTable.tableName,
+        SOURCE_MANAGEMENT_TABLE: sourceManagementTable.tableName,
+        SCRAPING_OPERATIONS_TABLE: scrapingOperationsTable.tableName,
         OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
         JINA_API_KEY: process.env.JINA_API_KEY || '',
         // AWS_REGION is automatically set by Lambda runtime
@@ -215,6 +336,24 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       value: githubActionsRole.roleArn,
       description: 'IAM Role ARN for GitHub Actions OIDC authentication',
       exportName: 'SeattleFamilyActivities-GitHubActionsRoleArn'
+    });
+
+    new CfnOutput(this, 'FamilyActivitiesTableName', {
+      value: familyActivitiesTable.tableName,
+      description: 'DynamoDB table name for family activities data',
+      exportName: 'SeattleFamilyActivities-FamilyActivitiesTableName'
+    });
+
+    new CfnOutput(this, 'SourceManagementTableName', {
+      value: sourceManagementTable.tableName,
+      description: 'DynamoDB table name for source management',
+      exportName: 'SeattleFamilyActivities-SourceManagementTableName'
+    });
+
+    new CfnOutput(this, 'ScrapingOperationsTableName', {
+      value: scrapingOperationsTable.tableName,
+      description: 'DynamoDB table name for scraping operations',
+      exportName: 'SeattleFamilyActivities-ScrapingOperationsTableName'
     });
   }
 }
