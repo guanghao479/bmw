@@ -17,9 +17,11 @@
     /* Colors */
     --primary: #6366f1;
     --primary-light: #818cf8;
+    --primary-dark: #4f46e5;
     --secondary: #ec4899;
     --accent: #14b8a6;
     --warning: #f59e0b;
+    --error-color: #dc2626;
     
     --neutral-50: #fafafa;
     --neutral-100: #f5f5f5;
@@ -42,6 +44,12 @@
     --bg-primary: white;
     --bg-secondary: var(--neutral-50);
     --bg-muted: var(--neutral-100);
+    
+    /* Legacy variable names for admin interface compatibility */
+    --primary-color: var(--primary);
+    --card-background: var(--bg-primary);
+    --border-color: var(--neutral-200);
+    --shadow: var(--shadow-md);
     
     /* Shadows */
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);

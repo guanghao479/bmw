@@ -362,3 +362,13 @@ func (st *ScrapingTask) CanTransitionTo(newStatus string) bool {
 		return false
 	}
 }
+
+// CalculateTTL calculates TTL timestamp for auto-expiring data
+func CalculateTTL(duration time.Duration) int64 {
+	return time.Now().Add(duration).Unix()
+}
+
+// GeneratePrioritySourceKey generates GSI key for priority and source lookup
+func GeneratePrioritySourceKey(priority, sourceID, taskID string) string {
+	return "PRIORITY#" + priority + "#" + sourceID + "#" + taskID
+}

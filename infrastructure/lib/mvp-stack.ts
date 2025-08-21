@@ -247,6 +247,43 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       description: 'Scrapes Seattle family activity websites using Jina + OpenAI and stores results in S3'
     });
 
+    // Lambda function for source analysis (Go runtime)
+    const sourceAnalyzerFunction = new GoFunction(this, 'SourceAnalyzerFunction', {
+      entry: '../backend/cmd/source_analyzer',
+      functionName: 'seattle-family-activities-source-analyzer',
+      timeout: Duration.minutes(10),
+      memorySize: 1024,
+      role: scraperRole, // Reuse the same role since it has DynamoDB access
+      environment: {
+        FAMILY_ACTIVITIES_TABLE: familyActivitiesTable.tableName,
+        SOURCE_MANAGEMENT_TABLE: sourceManagementTable.tableName,
+        SCRAPING_OPERATIONS_TABLE: scrapingOperationsTable.tableName,
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+        JINA_API_KEY: process.env.JINA_API_KEY || '',
+        LOG_LEVEL: 'INFO'
+      },
+      description: 'Analyzes founder-submitted sources using Jina + OpenAI to determine scraping approach'
+    });
+
+    // Lambda function for scraping orchestration (Go runtime)
+    const scrapingOrchestratorFunction = new GoFunction(this, 'ScrapingOrchestratorFunction', {
+      entry: '../backend/cmd/scraping_orchestrator',
+      functionName: 'seattle-family-activities-scraping-orchestrator',
+      timeout: Duration.minutes(15),
+      memorySize: 1024,
+      role: scraperRole, // Reuse the same role since it has DynamoDB and S3 access
+      environment: {
+        S3_BUCKET: eventsBucket.bucketName,
+        FAMILY_ACTIVITIES_TABLE: familyActivitiesTable.tableName,
+        SOURCE_MANAGEMENT_TABLE: sourceManagementTable.tableName,
+        SCRAPING_OPERATIONS_TABLE: scrapingOperationsTable.tableName,
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+        JINA_API_KEY: process.env.JINA_API_KEY || '',
+        LOG_LEVEL: 'INFO'
+      },
+      description: 'Orchestrates scraping tasks from DynamoDB sources, replacing hardcoded source list'
+    });
+
     // EventBridge rule for scheduled scraping (every 6 hours)
     const scrapingRule = new events.Rule(this, 'ScrapingScheduleRule', {
       ruleName: 'SeattleFamilyActivities-ScrapingSchedule',
@@ -324,6 +361,18 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       value: scraperFunction.functionName,
       description: 'Lambda function name for manual invocation',
       exportName: 'SeattleFamilyActivities-LambdaFunctionName'
+    });
+
+    new CfnOutput(this, 'SourceAnalyzerFunctionName', {
+      value: sourceAnalyzerFunction.functionName,
+      description: 'Source analyzer Lambda function name for manual invocation',
+      exportName: 'SeattleFamilyActivities-SourceAnalyzerFunctionName'
+    });
+
+    new CfnOutput(this, 'ScrapingOrchestratorFunctionName', {
+      value: scrapingOrchestratorFunction.functionName,
+      description: 'Scraping orchestrator Lambda function name for manual invocation',
+      exportName: 'SeattleFamilyActivities-ScrapingOrchestratorFunctionName'
     });
 
     new CfnOutput(this, 'EventsDataURL', {
