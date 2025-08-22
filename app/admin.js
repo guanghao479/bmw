@@ -21,7 +21,7 @@ class SourceManagementAdmin {
             return 'http://localhost:3000/api';
         } else {
             // Production - use actual AWS API Gateway endpoints
-            return 'https://api.seattlefamilyactivities.com';
+            return 'https://qg8c2jt6se.execute-api.us-west-2.amazonaws.com/prod/api';
         }
     }
 
@@ -231,25 +231,19 @@ class SourceManagementAdmin {
         try {
             const formData = this.getFormData();
             
-            // In production, this would make an API call to submit the source
-            // For now, simulate the submission
-            await this.simulateSourceSubmission(formData);
+            // Make real API call to submit the source
+            const response = await this.makeApiCall('/sources/submit', 'POST', formData);
             
-            this.showAlert('success', 'Source submitted successfully! It will be analyzed automatically.');
-            form.reset();
-            
-            // Add to pending sources for immediate feedback
-            const newSource = {
-                ...formData,
-                source_id: this.generateSourceId(formData.source_name),
-                status: 'pending_analysis',
-                submitted_at: new Date().toISOString()
-            };
-            this.sources.pending.unshift(newSource);
-            
-            // If on pending tab, refresh the display
-            if (this.currentTab === 'pending') {
-                this.displayPendingSources();
+            if (response.success) {
+                this.showAlert('success', 'Source submitted successfully! It will be analyzed automatically.');
+                form.reset();
+                
+                // Refresh pending sources to show the newly submitted source
+                if (this.currentTab === 'pending') {
+                    this.loadPendingSources();
+                }
+            } else {
+                throw new Error(response.error || 'Failed to submit source');
             }
             
         } catch (error) {
@@ -313,19 +307,33 @@ class SourceManagementAdmin {
         return data;
     }
 
-    async simulateSourceSubmission(data) {
-        // Simulate API call delay
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        // In production, this would be:
-        // const response = await fetch(`${this.apiBaseUrl}/sources/submit`, {
-        //     method: 'POST',
-        //     headers: { 'Content-Type': 'application/json' },
-        //     body: JSON.stringify(data)
-        // });
-        // return response.json();
-        
-        return { success: true, source_id: this.generateSourceId(data.source_name) };
+    async makeApiCall(endpoint, method = 'GET', body = null) {
+        const url = `${this.apiBaseUrl}${endpoint}`;
+        const options = {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+        };
+
+        if (body && method !== 'GET') {
+            options.body = JSON.stringify(body);
+        }
+
+        try {
+            const response = await fetch(url, options);
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return data;
+        } catch (error) {
+            console.error('API call failed:', error);
+            throw error;
+        }
     }
 
     generateSourceId(sourceName) {
@@ -340,12 +348,14 @@ class SourceManagementAdmin {
         container.innerHTML = '<div class="alert alert-info">Loading pending sources...</div>';
         
         try {
-            // In production, this would fetch from API
-            // const sources = await this.fetchPendingSources();
+            const response = await this.makeApiCall('/sources/pending');
             
-            setTimeout(() => {
+            if (response.success) {
+                this.sources.pending = response.data || [];
                 this.displayPendingSources();
-            }, 500);
+            } else {
+                throw new Error(response.error || 'Failed to load pending sources');
+            }
             
         } catch (error) {
             container.innerHTML = `<div class="alert alert-error">Failed to load pending sources: ${error.message}</div>`;
@@ -400,9 +410,19 @@ class SourceManagementAdmin {
         const container = document.getElementById('active-sources');
         container.innerHTML = '<div class="alert alert-info">Loading active sources...</div>';
         
-        setTimeout(() => {
-            this.displayActiveSources();
-        }, 500);
+        try {
+            const response = await this.makeApiCall('/sources/active');
+            
+            if (response.success) {
+                this.sources.active = response.data || [];
+                this.displayActiveSources();
+            } else {
+                throw new Error(response.error || 'Failed to load active sources');
+            }
+            
+        } catch (error) {
+            container.innerHTML = `<div class="alert alert-error">Failed to load active sources: ${error.message}</div>`;
+        }
     }
 
     displayActiveSources() {
@@ -453,33 +473,54 @@ class SourceManagementAdmin {
 
     async loadAnalytics() {
         const container = document.getElementById('analytics-content');
+        container.innerHTML = '<div class="alert alert-info">Loading analytics...</div>';
         
-        const analyticsHtml = `
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
-                <div class="source-card">
-                    <h4>Total Sources</h4>
-                    <div style="font-size: 2rem; font-weight: bold; color: var(--primary-color);">${this.sources.pending.length + this.sources.active.length}</div>
-                </div>
-                <div class="source-card">
-                    <h4>Pending Analysis</h4>
-                    <div style="font-size: 2rem; font-weight: bold; color: #f59e0b;">${this.sources.pending.length}</div>
-                </div>
-                <div class="source-card">
-                    <h4>Active Sources</h4>
-                    <div style="font-size: 2rem; font-weight: bold; color: #10b981;">${this.sources.active.length}</div>
-                </div>
-                <div class="source-card">
-                    <h4>Total Activities</h4>
-                    <div style="font-size: 2rem; font-weight: bold; color: var(--primary-color);">${this.sources.active.reduce((sum, s) => sum + (s.activities_found || 0), 0)}</div>
-                </div>
-            </div>
+        try {
+            const response = await this.makeApiCall('/analytics');
             
-            <div class="alert alert-info">
-                Detailed analytics dashboard coming soon with source performance metrics, content quality scores, and scraping efficiency reports.
-            </div>
-        `;
-        
-        container.innerHTML = analyticsHtml;
+            if (response.success) {
+                const analytics = response.data;
+                const analyticsHtml = `
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                        <div class="source-card">
+                            <h4>Total Sources</h4>
+                            <div style="font-size: 2rem; font-weight: bold; color: var(--primary-color);">${analytics.total_sources_submitted || 0}</div>
+                        </div>
+                        <div class="source-card">
+                            <h4>Pending Analysis</h4>
+                            <div style="font-size: 2rem; font-weight: bold; color: #f59e0b;">${analytics.sources_pending_analysis || 0}</div>
+                        </div>
+                        <div class="source-card">
+                            <h4>Active Sources</h4>
+                            <div style="font-size: 2rem; font-weight: bold; color: #10b981;">${analytics.sources_active || 0}</div>
+                        </div>
+                        <div class="source-card">
+                            <h4>Rejected Sources</h4>
+                            <div style="font-size: 2rem; font-weight: bold; color: #ef4444;">${analytics.sources_rejected || 0}</div>
+                        </div>
+                        <div class="source-card">
+                            <h4>Success Rate</h4>
+                            <div style="font-size: 2rem; font-weight: bold; color: #10b981;">${analytics.success_rate || '0%'}</div>
+                        </div>
+                        <div class="source-card">
+                            <h4>Avg Analysis Time</h4>
+                            <div style="font-size: 2rem; font-weight: bold; color: var(--primary-color);">${analytics.avg_analysis_time || 'N/A'}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        Detailed analytics dashboard coming soon with source performance metrics, content quality scores, and scraping efficiency reports.
+                    </div>
+                `;
+                
+                container.innerHTML = analyticsHtml;
+            } else {
+                throw new Error(response.error || 'Failed to load analytics');
+            }
+            
+        } catch (error) {
+            container.innerHTML = `<div class="alert alert-error">Failed to load analytics: ${error.message}</div>`;
+        }
     }
 
     formatStatus(status) {
