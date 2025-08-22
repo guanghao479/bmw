@@ -266,6 +266,30 @@ func (s *DynamoDBService) GetSourceSubmission(ctx context.Context, sourceID stri
 	return &submission, nil
 }
 
+// UpdateSourceSubmission updates an existing source submission
+func (s *DynamoDBService) UpdateSourceSubmission(ctx context.Context, submission *models.SourceSubmission) error {
+	// Set updated timestamp
+	now := time.Now()
+	submission.UpdatedAt = now
+
+	// Marshal to DynamoDB attribute values
+	item, err := attributevalue.MarshalMap(submission)
+	if err != nil {
+		return fmt.Errorf("failed to marshal source submission: %w", err)
+	}
+
+	// Put item (overwrites existing)
+	_, err = s.client.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: aws.String(s.sourceManagementTable),
+		Item:      item,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update source submission: %w", err)
+	}
+
+	return nil
+}
+
 // CreateSourceAnalysis stores analysis results
 func (s *DynamoDBService) CreateSourceAnalysis(ctx context.Context, analysis *models.SourceAnalysis) error {
 	// Set timestamps and keys

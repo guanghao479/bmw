@@ -56,6 +56,7 @@ type SourceSubmission struct {
 	// Submission metadata
 	SubmittedBy string    `json:"submitted_by" dynamodbav:"submitted_by"`
 	SubmittedAt time.Time `json:"submitted_at" dynamodbav:"submitted_at"`
+	UpdatedAt   time.Time `json:"updated_at" dynamodbav:"updated_at"`
 	Status      string    `json:"status" dynamodbav:"status"` // pending_analysis, analysis_complete, etc.
 
 	// GSI Keys

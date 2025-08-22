@@ -3,6 +3,7 @@ import { Construct } from 'constructs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as iam from 'aws-cdk-lib/aws-iam';
@@ -344,6 +345,75 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       new cloudwatchActions.SnsAction(alertTopic)
     );
 
+    // Admin API Lambda function for UI backend
+    const adminApiFunction = new GoFunction(this, 'AdminApiFunction', {
+      entry: '../backend/cmd/admin_api',
+      functionName: 'seattle-family-activities-admin-api',
+      timeout: Duration.minutes(5),
+      memorySize: 512,
+      role: scraperRole, // Reuse the same role since it has DynamoDB access
+      environment: {
+        FAMILY_ACTIVITIES_TABLE: familyActivitiesTable.tableName,
+        SOURCE_MANAGEMENT_TABLE: sourceManagementTable.tableName,
+        SCRAPING_OPERATIONS_TABLE: scrapingOperationsTable.tableName,
+        SOURCE_ANALYZER_FUNCTION_NAME: sourceAnalyzerFunction.functionName,
+      }
+    });
+
+    // Grant permission for Admin API to invoke Source Analyzer
+    sourceAnalyzerFunction.grantInvoke(adminApiFunction);
+
+    // API Gateway for Admin UI
+    const adminApi = new apigateway.RestApi(this, 'AdminApi', {
+      restApiName: 'SeattleFamilyActivities-AdminAPI',
+      description: 'Admin API for Seattle Family Activities source management',
+      defaultCorsPreflightOptions: {
+        allowOrigins: ['https://guanghao479.github.io', 'http://localhost:8000'],
+        allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowHeaders: ['Content-Type', 'X-Amz-Date', 'Authorization', 'X-Api-Key', 'X-Amz-Security-Token'],
+      },
+      deployOptions: {
+        stageName: 'prod'
+      }
+    });
+
+    // API Gateway Lambda integration
+    const adminApiIntegration = new apigateway.LambdaIntegration(adminApiFunction, {
+      requestTemplates: { 'application/json': '{ "statusCode": "200" }' },
+      proxy: true
+    });
+
+    // API routes
+    const apiResource = adminApi.root.addResource('api');
+    const sourcesResource = apiResource.addResource('sources');
+    
+    // Sources routes
+    sourcesResource.addMethod('POST', adminApiIntegration); // POST /api/sources (with {action: 'submit'} in body)
+    sourcesResource.addMethod('GET', adminApiIntegration);  // GET /api/sources?type=pending|active
+    
+    const sourceResource = sourcesResource.addResource('{id}');
+    const analysisResource = sourceResource.addResource('analysis');
+    const activateResource = sourceResource.addResource('activate');
+    const rejectResource = sourceResource.addResource('reject');
+    
+    analysisResource.addMethod('GET', adminApiIntegration); // GET /api/sources/{id}/analysis
+    activateResource.addMethod('PUT', adminApiIntegration); // PUT /api/sources/{id}/activate
+    rejectResource.addMethod('PUT', adminApiIntegration);   // PUT /api/sources/{id}/reject
+    
+    // Analytics route
+    const analyticsResource = apiResource.addResource('analytics');
+    analyticsResource.addMethod('GET', adminApiIntegration); // GET /api/analytics
+
+    // Submit route for backwards compatibility
+    const submitResource = sourcesResource.addResource('submit');
+    submitResource.addMethod('POST', adminApiIntegration); // POST /api/sources/submit
+    
+    // Pending/active routes for backwards compatibility
+    const pendingResource = sourcesResource.addResource('pending');
+    const activeResource = sourcesResource.addResource('active');
+    pendingResource.addMethod('GET', adminApiIntegration); // GET /api/sources/pending
+    activeResource.addMethod('GET', adminApiIntegration);  // GET /api/sources/active
+
     // Outputs for reference
     new CfnOutput(this, 'S3BucketName', {
       value: eventsBucket.bucketName,
@@ -403,6 +473,24 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       value: scrapingOperationsTable.tableName,
       description: 'DynamoDB table name for scraping operations',
       exportName: 'SeattleFamilyActivities-ScrapingOperationsTableName'
+    });
+
+    new CfnOutput(this, 'AdminApiFunctionName', {
+      value: adminApiFunction.functionName,
+      description: 'Admin API Lambda function name',
+      exportName: 'SeattleFamilyActivities-AdminApiFunctionName'
+    });
+
+    new CfnOutput(this, 'AdminApiUrl', {
+      value: adminApi.url,
+      description: 'Admin API Gateway base URL',
+      exportName: 'SeattleFamilyActivities-AdminApiUrl'
+    });
+
+    new CfnOutput(this, 'AdminApiId', {
+      value: adminApi.restApiId,
+      description: 'Admin API Gateway ID',
+      exportName: 'SeattleFamilyActivities-AdminApiId'
     });
   }
 }
