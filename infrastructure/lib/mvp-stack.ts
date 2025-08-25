@@ -6,10 +6,12 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
+import * as eventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as snsSubscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as cloudwatchActions from 'aws-cdk-lib/aws-cloudwatch-actions';
 import { GoFunction } from '@aws-cdk/aws-lambda-go-alpha';
 
@@ -138,6 +140,27 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       nonKeyAttributes: ['source_id', 'scheduled_time', 'task_type', 'status', 'retry_count']
     });
 
+    // SQS Dead Letter Queue for failed tasks
+    const scrapingTaskDLQ = new sqs.Queue(this, 'ScrapingTaskDLQ', {
+      queueName: 'seattle-family-activities-scraping-tasks-dlq',
+      retentionPeriod: Duration.days(14), // Keep failed messages for 14 days
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+      removalPolicy: RemovalPolicy.DESTROY // For MVP - allows easy cleanup
+    });
+
+    // SQS Queue for scraping tasks
+    const scrapingTaskQueue = new sqs.Queue(this, 'ScrapingTaskQueue', {
+      queueName: 'seattle-family-activities-scraping-tasks',
+      visibilityTimeout: Duration.minutes(20), // 20 minutes for task execution + buffer
+      receiveMessageWaitTime: Duration.seconds(20), // Long polling
+      deadLetterQueue: {
+        queue: scrapingTaskDLQ,
+        maxReceiveCount: 3 // Retry failed tasks 3 times before moving to DLQ
+      },
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+      removalPolicy: RemovalPolicy.DESTROY // For MVP - allows easy cleanup
+    });
+
     // IAM role for Lambda function
     const scraperRole = new iam.Role(this, 'ScraperLambdaRole', {
       assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
@@ -186,6 +209,24 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
               ]
             })
           ]
+        }),
+        SQSAccess: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              effect: iam.Effect.ALLOW,
+              actions: [
+                'sqs:SendMessage',
+                'sqs:ReceiveMessage',
+                'sqs:DeleteMessage',
+                'sqs:GetQueueAttributes',
+                'sqs:GetQueueUrl'
+              ],
+              resources: [
+                scrapingTaskQueue.queueArn,
+                scrapingTaskDLQ.queueArn
+              ]
+            })
+          ]
         })
       }
     });
@@ -228,26 +269,6 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       ]
     });
 
-    // Lambda function for scraping (Go runtime)
-    const scraperFunction = new GoFunction(this, 'EventScraperFunction', {
-      entry: '../backend/cmd/lambda',
-      functionName: 'seattle-family-activities-scraper',
-      timeout: Duration.minutes(15),
-      memorySize: 1024,
-      role: scraperRole,
-      environment: {
-        S3_BUCKET: eventsBucket.bucketName,
-        FAMILY_ACTIVITIES_TABLE: familyActivitiesTable.tableName,
-        SOURCE_MANAGEMENT_TABLE: sourceManagementTable.tableName,
-        SCRAPING_OPERATIONS_TABLE: scrapingOperationsTable.tableName,
-        OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
-        JINA_API_KEY: process.env.JINA_API_KEY || '',
-        // AWS_REGION is automatically set by Lambda runtime
-        LOG_LEVEL: 'INFO'
-      },
-      description: 'Scrapes Seattle family activity websites using Jina + OpenAI and stores results in S3'
-    });
-
     // Lambda function for source analysis (Go runtime)
     const sourceAnalyzerFunction = new GoFunction(this, 'SourceAnalyzerFunction', {
       entry: '../backend/cmd/source_analyzer',
@@ -278,6 +299,7 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
         FAMILY_ACTIVITIES_TABLE: familyActivitiesTable.tableName,
         SOURCE_MANAGEMENT_TABLE: sourceManagementTable.tableName,
         SCRAPING_OPERATIONS_TABLE: scrapingOperationsTable.tableName,
+        SCRAPING_TASK_QUEUE_URL: scrapingTaskQueue.queueUrl,
         OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
         JINA_API_KEY: process.env.JINA_API_KEY || '',
         LOG_LEVEL: 'INFO'
@@ -285,14 +307,45 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       description: 'Orchestrates scraping tasks from DynamoDB sources, replacing hardcoded source list'
     });
 
-    // EventBridge rule for scheduled scraping (every 6 hours)
-    const scrapingRule = new events.Rule(this, 'ScrapingScheduleRule', {
-      ruleName: 'SeattleFamilyActivities-ScrapingSchedule',
-      description: 'Triggers family activities scraping every 6 hours',
-      schedule: events.Schedule.rate(Duration.hours(6)),
+    // Task Executor Lambda function for processing SQS scraping tasks
+    const taskExecutorFunction = new GoFunction(this, 'TaskExecutorFunction', {
+      entry: '../backend/cmd/task_executor',
+      functionName: 'seattle-family-activities-task-executor',
+      timeout: Duration.minutes(15),
+      memorySize: 1024,
+      role: scraperRole, // Reuse the same role since it has all necessary permissions
+      environment: {
+        S3_BUCKET_NAME: eventsBucket.bucketName,
+        FAMILY_ACTIVITIES_TABLE: familyActivitiesTable.tableName,
+        SOURCE_MANAGEMENT_TABLE: sourceManagementTable.tableName,
+        SCRAPING_OPERATIONS_TABLE: scrapingOperationsTable.tableName,
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+        JINA_API_KEY: process.env.JINA_API_KEY || '',
+        LOG_LEVEL: 'INFO'
+      },
+      description: 'Processes individual scraping tasks from SQS queue'
+    });
+
+    // Connect task executor to SQS queue
+    taskExecutorFunction.addEventSource(
+      new eventSources.SqsEventSource(scrapingTaskQueue, {
+        batchSize: 1, // Process one task at a time for better error isolation
+        maxBatchingWindow: Duration.seconds(20),
+        reportBatchItemFailures: true, // Enable partial batch failure reporting
+      })
+    );
+
+    // EventBridge rule for DynamoDB-driven orchestrator (every 15 minutes)
+    const orchestratorRule = new events.Rule(this, 'OrchestratorScheduleRule', {
+      ruleName: 'SeattleFamilyActivities-OrchestratorSchedule',
+      description: 'Triggers scraping orchestrator to check for scheduled tasks',
+      schedule: events.Schedule.rate(Duration.minutes(15)),
       targets: [
-        new targets.LambdaFunction(scraperFunction, {
-          retryAttempts: 2
+        new targets.LambdaFunction(scrapingOrchestratorFunction, {
+          retryAttempts: 1,
+          event: events.RuleTargetInput.fromObject({
+            trigger_type: 'scheduled'
+          })
         })
       ]
     });
@@ -310,40 +363,54 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       );
     }
 
-    // CloudWatch alarm for Lambda failures
-    const lambdaErrorAlarm = new cloudwatch.Alarm(this, 'ScraperLambdaErrorAlarm', {
-      alarmName: 'SeattleFamilyActivities-ScraperErrors',
-      alarmDescription: 'Alert when event scraper Lambda function fails',
-      metric: scraperFunction.metricErrors({
-        period: Duration.minutes(5),
-        statistic: 'Sum'
-      }),
-      threshold: 1,
-      evaluationPeriods: 1,
-      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING
+    // Create a separate IAM role for Admin API Lambda  
+    const adminApiRole = new iam.Role(this, 'AdminApiLambdaRole', {
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')
+      ],
+      inlinePolicies: {
+        DynamoDBAccess: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              effect: iam.Effect.ALLOW,
+              actions: [
+                'dynamodb:PutItem',
+                'dynamodb:GetItem',
+                'dynamodb:UpdateItem',
+                'dynamodb:DeleteItem',
+                'dynamodb:Query',
+                'dynamodb:Scan',
+                'dynamodb:BatchGetItem',
+                'dynamodb:BatchWriteItem'
+              ],
+              resources: [
+                familyActivitiesTable.tableArn,
+                sourceManagementTable.tableArn,
+                scrapingOperationsTable.tableArn,
+                `${familyActivitiesTable.tableArn}/index/*`,
+                `${sourceManagementTable.tableArn}/index/*`,
+                `${scrapingOperationsTable.tableArn}/index/*`
+              ]
+            })
+          ]
+        }),
+        LambdaInvokeAccess: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              effect: iam.Effect.ALLOW,
+              actions: [
+                'lambda:InvokeFunction'
+              ],
+              resources: [
+                sourceAnalyzerFunction.functionArn,
+                scrapingOrchestratorFunction.functionArn
+              ]
+            })
+          ]
+        })
+      }
     });
-
-    // Add SNS action to the alarm
-    lambdaErrorAlarm.addAlarmAction(
-      new cloudwatchActions.SnsAction(alertTopic)
-    );
-
-    // CloudWatch alarm for Lambda duration (timeout warning)
-    const lambdaDurationAlarm = new cloudwatch.Alarm(this, 'ScraperLambdaDurationAlarm', {
-      alarmName: 'SeattleFamilyActivities-ScraperDuration',
-      alarmDescription: 'Alert when event scraper takes longer than 12 minutes',
-      metric: scraperFunction.metricDuration({
-        period: Duration.minutes(5),
-        statistic: 'Maximum'
-      }),
-      threshold: Duration.minutes(12).toMilliseconds(),
-      evaluationPeriods: 1,
-      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING
-    });
-
-    lambdaDurationAlarm.addAlarmAction(
-      new cloudwatchActions.SnsAction(alertTopic)
-    );
 
     // Admin API Lambda function for UI backend
     const adminApiFunction = new GoFunction(this, 'AdminApiFunction', {
@@ -351,17 +418,15 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       functionName: 'seattle-family-activities-admin-api',
       timeout: Duration.minutes(5),
       memorySize: 512,
-      role: scraperRole, // Reuse the same role since it has DynamoDB access
+      role: adminApiRole,
       environment: {
         FAMILY_ACTIVITIES_TABLE: familyActivitiesTable.tableName,
         SOURCE_MANAGEMENT_TABLE: sourceManagementTable.tableName,
         SCRAPING_OPERATIONS_TABLE: scrapingOperationsTable.tableName,
         SOURCE_ANALYZER_FUNCTION_NAME: sourceAnalyzerFunction.functionName,
+        ORCHESTRATOR_FUNCTION_NAME: scrapingOrchestratorFunction.functionName,
       }
     });
-
-    // Grant permission for Admin API to invoke Source Analyzer
-    sourceAnalyzerFunction.grantInvoke(adminApiFunction);
 
     // API Gateway for Admin UI
     const adminApi = new apigateway.RestApi(this, 'AdminApi', {
@@ -395,10 +460,14 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
     const analysisResource = sourceResource.addResource('analysis');
     const activateResource = sourceResource.addResource('activate');
     const rejectResource = sourceResource.addResource('reject');
+    const detailsResource = sourceResource.addResource('details');
+    const triggerResource = sourceResource.addResource('trigger');
     
     analysisResource.addMethod('GET', adminApiIntegration); // GET /api/sources/{id}/analysis
     activateResource.addMethod('PUT', adminApiIntegration); // PUT /api/sources/{id}/activate
     rejectResource.addMethod('PUT', adminApiIntegration);   // PUT /api/sources/{id}/reject
+    detailsResource.addMethod('GET', adminApiIntegration);  // GET /api/sources/{id}/details
+    triggerResource.addMethod('POST', adminApiIntegration); // POST /api/sources/{id}/trigger
     
     // Analytics route
     const analyticsResource = apiResource.addResource('analytics');
@@ -427,11 +496,6 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       exportName: 'SeattleFamilyActivities-S3BucketURL'
     });
 
-    new CfnOutput(this, 'LambdaFunctionName', {
-      value: scraperFunction.functionName,
-      description: 'Lambda function name for manual invocation',
-      exportName: 'SeattleFamilyActivities-LambdaFunctionName'
-    });
 
     new CfnOutput(this, 'SourceAnalyzerFunctionName', {
       value: sourceAnalyzerFunction.functionName,
@@ -491,6 +555,24 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       value: adminApi.restApiId,
       description: 'Admin API Gateway ID',
       exportName: 'SeattleFamilyActivities-AdminApiId'
+    });
+
+    new CfnOutput(this, 'ScrapingTaskQueueUrl', {
+      value: scrapingTaskQueue.queueUrl,
+      description: 'SQS queue URL for scraping tasks',
+      exportName: 'SeattleFamilyActivities-ScrapingTaskQueueUrl'
+    });
+
+    new CfnOutput(this, 'ScrapingTaskQueueArn', {
+      value: scrapingTaskQueue.queueArn,
+      description: 'SQS queue ARN for scraping tasks',
+      exportName: 'SeattleFamilyActivities-ScrapingTaskQueueArn'
+    });
+
+    new CfnOutput(this, 'TaskExecutorFunctionName', {
+      value: taskExecutorFunction.functionName,
+      description: 'Task executor Lambda function name',
+      exportName: 'SeattleFamilyActivities-TaskExecutorFunctionName'
     });
   }
 }

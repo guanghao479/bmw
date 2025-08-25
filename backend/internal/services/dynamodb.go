@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -214,6 +215,7 @@ func (s *DynamoDBService) CreateSourceSubmission(ctx context.Context, submission
 	// Set timestamps and keys
 	now := time.Now()
 	submission.SubmittedAt = now
+	submission.UpdatedAt = now
 	submission.PK = models.CreateSourcePK(submission.SourceID)
 	submission.SK = models.CreateSourceSubmissionSK()
 	submission.StatusKey = models.GenerateSourceStatusKey(submission.Status)
@@ -546,4 +548,195 @@ func (s *DynamoDBService) populateFamilyActivityGSIKeys(activity *models.FamilyA
 	if activity.EntityType != "" && activity.Status != "" {
 		activity.TypeStatusKey = models.GenerateTypeStatusKey(activity.EntityType, activity.Status, activity.EntityID)
 	}
+}
+
+// BatchPutActivities stores multiple activities in batches (for task executor)
+func (s *DynamoDBService) BatchPutActivities(ctx context.Context, activities []*models.Activity) error {
+	if len(activities) == 0 {
+		return nil
+	}
+
+	// Convert Activity to FamilyActivity format for storage
+	var familyActivities []*models.FamilyActivity
+	for _, activity := range activities {
+		familyActivity := s.convertActivityToFamilyActivity(activity)
+		familyActivities = append(familyActivities, familyActivity)
+	}
+
+	// Process in batches of 25 (DynamoDB limit)
+	batchSize := 25
+	for i := 0; i < len(familyActivities); i += batchSize {
+		end := i + batchSize
+		if end > len(familyActivities) {
+			end = len(familyActivities)
+		}
+
+		batch := familyActivities[i:end]
+		if err := s.batchWriteFamilyActivities(ctx, batch); err != nil {
+			return fmt.Errorf("failed to write batch %d-%d: %w", i, end-1, err)
+		}
+	}
+
+	return nil
+}
+
+// batchWriteFamilyActivities writes a batch of family activities
+func (s *DynamoDBService) batchWriteFamilyActivities(ctx context.Context, activities []*models.FamilyActivity) error {
+	writeRequests := make([]types.WriteRequest, 0, len(activities))
+
+	for _, activity := range activities {
+		// Set timestamps
+		now := time.Now()
+		activity.CreatedAt = now
+		activity.UpdatedAt = now
+
+		// Populate GSI keys
+		s.populateFamilyActivityGSIKeys(activity)
+
+		// Marshal activity
+		item, err := attributevalue.MarshalMap(activity)
+		if err != nil {
+			return fmt.Errorf("failed to marshal activity %s: %w", activity.EntityID, err)
+		}
+
+		writeRequests = append(writeRequests, types.WriteRequest{
+			PutRequest: &types.PutRequest{Item: item},
+		})
+	}
+
+	// Execute batch write
+	_, err := s.client.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
+		RequestItems: map[string][]types.WriteRequest{
+			s.familyActivitiesTable: writeRequests,
+		},
+	})
+
+	return err
+}
+
+// GetAllActivities retrieves all activities from the family activities table (for S3 export)
+func (s *DynamoDBService) GetAllActivities(ctx context.Context) ([]*models.Activity, error) {
+	result, err := s.client.Scan(ctx, &dynamodb.ScanInput{
+		TableName: aws.String(s.familyActivitiesTable),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan activities: %w", err)
+	}
+
+	var familyActivities []models.FamilyActivity
+	err = attributevalue.UnmarshalListOfMaps(result.Items, &familyActivities)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal activities: %w", err)
+	}
+
+	// Convert to Activity format
+	var activities []*models.Activity
+	for _, fa := range familyActivities {
+		activity := s.convertFamilyActivityToActivity(&fa)
+		activities = append(activities, activity)
+	}
+
+	return activities, nil
+}
+
+// convertActivityToFamilyActivity converts a simple Activity to the complex FamilyActivity format
+func (s *DynamoDBService) convertActivityToFamilyActivity(activity *models.Activity) *models.FamilyActivity {
+	// TODO: Implement proper conversion when needed
+	// For now, return a minimal FamilyActivity to satisfy the interface
+	return &models.FamilyActivity{
+		EntityID:    activity.ID,
+		EntityType:  models.EntityTypeEvent,
+		Name:        activity.Title,
+		Description: activity.Description,
+		Status:      models.ActivityStatusActive,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+}
+
+// convertFamilyActivityToActivity converts a complex FamilyActivity to simple Activity format
+func (s *DynamoDBService) convertFamilyActivityToActivity(fa *models.FamilyActivity) *models.Activity {
+	// TODO: Implement proper conversion when needed
+	// For now, return a minimal Activity to satisfy the interface
+	return &models.Activity{
+		ID:          fa.EntityID,
+		Title:       fa.Name,
+		Description: fa.Description,
+		Type:        string(fa.EntityType),
+	}
+}
+
+// GetRecentTasksForSource retrieves recent scraping tasks for a specific source
+func (s *DynamoDBService) GetRecentTasksForSource(ctx context.Context, sourceID string, limit int) ([]models.ScrapingTask, error) {
+	// Query scraping operations table for tasks from this source
+	// We'll use a scan with filter since we need to search by source_id
+	result, err := s.client.Scan(ctx, &dynamodb.ScanInput{
+		TableName:        aws.String(s.scrapingOperationsTable),
+		FilterExpression: aws.String("source_id = :source_id"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":source_id": &types.AttributeValueMemberS{Value: sourceID},
+		},
+		Limit: aws.Int32(int32(limit)),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan tasks for source %s: %w", sourceID, err)
+	}
+
+	var tasks []models.ScrapingTask
+	err = attributevalue.UnmarshalListOfMaps(result.Items, &tasks)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal scraping tasks: %w", err)
+	}
+
+	// Sort by UpdatedAt descending (most recent first)
+	sort.Slice(tasks, func(i, j int) bool {
+		return tasks[i].UpdatedAt.After(tasks[j].UpdatedAt)
+	})
+
+	// Return up to the requested limit
+	if len(tasks) > limit {
+		tasks = tasks[:limit]
+	}
+
+	return tasks, nil
+}
+
+// UpdateScrapingTask updates an existing scraping task
+func (s *DynamoDBService) UpdateScrapingTask(ctx context.Context, task *models.ScrapingTask) error {
+	// Update timestamp
+	task.UpdatedAt = time.Now()
+
+	// Create update expression for the fields that might change
+	updateExpr := "SET #status = :status, #updated_at = :updated_at"
+	exprAttrNames := map[string]string{
+		"#status":     "status",
+		"#updated_at": "updated_at",
+	}
+	exprAttrValues := map[string]types.AttributeValue{
+		":status":     &types.AttributeValueMemberS{Value: string(task.Status)},
+		":updated_at": &types.AttributeValueMemberS{Value: task.UpdatedAt.Format(time.RFC3339)},
+	}
+
+	// Add retry count if it has changed
+	if task.RetryCount > 0 {
+		updateExpr += ", #retry_count = :retry_count"
+		exprAttrNames["#retry_count"] = "retry_count"
+		exprAttrValues[":retry_count"] = &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", task.RetryCount)}
+	}
+
+	_, err := s.client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName: aws.String(s.scrapingOperationsTable),
+		Key: map[string]types.AttributeValue{
+			"task_id": &types.AttributeValueMemberS{Value: task.TaskID},
+		},
+		UpdateExpression:          aws.String(updateExpr),
+		ExpressionAttributeNames:  exprAttrNames,
+		ExpressionAttributeValues: exprAttrValues,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to update scraping task %s: %w", task.TaskID, err)
+	}
+
+	return nil
 }

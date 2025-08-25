@@ -13,14 +13,18 @@ const (
 	TaskTypeDiscovery     = "discovery"
 )
 
+// ScrapingTaskStatus represents the status of a scraping task
+type ScrapingTaskStatus string
+
 // Scraping task status constants
 const (
-	TaskStatusScheduled   = "scheduled"
-	TaskStatusInProgress  = "in_progress"
-	TaskStatusCompleted   = "completed"
-	TaskStatusFailed      = "failed"
-	TaskStatusCancelled   = "cancelled"
-	TaskStatusRetrying    = "retrying"
+	TaskStatusScheduled   ScrapingTaskStatus = "scheduled"
+	TaskStatusQueued      ScrapingTaskStatus = "queued"
+	TaskStatusInProgress  ScrapingTaskStatus = "in_progress"
+	TaskStatusCompleted   ScrapingTaskStatus = "completed"
+	TaskStatusFailed      ScrapingTaskStatus = "failed"
+	TaskStatusCancelled   ScrapingTaskStatus = "cancelled"
+	TaskStatusRetrying    ScrapingTaskStatus = "retrying"
 )
 
 // Scraping task priority constants
@@ -53,7 +57,7 @@ type ScrapingTask struct {
 	MaxRetries      int           `json:"max_retries" dynamodbav:"max_retries"`
 	
 	// Task status
-	Status           string    `json:"status" dynamodbav:"status"`                       // scheduled, in_progress, completed, failed
+	Status           ScrapingTaskStatus `json:"status" dynamodbav:"status"`                       // scheduled, in_progress, completed, failed
 	RetryCount       int       `json:"retry_count" dynamodbav:"retry_count"`
 	LastRetryAt      time.Time `json:"last_retry_at" dynamodbav:"last_retry_at"`
 	EstimatedDuration int64    `json:"estimated_duration" dynamodbav:"estimated_duration"` // seconds
@@ -346,7 +350,7 @@ func (se *ScrapingExecution) Validate() error {
 }
 
 // Status transition validation
-func (st *ScrapingTask) CanTransitionTo(newStatus string) bool {
+func (st *ScrapingTask) CanTransitionTo(newStatus ScrapingTaskStatus) bool {
 	switch st.Status {
 	case TaskStatusScheduled:
 		return newStatus == TaskStatusInProgress || newStatus == TaskStatusCancelled

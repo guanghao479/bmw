@@ -11,8 +11,11 @@ import (
 	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 
 	"seattle-family-activities-scraper/internal/models"
 	"seattle-family-activities-scraper/internal/services"
@@ -55,6 +58,8 @@ var (
 	jinaClient    *services.JinaClient
 	openAIClient  *services.OpenAIClient
 	s3Client      *services.S3Client
+	sqsClient     *sqs.Client
+	taskQueueURL  string
 )
 
 func init() {
@@ -82,6 +87,15 @@ func init() {
 	if err != nil {
 		log.Fatalf("Failed to create S3 client: %v", err)
 	}
+
+	// Create SQS client for task queue
+	sqsClient = sqs.NewFromConfig(cfg)
+	taskQueueURL = os.Getenv("SCRAPING_TASK_QUEUE_URL")
+	if taskQueueURL == "" {
+		log.Fatalf("SCRAPING_TASK_QUEUE_URL environment variable is required")
+	}
+	
+	log.Printf("Orchestrator initialized with task queue: %s", taskQueueURL)
 }
 
 // handleRequest processes the scraping orchestrator Lambda request
@@ -150,10 +164,10 @@ func processSpecificSource(ctx context.Context, sourceID, taskType, triggerType 
 		return nil, fmt.Errorf("failed to store scraping task: %w", err)
 	}
 
-	// Execute the scraping task immediately
-	err = executeScrapingTask(ctx, task, sourceConfig)
+	// Send task to SQS queue for execution
+	err = sendTaskToQueue(ctx, task, sourceConfig)
 	if err != nil {
-		log.Printf("Failed to execute scraping task for %s: %v", sourceID, err)
+		log.Printf("Failed to send scraping task for %s to queue: %v", sourceID, err)
 		// Don't return error - log and continue
 	}
 
@@ -217,10 +231,10 @@ func processAllActiveSources(ctx context.Context, taskType, triggerType string) 
 			continue
 		}
 
-		// Execute the scraping task
-		err = executeScrapingTask(ctx, task, sourceConfig)
+		// Send task to SQS queue for execution
+		err = sendTaskToQueue(ctx, task, sourceConfig)
 		if err != nil {
-			log.Printf("Failed to execute scraping task for %s: %v", sourceConfig.SourceID, err)
+			log.Printf("Failed to send scraping task for %s to queue: %v", sourceConfig.SourceID, err)
 			// Continue with other sources
 		}
 
@@ -575,6 +589,62 @@ func updateSourceQualityMetrics(ctx context.Context, sourceConfig *models.Dynamo
 	if err != nil {
 		log.Printf("Failed to update source quality metrics: %v", err)
 	}
+}
+
+// sendTaskToQueue sends a scraping task to the SQS queue for execution
+func sendTaskToQueue(ctx context.Context, task *models.ScrapingTask, sourceConfig *models.DynamoSourceConfig) error {
+	// Create task message for SQS
+	taskMessage := map[string]interface{}{
+		"task_id":       task.TaskID,
+		"source_id":     task.SourceID,
+		"source_name":   sourceConfig.SourceName,
+		"base_url":      sourceConfig.BaseURL,
+		"task_type":     task.TaskType,
+		"priority":      task.Priority,
+		"config":        sourceConfig,
+		"scheduled_for": task.ScheduledTime,
+	}
+
+	// Marshal to JSON
+	messageBody, err := json.Marshal(taskMessage)
+	if err != nil {
+		return fmt.Errorf("failed to marshal task message: %w", err)
+	}
+
+	// Send message to SQS
+	_, err = sqsClient.SendMessage(ctx, &sqs.SendMessageInput{
+		QueueUrl:    &taskQueueURL,
+		MessageBody: aws.String(string(messageBody)),
+		MessageAttributes: map[string]types.MessageAttributeValue{
+			"TaskType": {
+				DataType:    aws.String("String"),
+				StringValue: aws.String(task.TaskType),
+			},
+			"Priority": {
+				DataType:    aws.String("String"),
+				StringValue: aws.String(task.Priority),
+			},
+			"SourceID": {
+				DataType:    aws.String("String"),
+				StringValue: aws.String(task.SourceID),
+			},
+		},
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to send message to SQS: %w", err)
+	}
+
+	// Update task status to queued
+	task.Status = models.TaskStatusQueued
+	task.UpdatedAt = time.Now()
+	if updateErr := dynamoService.UpdateScrapingTask(ctx, task); updateErr != nil {
+		log.Printf("Failed to update task status to queued: %v", updateErr)
+		// Don't return error - task was queued successfully
+	}
+
+	log.Printf("Successfully queued task %s for source %s", task.TaskID, task.SourceID)
+	return nil
 }
 
 // Helper functions for converting to legacy format (simplified)

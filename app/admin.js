@@ -161,11 +161,8 @@ class SourceManagementAdmin {
             case 'pending':
                 this.loadPendingSources();
                 break;
-            case 'active':
-                this.loadActiveSources();
-                break;
-            case 'analytics':
-                this.loadAnalytics();
+            case 'sources':
+                this.loadSourceManagement();
                 break;
         }
     }
@@ -469,6 +466,186 @@ class SourceManagementAdmin {
         `).join('');
 
         container.innerHTML = sourcesHtml;
+    }
+
+    async loadSourceManagement() {
+        // Load analytics overview
+        const analyticsContainer = document.getElementById('analytics-overview');
+        analyticsContainer.innerHTML = '<div class="alert alert-info">Loading analytics...</div>';
+        
+        // Load active sources
+        const sourcesContainer = document.getElementById('active-sources');
+        sourcesContainer.innerHTML = '<div class="alert alert-info">Loading active sources...</div>';
+        
+        try {
+            // Fetch both analytics and active sources data
+            const [analyticsResponse, sourcesResponse] = await Promise.all([
+                this.makeApiCall('/analytics'),
+                this.makeApiCall('/sources/active')
+            ]);
+            
+            // Display analytics overview
+            if (analyticsResponse.success) {
+                const analytics = analyticsResponse.data;
+                this.displayAnalyticsOverview(analytics);
+            } else {
+                throw new Error(analyticsResponse.error || 'Failed to load analytics');
+            }
+            
+            // Display active sources with enhanced data
+            if (sourcesResponse.success) {
+                this.sources.active = sourcesResponse.data || [];
+                this.displayEnhancedActiveSources();
+            } else {
+                throw new Error(sourcesResponse.error || 'Failed to load active sources');
+            }
+            
+        } catch (error) {
+            analyticsContainer.innerHTML = `<div class="alert alert-error">Failed to load data: ${error.message}</div>`;
+            sourcesContainer.innerHTML = `<div class="alert alert-error">Failed to load active sources: ${error.message}</div>`;
+        }
+    }
+
+    displayAnalyticsOverview(analytics) {
+        const container = document.getElementById('analytics-overview');
+        const analyticsHtml = `
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                <div class="source-card" style="text-align: center; padding: 1rem;">
+                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-secondary);">Total Sources</h4>
+                    <div style="font-size: 1.8rem; font-weight: bold; color: var(--primary-color);">${analytics.total_sources_submitted || 0}</div>
+                </div>
+                <div class="source-card" style="text-align: center; padding: 1rem;">
+                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-secondary);">Active Sources</h4>
+                    <div style="font-size: 1.8rem; font-weight: bold; color: #10b981;">${analytics.sources_active || 0}</div>
+                </div>
+                <div class="source-card" style="text-align: center; padding: 1rem;">
+                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-secondary);">Success Rate</h4>
+                    <div style="font-size: 1.8rem; font-weight: bold; color: #10b981;">${analytics.success_rate || '0%'}</div>
+                </div>
+                <div class="source-card" style="text-align: center; padding: 1rem;">
+                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-secondary);">Total Activities</h4>
+                    <div style="font-size: 1.8rem; font-weight: bold; color: var(--primary-color);">${analytics.total_activities || 0}</div>
+                </div>
+            </div>
+        `;
+        container.innerHTML = analyticsHtml;
+    }
+
+    displayEnhancedActiveSources() {
+        const container = document.getElementById('active-sources');
+        
+        if (this.sources.active.length === 0) {
+            container.innerHTML = '<div class="alert alert-info">No active sources configured yet. Submit a source for analysis to get started.</div>';
+            return;
+        }
+
+        const sourcesHtml = this.sources.active.map(source => `
+            <div class="source-card" style="position: relative;">
+                <div class="source-header">
+                    <div class="source-title">${source.source_name}</div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <span class="status-badge status-complete">Active</span>
+                        <button class="btn-small" onclick="adminApp.triggerManualScrape('${source.source_id}')" 
+                                style="background: var(--primary-color); color: white; border: none; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer;">
+                            Scrape Now
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Performance Metrics Row -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.5rem; margin: 1rem 0; padding: 0.75rem; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Success Rate</div>
+                        <div style="font-weight: bold; color: #10b981;">${source.success_rate || 0}%</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Activities</div>
+                        <div style="font-weight: bold; color: var(--primary-color);">${source.activities_found || 0}</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Last Scraped</div>
+                        <div style="font-weight: bold; font-size: 0.85rem;">${this.formatDate(source.last_scraped) || 'Never'}</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Status</div>
+                        <div style="font-weight: bold; color: ${this.getStatusColor(source.scraping_status)};">${source.scraping_status || 'Ready'}</div>
+                    </div>
+                </div>
+                
+                <!-- Source Details -->
+                <div class="source-meta">
+                    <div class="meta-item">
+                        <div class="meta-label">Type:</div>
+                        ${this.formatSourceType(source.source_type)}
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Frequency:</div>
+                        ${source.scraping_frequency || 'Daily'}
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Base URL:</div>
+                        <a href="${source.base_url}" target="_blank" style="color: var(--primary-color); text-decoration: none;">${this.truncateUrl(source.base_url)}</a>
+                    </div>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div style="margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: flex-end;">
+                    <button onclick="adminApp.showSourceDetails('${source.source_id}')" 
+                            style="background: none; border: 1px solid var(--border-color); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">
+                        View Details
+                    </button>
+                    <button onclick="adminApp.toggleSourceStatus('${source.source_id}')" 
+                            style="background: #ef4444; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">
+                        Pause
+                    </button>
+                </div>
+            </div>
+        `).join('');
+
+        container.innerHTML = sourcesHtml;
+    }
+
+    getStatusColor(status) {
+        const colors = {
+            'ready': '#10b981',
+            'running': '#f59e0b', 
+            'completed': '#10b981',
+            'failed': '#ef4444',
+            'paused': '#6b7280'
+        };
+        return colors[status?.toLowerCase()] || '#6b7280';
+    }
+
+    truncateUrl(url) {
+        if (url.length > 40) {
+            return url.substring(0, 40) + '...';
+        }
+        return url;
+    }
+
+    async triggerManualScrape(sourceId) {
+        try {
+            const response = await this.makeApiCall(`/sources/${sourceId}/trigger`, 'POST');
+            if (response.success) {
+                this.showAlert('success', 'Manual scrape triggered successfully! Check back in a few minutes for results.');
+                // Refresh the source management view
+                this.loadSourceManagement();
+            } else {
+                throw new Error(response.error || 'Failed to trigger scrape');
+            }
+        } catch (error) {
+            this.showAlert('error', `Failed to trigger manual scrape: ${error.message}`);
+        }
+    }
+
+    showSourceDetails(sourceId) {
+        // Placeholder for source details modal
+        this.showAlert('info', `Source details view for ${sourceId} - Coming soon!`);
+    }
+
+    toggleSourceStatus(sourceId) {
+        // Placeholder for source pause/resume
+        this.showAlert('info', `Source status toggle for ${sourceId} - Coming soon!`);
     }
 
     async loadAnalytics() {

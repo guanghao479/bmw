@@ -308,8 +308,7 @@
         <div class="admin-tabs">
             <button class="tab-button active" data-tab="submit">Submit New Source</button>
             <button class="tab-button" data-tab="pending">Pending Analysis</button>
-            <button class="tab-button" data-tab="active">Active Sources</button>
-            <button class="tab-button" data-tab="analytics">Analytics</button>
+            <button class="tab-button" data-tab="sources">Source Management</button>
         </div>
 
         <!-- Tab 1: Submit New Source -->
@@ -421,29 +420,23 @@
             </div>
         </div>
 
-        <!-- Tab 3: Active Sources -->
-        <div class="tab-content" id="active-tab">
+        <!-- Tab 3: Source Management -->
+        <div class="tab-content" id="sources-tab">
             <div class="form-section">
-                <h3>Active Sources</h3>
-                <p>Sources that have been analyzed, approved, and are actively being scraped.</p>
+                <h3>Source Management & Analytics</h3>
+                <p>Monitor and manage active sources with real-time performance metrics.</p>
                 
+                <!-- Analytics Overview -->
+                <div id="analytics-overview">
+                    <div class="alert alert-info">
+                        Loading analytics overview...
+                    </div>
+                </div>
+                
+                <!-- Active Sources with Enhanced Data -->
                 <div id="active-sources" class="sources-grid">
                     <div class="alert alert-info">
                         Loading active sources...
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Tab 4: Analytics -->
-        <div class="tab-content" id="analytics-tab">
-            <div class="form-section">
-                <h3>Source Analytics</h3>
-                <p>Performance metrics and insights for source analysis and scraping.</p>
-                
-                <div id="analytics-content">
-                    <div class="alert alert-info">
-                        Analytics dashboard coming soon...
                     </div>
                 </div>
             </div>

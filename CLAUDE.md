@@ -259,3 +259,4 @@ cdk destroy                              # Clean up resources
 - **Frontend tests**: 7/7 passing (S3 integration, mobile responsiveness, offline support)
 - **Infrastructure**: CDK deployment successful, all AWS services operational
 - **End-to-end**: Complete data pipeline validated from scraping to frontend display
+- when there is aws credentials issue, check expiration first, if so, refresh the token, this project uses sso profile
