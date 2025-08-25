@@ -727,7 +727,8 @@ func (s *DynamoDBService) UpdateScrapingTask(ctx context.Context, task *models.S
 	_, err := s.client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName: aws.String(s.scrapingOperationsTable),
 		Key: map[string]types.AttributeValue{
-			"task_id": &types.AttributeValueMemberS{Value: task.TaskID},
+			"PK": &types.AttributeValueMemberS{Value: task.PK},
+			"SK": &types.AttributeValueMemberS{Value: task.SK},
 		},
 		UpdateExpression:          aws.String(updateExpr),
 		ExpressionAttributeNames:  exprAttrNames,

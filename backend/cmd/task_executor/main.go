@@ -6,12 +6,16 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
 	"seattle-family-activities-scraper/internal/models"
 	"seattle-family-activities-scraper/internal/services"
@@ -32,6 +36,10 @@ type TaskExecutorEvent struct {
 var (
 	// AWS services
 	dynamoService *services.DynamoDBService
+	
+	// Scraping services
+	jinaClient   *services.JinaClient
+	openaiClient *services.OpenAIClient
 	
 	// Environment variables
 	familyActivitiesTableName  = os.Getenv("FAMILY_ACTIVITIES_TABLE")
@@ -55,6 +63,10 @@ func init() {
 		sourceManagementTableName,
 		scrapingOperationsTableName,
 	)
+	
+	// Initialize scraping services
+	jinaClient = services.NewJinaClient()
+	openaiClient = services.NewOpenAIClient()
 }
 
 func main() {
@@ -107,10 +119,17 @@ func executeScrapingTask(ctx context.Context, taskEvent TaskExecutorEvent) error
 		return fmt.Errorf("failed to update task status to in_progress: %w", err)
 	}
 
-	// TODO: Implement actual scraping logic here
-	// For now, simulate processing by waiting and then marking as completed
-	log.Printf("Simulating scraping process for %s...", taskEvent.BaseURL)
-	time.Sleep(2 * time.Second)
+	// Perform actual scraping
+	activities, err := performScraping(ctx, taskEvent)
+	if err != nil {
+		log.Printf("Scraping failed: %v", err)
+		if statusErr := updateTaskStatus(ctx, task, models.TaskStatusFailed, err.Error()); statusErr != nil {
+			log.Printf("Failed to update task status to failed: %v", statusErr)
+		}
+		return fmt.Errorf("scraping failed: %w", err)
+	}
+
+	log.Printf("Successfully extracted %d activities from %s", len(activities), taskEvent.BaseURL)
 
 	// Update status to completed
 	if err := updateTaskStatus(ctx, task, models.TaskStatusCompleted, ""); err != nil {
@@ -122,13 +141,145 @@ func executeScrapingTask(ctx context.Context, taskEvent TaskExecutorEvent) error
 }
 
 func getScrapingTask(ctx context.Context, taskID string) (*models.ScrapingTask, error) {
-	// For now, create a minimal task object
-	// TODO: Implement proper task retrieval from DynamoDB
-	task := &models.ScrapingTask{
-		TaskID: taskID,
-		Status: models.TaskStatusQueued,
+	// Use a DynamoDB scan to find the task by TaskID
+	// This is less efficient but more reliable than using GSI queries
+	cfg, err := config.LoadDefaultConfig(context.TODO())
+	if err != nil {
+		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
-	return task, nil
+	
+	dynamoClient := dynamodb.NewFromConfig(cfg)
+	
+	result, err := dynamoClient.Scan(ctx, &dynamodb.ScanInput{
+		TableName: aws.String(scrapingOperationsTableName),
+		FilterExpression: aws.String("task_id = :task_id"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":task_id": &types.AttributeValueMemberS{Value: taskID},
+		},
+		Limit: aws.Int32(10), // Should only be 1 task
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan scraping tasks: %w", err)
+	}
+	
+	if len(result.Items) == 0 {
+		return nil, fmt.Errorf("task not found: %s", taskID)
+	}
+	
+	var task models.ScrapingTask
+	err = attributevalue.UnmarshalMap(result.Items[0], &task)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal scraping task: %w", err)
+	}
+	
+	return &task, nil
+}
+
+func performScraping(ctx context.Context, taskEvent TaskExecutorEvent) ([]models.Activity, error) {
+	var allActivities []models.Activity
+	
+	// Process each target URL
+	for _, url := range taskEvent.TargetURLs {
+		log.Printf("Extracting content from URL: %s", url)
+		
+		// Step 1: Extract content using Jina
+		content, err := jinaClient.ExtractContent(url)
+		if err != nil {
+			log.Printf("Failed to extract content from %s: %v", url, err)
+			continue // Continue with other URLs
+		}
+		
+		log.Printf("Extracted %d characters from %s", len(content), url)
+		
+		// Step 2: Extract structured activities using OpenAI
+		response, err := openaiClient.ExtractActivities(content, url)
+		if err != nil {
+			log.Printf("Failed to extract activities from %s: %v", url, err)
+			continue // Continue with other URLs
+		}
+		
+		log.Printf("OpenAI extracted %d activities from %s", len(response.Activities), url)
+		
+		// Step 3: Convert to DynamoDB format and store
+		for _, activity := range response.Activities {
+			// Convert Activity to FamilyActivity for DynamoDB storage
+			// Use source name as fallback for sourceID if not provided
+			sourceID := taskEvent.SourceID
+			if sourceID == "" {
+				sourceID = strings.ToLower(strings.ReplaceAll(taskEvent.SourceName, " ", "-"))
+			}
+			familyActivity := convertActivityToFamilyActivity(activity, sourceID, url)
+			
+			// Store in DynamoDB
+			if err := dynamoService.CreateFamilyActivity(ctx, familyActivity); err != nil {
+				log.Printf("Failed to store activity %s: %v", activity.Title, err)
+				continue
+			}
+			
+			log.Printf("Stored activity: %s", activity.Title)
+			allActivities = append(allActivities, activity)
+		}
+	}
+	
+	return allActivities, nil
+}
+
+func convertActivityToFamilyActivity(activity models.Activity, sourceID, sourceURL string) *models.FamilyActivity {
+	// Generate a unique ID for the family activity
+	entityID := fmt.Sprintf("%s-%d", sourceID, time.Now().UnixNano())
+	
+	// Determine entity type from activity type
+	entityType := models.EntityTypeEvent // Default to event
+	switch activity.Type {
+	case "venue":
+		entityType = models.EntityTypeVenue
+	case "program", "class", "camp":
+		entityType = models.EntityTypeProgram
+	case "attraction":
+		entityType = models.EntityTypeAttraction
+	default:
+		entityType = models.EntityTypeEvent
+	}
+	
+	// Create primary keys
+	pk := entityType + "#" + entityID
+	sk := models.SortKeyMetadata
+	
+	// Convert Activity to FamilyActivity with correct field mapping
+	familyActivity := &models.FamilyActivity{
+		PK:           pk,
+		SK:           sk,
+		EntityType:   entityType,
+		EntityID:     entityID,
+		Name:         activity.Title,
+		Description:  activity.Description,
+		Category:     activity.Category,
+		Subcategory:  activity.Subcategory,
+		AgeGroups:    activity.AgeGroups,
+		ProviderID:   sourceID,
+		ProviderName: strings.ReplaceAll(sourceID, "-", " "), // Convert ID back to readable name
+		Status:       "active",
+		Featured:     false,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+		SourceID:     sourceID,
+	}
+	
+	// Convert location if available
+	if activity.Location.Address != "" || activity.Location.City != "" {
+		familyActivity.Location = models.ActivityLocation{
+			Location: activity.Location, // Embed the full Location struct
+		}
+	}
+	
+	// Convert pricing if available
+	if activity.Pricing.Type != "" {
+		familyActivity.Pricing = models.ActivityPricing{
+			Pricing: activity.Pricing, // Embed the full Pricing struct
+		}
+	}
+	
+	return familyActivity
 }
 
 func updateTaskStatus(ctx context.Context, task *models.ScrapingTask, status models.ScrapingTaskStatus, errorMessage string) error {
