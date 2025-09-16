@@ -260,3 +260,5 @@ cdk destroy                              # Clean up resources
 - **Infrastructure**: CDK deployment successful, all AWS services operational
 - **End-to-end**: Complete data pipeline validated from scraping to frontend display
 - when there is aws credentials issue, check expiration first, if so, refresh the token, this project uses sso profile
+- I do need to scale up to 50+ sources instead of 6 sources pretty soon, stop thinking that I just need 6 sources for now.
+- don't place seattle name in it, I want to scale beyond seattle, so don't limit the table names, project names, etc to seattle
