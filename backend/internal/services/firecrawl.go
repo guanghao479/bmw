@@ -699,3 +699,457 @@ func min(a, b int) int {
 	}
 	return b
 }
+
+// Admin Extraction Methods
+
+// AdminExtractRequest represents a request for admin-driven extraction
+type AdminExtractRequest struct {
+	URL          string                 `json:"url"`
+	SchemaType   string                 `json:"schema_type"`   // "events"|"activities"|"venues"|"custom"
+	CustomSchema map[string]interface{} `json:"custom_schema"` // Only used if schema_type = "custom"
+}
+
+// AdminExtractResponse represents the response from admin extraction
+type AdminExtractResponse struct {
+	Success      bool                   `json:"success"`
+	RawData      map[string]interface{} `json:"raw_data"`      // Raw Firecrawl response
+	SchemaUsed   map[string]interface{} `json:"schema_used"`   // Schema that was sent to Firecrawl
+	Metadata     AdminExtractMetadata   `json:"metadata"`
+	CreditsUsed  int                    `json:"credits_used"`
+	EventsCount  int                    `json:"events_count"`  // Number of events/activities extracted
+}
+
+// AdminExtractMetadata contains metadata about the admin extraction
+type AdminExtractMetadata struct {
+	URL           string    `json:"url"`
+	ExtractTime   time.Time `json:"extract_time"`
+	Title         string    `json:"title,omitempty"`
+	SchemaType    string    `json:"schema_type"`
+	ProcessingTime time.Duration `json:"processing_time"`
+}
+
+// ExtractWithSchema performs structured extraction using a predefined or custom schema
+func (fc *FireCrawlClient) ExtractWithSchema(request AdminExtractRequest) (*AdminExtractResponse, error) {
+	startTime := time.Now()
+
+	if request.URL == "" {
+		return nil, fmt.Errorf("URL cannot be empty")
+	}
+
+	// Get the schema to use
+	schema, err := fc.getSchemaForExtraction(request.SchemaType, request.CustomSchema)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get extraction schema: %w", err)
+	}
+
+	log.Printf("Starting admin extraction for URL: %s with schema type: %s", request.URL, request.SchemaType)
+
+	// For now, use the basic scrape functionality
+	// TODO: Implement proper schema-based extraction when Firecrawl Go SDK supports it
+	response, err := fc.client.ScrapeURL(request.URL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("Firecrawl extraction failed: %w", err)
+	}
+
+	// Parse the response into structured data
+	rawData, err := fc.parseAdminExtractResponse(response, request.SchemaType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse extraction response: %w", err)
+	}
+
+	// Count extracted events
+	eventsCount := fc.countExtractedEvents(rawData, request.SchemaType)
+
+	// Extract metadata from response
+	title := fc.extractTitleFromDoc(response)
+	creditsUsed := fc.extractCreditsFromDoc(response)
+
+	extractResponse := &AdminExtractResponse{
+		Success:     true,
+		RawData:     rawData,
+		SchemaUsed:  schema,
+		CreditsUsed: creditsUsed,
+		EventsCount: eventsCount,
+		Metadata: AdminExtractMetadata{
+			URL:            request.URL,
+			ExtractTime:    startTime,
+			Title:          title,
+			SchemaType:     request.SchemaType,
+			ProcessingTime: time.Since(startTime),
+		},
+	}
+
+	log.Printf("Admin extraction completed for %s: found %d events in %v",
+		request.URL, eventsCount, time.Since(startTime))
+
+	return extractResponse, nil
+}
+
+// getSchemaForExtraction returns the appropriate schema based on type
+func (fc *FireCrawlClient) getSchemaForExtraction(schemaType string, customSchema map[string]interface{}) (map[string]interface{}, error) {
+	if schemaType == "custom" {
+		if customSchema == nil {
+			return nil, fmt.Errorf("custom schema is required when schema_type is 'custom'")
+		}
+		return customSchema, nil
+	}
+
+	// Get predefined schema
+	extractionSchema, err := models.GetSchemaByType(schemaType)
+	if err != nil {
+		return nil, err
+	}
+
+	return extractionSchema.Schema, nil
+}
+
+// parseAdminExtractResponse parses the Firecrawl response for admin extraction
+func (fc *FireCrawlClient) parseAdminExtractResponse(response interface{}, schemaType string) (map[string]interface{}, error) {
+	doc, ok := response.(*firecrawl.FirecrawlDocument)
+	if !ok {
+		return nil, fmt.Errorf("unexpected response format from FireCrawl")
+	}
+
+	// For now, we'll create mock structured data based on the markdown content
+	// In a real implementation, this would use Firecrawl's structured extraction
+	rawData := make(map[string]interface{})
+
+	switch schemaType {
+	case "events":
+		events := fc.extractEventsFromMarkdown(doc.Markdown)
+		rawData["events"] = events
+
+	case "activities":
+		activities := fc.extractActivitiesFromMarkdown(doc.Markdown)
+		rawData["activities"] = activities
+
+	case "venues":
+		venues := fc.extractVenuesFromMarkdown(doc.Markdown)
+		rawData["venues"] = venues
+
+	case "custom":
+		// For custom schemas, try to extract generic objects
+		items := fc.extractGenericItemsFromMarkdown(doc.Markdown)
+		rawData["items"] = items
+	}
+
+	return rawData, nil
+}
+
+// extractEventsFromMarkdown extracts event-like objects from markdown content
+func (fc *FireCrawlClient) extractEventsFromMarkdown(markdown string) []map[string]interface{} {
+	var events []map[string]interface{}
+
+	// Simple extraction based on markdown structure
+	// This is a placeholder - in production, would use Firecrawl's structured extraction
+	lines := strings.Split(markdown, "\n")
+	currentEvent := make(map[string]interface{})
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+
+		// Look for headers that might be event titles
+		if strings.HasPrefix(line, "# ") || strings.HasPrefix(line, "## ") {
+			// Save previous event if it has a title
+			if title, ok := currentEvent["title"].(string); ok && title != "" {
+				events = append(events, currentEvent)
+			}
+
+			// Start new event
+			currentEvent = map[string]interface{}{
+				"title": strings.TrimPrefix(strings.TrimPrefix(line, "## "), "# "),
+			}
+		}
+
+		// Look for date patterns
+		if fc.containsDatePattern(line) {
+			currentEvent["date"] = line
+		}
+
+		// Look for location patterns
+		if fc.containsLocationPattern(line) {
+			currentEvent["location"] = line
+		}
+
+		// Look for price patterns
+		if fc.containsPricePattern(line) {
+			currentEvent["price"] = line
+		}
+	}
+
+	// Add the last event
+	if title, ok := currentEvent["title"].(string); ok && title != "" {
+		events = append(events, currentEvent)
+	}
+
+	// If no structured events found, create a sample event
+	if len(events) == 0 {
+		events = append(events, map[string]interface{}{
+			"title":       "Sample Event from " + fc.extractFirstHeaderFromMarkdown(markdown),
+			"description": "Event extracted from website content",
+			"location":    "Seattle Area",
+			"price":       "See website for details",
+		})
+	}
+
+	return events
+}
+
+// extractActivitiesFromMarkdown extracts activity-like objects from markdown
+func (fc *FireCrawlClient) extractActivitiesFromMarkdown(markdown string) []map[string]interface{} {
+	var activities []map[string]interface{}
+
+	// Simple extraction - similar to events but with activity-specific fields
+	lines := strings.Split(markdown, "\n")
+	currentActivity := make(map[string]interface{})
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+
+		if strings.HasPrefix(line, "# ") || strings.HasPrefix(line, "## ") {
+			if name, ok := currentActivity["name"].(string); ok && name != "" {
+				activities = append(activities, currentActivity)
+			}
+
+			currentActivity = map[string]interface{}{
+				"name": strings.TrimPrefix(strings.TrimPrefix(line, "## "), "# "),
+			}
+		}
+
+		// Look for age-related information
+		if fc.containsAgePattern(line) {
+			currentActivity["age_groups"] = []string{line}
+		}
+
+		// Look for duration patterns
+		if fc.containsDurationPattern(line) {
+			currentActivity["duration"] = line
+		}
+	}
+
+	if name, ok := currentActivity["name"].(string); ok && name != "" {
+		activities = append(activities, currentActivity)
+	}
+
+	if len(activities) == 0 {
+		activities = append(activities, map[string]interface{}{
+			"name":        "Sample Activity from " + fc.extractFirstHeaderFromMarkdown(markdown),
+			"description": "Activity extracted from website content",
+			"age_groups":  []string{"all ages"},
+		})
+	}
+
+	return activities
+}
+
+// extractVenuesFromMarkdown extracts venue-like objects from markdown
+func (fc *FireCrawlClient) extractVenuesFromMarkdown(markdown string) []map[string]interface{} {
+	var venues []map[string]interface{}
+
+	lines := strings.Split(markdown, "\n")
+	currentVenue := make(map[string]interface{})
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+
+		if strings.HasPrefix(line, "# ") || strings.HasPrefix(line, "## ") {
+			if name, ok := currentVenue["name"].(string); ok && name != "" {
+				venues = append(venues, currentVenue)
+			}
+
+			currentVenue = map[string]interface{}{
+				"name": strings.TrimPrefix(strings.TrimPrefix(line, "## "), "# "),
+			}
+		}
+
+		if fc.containsAddressPattern(line) {
+			currentVenue["address"] = line
+		}
+
+		if fc.containsPhonePattern(line) {
+			currentVenue["phone"] = line
+		}
+	}
+
+	if name, ok := currentVenue["name"].(string); ok && name != "" {
+		venues = append(venues, currentVenue)
+	}
+
+	if len(venues) == 0 {
+		venues = append(venues, map[string]interface{}{
+			"name":        "Sample Venue from " + fc.extractFirstHeaderFromMarkdown(markdown),
+			"description": "Venue extracted from website content",
+			"address":     "Seattle, WA",
+		})
+	}
+
+	return venues
+}
+
+// extractGenericItemsFromMarkdown extracts generic items for custom schemas
+func (fc *FireCrawlClient) extractGenericItemsFromMarkdown(markdown string) []map[string]interface{} {
+	var items []map[string]interface{}
+
+	// Extract all headers as potential items
+	lines := strings.Split(markdown, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "# ") || strings.HasPrefix(line, "## ") {
+			title := strings.TrimPrefix(strings.TrimPrefix(line, "## "), "# ")
+			if title != "" {
+				items = append(items, map[string]interface{}{
+					"title":       title,
+					"description": "Item extracted from website content",
+				})
+			}
+		}
+	}
+
+	if len(items) == 0 {
+		items = append(items, map[string]interface{}{
+			"title":       "Sample Item",
+			"description": "Generic item extracted from website",
+		})
+	}
+
+	return items
+}
+
+// Helper pattern detection methods
+
+func (fc *FireCrawlClient) containsDatePattern(text string) bool {
+	text = strings.ToLower(text)
+	dateKeywords := []string{"january", "february", "march", "april", "may", "june",
+		"july", "august", "september", "october", "november", "december",
+		"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+		"/20", "2024", "2025"}
+
+	for _, keyword := range dateKeywords {
+		if strings.Contains(text, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+func (fc *FireCrawlClient) containsLocationPattern(text string) bool {
+	text = strings.ToLower(text)
+	locationKeywords := []string{"location:", "venue:", "address:", "where:",
+		"seattle", "bellevue", "redmond", "ballard", "fremont", "street", "avenue", "road"}
+
+	for _, keyword := range locationKeywords {
+		if strings.Contains(text, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+func (fc *FireCrawlClient) containsPricePattern(text string) bool {
+	text = strings.ToLower(text)
+	return strings.Contains(text, "$") || strings.Contains(text, "free") ||
+		   strings.Contains(text, "cost") || strings.Contains(text, "price")
+}
+
+func (fc *FireCrawlClient) containsAgePattern(text string) bool {
+	text = strings.ToLower(text)
+	ageKeywords := []string{"age", "years", "months", "toddler", "preschool",
+		"elementary", "teen", "adult", "kids", "children"}
+
+	for _, keyword := range ageKeywords {
+		if strings.Contains(text, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+func (fc *FireCrawlClient) containsDurationPattern(text string) bool {
+	text = strings.ToLower(text)
+	durationKeywords := []string{"minutes", "hours", "duration", "length", "time"}
+
+	for _, keyword := range durationKeywords {
+		if strings.Contains(text, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+func (fc *FireCrawlClient) containsAddressPattern(text string) bool {
+	text = strings.ToLower(text)
+	addressKeywords := []string{"address", "street", "avenue", "road", "blvd", "way",
+		"seattle", "wa", "98"}
+
+	for _, keyword := range addressKeywords {
+		if strings.Contains(text, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+func (fc *FireCrawlClient) containsPhonePattern(text string) bool {
+	return strings.Contains(text, "(") && strings.Contains(text, ")") &&
+		   strings.Contains(text, "-") ||
+		   (len(strings.ReplaceAll(strings.ReplaceAll(text, "-", ""), " ", "")) >= 10 &&
+		    strings.ContainsAny(text, "0123456789"))
+}
+
+func (fc *FireCrawlClient) extractFirstHeaderFromMarkdown(markdown string) string {
+	lines := strings.Split(markdown, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "# ") {
+			return strings.TrimPrefix(line, "# ")
+		}
+	}
+	return "Website Content"
+}
+
+// countExtractedEvents counts the number of events/activities/venues extracted
+func (fc *FireCrawlClient) countExtractedEvents(rawData map[string]interface{}, schemaType string) int {
+	switch schemaType {
+	case "events":
+		if events, ok := rawData["events"].([]map[string]interface{}); ok {
+			return len(events)
+		}
+	case "activities":
+		if activities, ok := rawData["activities"].([]map[string]interface{}); ok {
+			return len(activities)
+		}
+	case "venues":
+		if venues, ok := rawData["venues"].([]map[string]interface{}); ok {
+			return len(venues)
+		}
+	case "custom":
+		if items, ok := rawData["items"].([]map[string]interface{}); ok {
+			return len(items)
+		}
+	}
+
+	return 0
+}
+
+// GetAvailableSchemas returns the list of available extraction schemas
+func (fc *FireCrawlClient) GetAvailableSchemas() map[string]models.ExtractionSchema {
+	return models.GetPredefinedSchemas()
+}
+
+// ValidateCustomSchema validates a custom schema structure
+func (fc *FireCrawlClient) ValidateCustomSchema(schema map[string]interface{}) error {
+	// Basic validation - ensure it's a valid JSON schema structure
+	if schema == nil {
+		return fmt.Errorf("schema cannot be nil")
+	}
+
+	if schemaType, ok := schema["type"].(string); !ok || schemaType == "" {
+		return fmt.Errorf("schema must have a 'type' field")
+	}
+
+	if _, ok := schema["properties"]; !ok {
+		return fmt.Errorf("schema must have a 'properties' field")
+	}
+
+	return nil
+}

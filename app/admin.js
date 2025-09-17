@@ -9,7 +9,9 @@ class SourceManagementAdmin {
             active: [],
             all: []
         };
-        
+        this.schemas = {};
+        this.pendingEvents = [];
+
         this.init();
     }
 
@@ -39,19 +41,38 @@ class SourceManagementAdmin {
             });
         });
 
-        // Form submission
-        const form = document.getElementById('source-submission-form');
-        if (form) {
-            form.addEventListener('submit', (e) => {
+        // Source submission form
+        const sourceForm = document.getElementById('source-submission-form');
+        if (sourceForm) {
+            sourceForm.addEventListener('submit', (e) => {
                 e.preventDefault();
                 this.submitSource();
             });
         }
 
-        // Auto-refresh data every 30 seconds for pending sources
+        // Event crawling form
+        const crawlingForm = document.getElementById('crawling-form');
+        if (crawlingForm) {
+            crawlingForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.submitCrawlRequest();
+            });
+        }
+
+        // Schema type selector
+        const schemaSelect = document.getElementById('schema-type');
+        if (schemaSelect) {
+            schemaSelect.addEventListener('change', (e) => {
+                this.handleSchemaChange(e.target.value);
+            });
+        }
+
+        // Auto-refresh data every 30 seconds for pending sources and events
         setInterval(() => {
             if (this.currentTab === 'pending') {
                 this.loadPendingSources();
+            } else if (this.currentTab === 'crawling') {
+                this.loadPendingEvents();
             }
         }, 30000);
     }
@@ -163,6 +184,10 @@ class SourceManagementAdmin {
                 break;
             case 'sources':
                 this.loadSourceManagement();
+                break;
+            case 'crawling':
+                this.loadSchemas();
+                this.loadPendingEvents();
                 break;
         }
     }
@@ -753,6 +778,454 @@ class SourceManagementAdmin {
             }
         });
     }
+
+    // Event Crawling Methods
+
+    async loadSchemas() {
+        try {
+            const response = await fetch(`${this.apiBaseUrl}/schemas`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                this.schemas = result.data;
+            } else {
+                console.error('Failed to load schemas:', response.statusText);
+            }
+        } catch (error) {
+            console.error('Error loading schemas:', error);
+        }
+    }
+
+    handleSchemaChange(schemaType) {
+        const schemaPreview = document.getElementById('schema-preview');
+        const schemaPreviewContent = document.getElementById('schema-preview-content');
+        const customSchemaGroup = document.getElementById('custom-schema-group');
+
+        if (schemaType === 'custom') {
+            customSchemaGroup.style.display = 'block';
+            schemaPreview.style.display = 'none';
+        } else if (schemaType && this.schemas[schemaType]) {
+            customSchemaGroup.style.display = 'none';
+            schemaPreview.style.display = 'block';
+
+            const schema = this.schemas[schemaType];
+            schemaPreviewContent.innerHTML = `
+                <strong>${schema.name}</strong><br>
+                <em>${schema.description}</em><br><br>
+                <strong>Fields to extract:</strong><br>
+                ${this.formatSchemaFields(schema.schema)}
+            `;
+        } else {
+            customSchemaGroup.style.display = 'none';
+            schemaPreview.style.display = 'none';
+        }
+    }
+
+    formatSchemaFields(schema) {
+        if (!schema.properties) return 'No fields defined';
+
+        let fieldsHtml = '';
+        for (const [key, value] of Object.entries(schema.properties)) {
+            if (value.type === 'array' && value.items && value.items.properties) {
+                fieldsHtml += `<strong>${key}[]:</strong><br>`;
+                for (const [itemKey, itemValue] of Object.entries(value.items.properties)) {
+                    fieldsHtml += `&nbsp;&nbsp;• ${itemKey} (${itemValue.type})<br>`;
+                }
+            } else {
+                fieldsHtml += `• ${key} (${value.type})<br>`;
+            }
+        }
+        return fieldsHtml;
+    }
+
+    async submitCrawlRequest() {
+        const form = document.getElementById('crawling-form');
+        const submitBtn = document.getElementById('crawl-submit-btn');
+
+        // Clear previous alerts
+        document.querySelectorAll('.alert').forEach(alert => {
+            if (alert.parentNode && alert.parentNode.classList.contains('form-section')) {
+                alert.remove();
+            }
+        });
+
+        // Validate form
+        const formData = new FormData(form);
+        const url = formData.get('url');
+        const schemaType = formData.get('schema_type');
+        const extractedByUser = formData.get('extracted_by_user');
+
+        if (!url || !schemaType || !extractedByUser) {
+            this.showAlert('Please fill in all required fields.', 'error');
+            return;
+        }
+
+        // Prepare request data
+        const requestData = {
+            url: url,
+            schema_type: schemaType,
+            extracted_by_user: extractedByUser,
+            admin_notes: formData.get('admin_notes') || ''
+        };
+
+        // Add custom schema if selected
+        if (schemaType === 'custom') {
+            const customSchemaText = formData.get('custom_schema');
+            if (!customSchemaText) {
+                this.showAlert('Custom schema is required when using custom schema type.', 'error');
+                return;
+            }
+
+            try {
+                requestData.custom_schema = JSON.parse(customSchemaText);
+            } catch (error) {
+                this.showAlert('Invalid JSON in custom schema. Please check the format.', 'error');
+                return;
+            }
+        }
+
+        // Disable submit button and show loading
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Extracting...';
+
+        try {
+            const response = await fetch(`${this.apiBaseUrl}/crawl/submit`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestData)
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                this.showAlert(
+                    `Successfully extracted ${result.data.events_count} events! ` +
+                    `Processing time: ${result.data.processing_time}. ` +
+                    `Credits used: ${result.data.credits_used}`,
+                    'success'
+                );
+                form.reset();
+                this.handleSchemaChange(''); // Reset schema preview
+                this.loadPendingEvents(); // Refresh pending events
+            } else {
+                this.showAlert(result.error || 'Failed to extract events from URL.', 'error');
+            }
+        } catch (error) {
+            console.error('Error submitting crawl request:', error);
+            this.showAlert('Network error. Please try again.', 'error');
+        } finally {
+            // Re-enable submit button
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Extract Events';
+        }
+    }
+
+    async loadPendingEvents() {
+        try {
+            const response = await fetch(`${this.apiBaseUrl}/events/pending?limit=25`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                this.pendingEvents = result.data || [];
+                this.renderPendingEvents();
+            } else {
+                console.error('Failed to load pending events:', response.statusText);
+                this.renderPendingEventsError();
+            }
+        } catch (error) {
+            console.error('Error loading pending events:', error);
+            this.renderPendingEventsError();
+        }
+    }
+
+    renderPendingEvents() {
+        const container = document.getElementById('pending-events-container');
+        const countElement = document.getElementById('pending-count');
+
+        if (this.pendingEvents.length === 0) {
+            container.innerHTML = '<div class="alert alert-info">No pending events found.</div>';
+            countElement.textContent = '0 pending events';
+            return;
+        }
+
+        countElement.textContent = `${this.pendingEvents.length} pending events`;
+
+        const eventsHtml = this.pendingEvents.map(event => this.renderEventCard(event)).join('');
+        container.innerHTML = eventsHtml;
+    }
+
+    renderEventCard(event) {
+        const canApprove = event.can_approve;
+        const hasIssues = event.conversion_issues && event.conversion_issues.length > 0;
+
+        return `
+            <div class="source-card" style="margin-bottom: 1rem;">
+                <div class="source-header">
+                    <div class="source-title">${this.escapeHtml(event.source_url)}</div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <span class="status-badge status-${event.status}">${event.status}</span>
+                        <span class="status-badge">${event.schema_type}</span>
+                    </div>
+                </div>
+
+                <div class="source-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">Events Found:</span> ${event.events_count}
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Extracted By:</span> ${this.escapeHtml(event.extracted_by_user)}
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Extracted At:</span> ${new Date(event.extracted_at).toLocaleString()}
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Status:</span> ${event.status}
+                    </div>
+                </div>
+
+                ${hasIssues ? `
+                    <div class="alert alert-error" style="margin-top: 1rem;">
+                        <strong>Conversion Issues:</strong><br>
+                        ${event.conversion_issues.map(issue => `• ${this.escapeHtml(issue)}`).join('<br>')}
+                    </div>
+                ` : ''}
+
+                ${event.admin_notes ? `
+                    <div style="margin-top: 1rem;">
+                        <strong>Notes:</strong> ${this.escapeHtml(event.admin_notes)}
+                    </div>
+                ` : ''}
+
+                <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                    <button class="btn btn-secondary" onclick="adminApp.viewEventDetails('${event.event_id}')">
+                        View Details
+                    </button>
+                    <button class="btn btn-primary"
+                            onclick="adminApp.approveEvent('${event.event_id}')"
+                            ${!canApprove ? 'disabled' : ''}
+                            title="${!canApprove ? 'Fix conversion issues before approving' : 'Approve and publish event'}">
+                        Approve
+                    </button>
+                    <button class="btn btn-secondary" onclick="adminApp.editEvent('${event.event_id}')">
+                        Edit
+                    </button>
+                    <button class="btn btn-danger" onclick="adminApp.rejectEvent('${event.event_id}')">
+                        Reject
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    renderPendingEventsError() {
+        const container = document.getElementById('pending-events-container');
+        const countElement = document.getElementById('pending-count');
+
+        container.innerHTML = '<div class="alert alert-error">Failed to load pending events. Please try again.</div>';
+        countElement.textContent = 'Error loading';
+    }
+
+    async viewEventDetails(eventId) {
+        try {
+            const response = await fetch(`${this.apiBaseUrl}/events/${eventId}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                this.showEventModal(result.data);
+            } else {
+                this.showAlert('Failed to load event details.', 'error');
+            }
+        } catch (error) {
+            console.error('Error loading event details:', error);
+            this.showAlert('Error loading event details.', 'error');
+        }
+    }
+
+    showEventModal(eventData) {
+        // Create modal overlay
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        `;
+
+        const modalContent = document.createElement('div');
+        modalContent.style.cssText = `
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            margin: 1rem;
+        `;
+
+        modalContent.innerHTML = `
+            <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 1rem;">
+                <h3>Event Details</h3>
+                <button onclick="this.closest('.modal-overlay').remove()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
+            </div>
+
+            <div style="margin-bottom: 1rem;">
+                <strong>Source URL:</strong> ${this.escapeHtml(eventData.source_url)}
+            </div>
+
+            <div style="margin-bottom: 1rem;">
+                <strong>Schema Type:</strong> ${eventData.schema_type}
+            </div>
+
+            <div style="margin-bottom: 1rem;">
+                <strong>Raw Extracted Data:</strong>
+                <pre style="background: #f8f9fa; padding: 1rem; border-radius: 8px; overflow-x: auto; font-size: 0.9rem;">${JSON.stringify(eventData.raw_extracted_data, null, 2)}</pre>
+            </div>
+
+            ${eventData.conversion_preview ? `
+                <div style="margin-bottom: 1rem;">
+                    <strong>Conversion Preview:</strong>
+                    <pre style="background: #e8f5e8; padding: 1rem; border-radius: 8px; overflow-x: auto; font-size: 0.9rem;">${JSON.stringify(eventData.conversion_preview, null, 2)}</pre>
+                </div>
+            ` : ''}
+
+            <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                <button class="btn btn-primary" onclick="adminApp.approveEvent('${eventData.event_id}'); this.closest('.modal-overlay').remove();">
+                    Approve
+                </button>
+                <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove();">
+                    Close
+                </button>
+            </div>
+        `;
+
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+
+        // Close modal when clicking outside
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+    }
+
+    async approveEvent(eventId) {
+        if (!confirm('Are you sure you want to approve this event? It will be published to the frontend.')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`${this.apiBaseUrl}/events/${eventId}/approve`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    reviewed_by: 'admin',
+                    admin_notes: 'Approved via admin interface'
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                this.showAlert('Event approved and published successfully!', 'success');
+                this.loadPendingEvents(); // Refresh the list
+            } else {
+                this.showAlert(result.error || 'Failed to approve event.', 'error');
+            }
+        } catch (error) {
+            console.error('Error approving event:', error);
+            this.showAlert('Error approving event.', 'error');
+        }
+    }
+
+    async rejectEvent(eventId) {
+        const reason = prompt('Please provide a reason for rejecting this event:');
+        if (!reason) return;
+
+        try {
+            const response = await fetch(`${this.apiBaseUrl}/events/${eventId}/reject`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    reviewed_by: 'admin',
+                    admin_notes: reason
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                this.showAlert('Event rejected successfully.', 'success');
+                this.loadPendingEvents(); // Refresh the list
+            } else {
+                this.showAlert(result.error || 'Failed to reject event.', 'error');
+            }
+        } catch (error) {
+            console.error('Error rejecting event:', error);
+            this.showAlert('Error rejecting event.', 'error');
+        }
+    }
+
+    async editEvent(eventId) {
+        // For now, just show a simple alert - full editing would require a complex modal
+        alert('Event editing interface coming soon! For now, please reject the event and re-submit with correct data.');
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    showAlert(message, type = 'info') {
+        // Remove existing alerts in crawling tab
+        document.querySelectorAll('#crawling-tab .alert').forEach(alert => alert.remove());
+
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type}`;
+        alertDiv.textContent = message;
+
+        // Insert at the top of the first form section in crawling tab
+        const firstFormSection = document.querySelector('#crawling-tab .form-section');
+        if (firstFormSection) {
+            firstFormSection.insertBefore(alertDiv, firstFormSection.firstChild);
+        }
+
+        // Auto-remove success alerts after 5 seconds
+        if (type === 'success') {
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        }
+    }
 }
 
 // Utility functions for managing hint URLs
@@ -771,6 +1244,13 @@ function removeHintUrl(button) {
     const container = document.getElementById('hint-urls-container');
     if (container.children.length > 1) {
         button.parentNode.remove();
+    }
+}
+
+// Global function for refreshing pending events (called from HTML)
+function loadPendingEvents() {
+    if (window.adminApp) {
+        window.adminApp.loadPendingEvents();
     }
 }
 

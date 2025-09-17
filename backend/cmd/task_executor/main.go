@@ -44,6 +44,7 @@ var (
 	familyActivitiesTableName  = os.Getenv("FAMILY_ACTIVITIES_TABLE")
 	sourceManagementTableName  = os.Getenv("SOURCE_MANAGEMENT_TABLE")
 	scrapingOperationsTableName = os.Getenv("SCRAPING_OPERATIONS_TABLE")
+	adminEventsTableName       = os.Getenv("ADMIN_EVENTS_TABLE")
 	s3BucketName               = os.Getenv("S3_BUCKET_NAME")
 )
 
@@ -61,6 +62,7 @@ func init() {
 		familyActivitiesTableName,
 		sourceManagementTableName,
 		scrapingOperationsTableName,
+		adminEventsTableName,
 	)
 	
 	// Initialize FireCrawl client

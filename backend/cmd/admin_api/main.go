@@ -55,8 +55,10 @@ type SourceActivationRequest struct {
 }
 
 var (
-	dynamoService    *services.DynamoDBService
-	lambdaClient     *lambdaclient.Client
+	dynamoService         *services.DynamoDBService
+	firecrawlService      *services.FireCrawlClient
+	conversionService     *services.SchemaConversionService
+	lambdaClient          *lambdaclient.Client
 	sourceAnalyzerFunctionName string
 )
 
@@ -74,9 +76,10 @@ func init() {
 	familyActivitiesTable := os.Getenv("FAMILY_ACTIVITIES_TABLE")
 	sourceManagementTable := os.Getenv("SOURCE_MANAGEMENT_TABLE")
 	scrapingOperationsTable := os.Getenv("SCRAPING_OPERATIONS_TABLE")
+	adminEventsTable := os.Getenv("ADMIN_EVENTS_TABLE")
 
-	if familyActivitiesTable == "" || sourceManagementTable == "" || scrapingOperationsTable == "" {
-		log.Fatal("Required environment variables not set: FAMILY_ACTIVITIES_TABLE, SOURCE_MANAGEMENT_TABLE, SCRAPING_OPERATIONS_TABLE")
+	if familyActivitiesTable == "" || sourceManagementTable == "" || scrapingOperationsTable == "" || adminEventsTable == "" {
+		log.Fatal("Required environment variables not set: FAMILY_ACTIVITIES_TABLE, SOURCE_MANAGEMENT_TABLE, SCRAPING_OPERATIONS_TABLE, ADMIN_EVENTS_TABLE")
 	}
 
 	// Initialize DynamoDB service
@@ -85,7 +88,18 @@ func init() {
 		familyActivitiesTable,
 		sourceManagementTable,
 		scrapingOperationsTable,
+		adminEventsTable,
 	)
+
+	// Initialize Firecrawl service
+	firecrawlService, err = services.NewFireCrawlClient()
+	if err != nil {
+		log.Printf("Warning: Failed to initialize Firecrawl service: %v", err)
+		// Don't fail startup, just log the warning
+	}
+
+	// Initialize schema conversion service
+	conversionService = services.NewSchemaConversionService()
 
 	// Initialize Lambda client for triggering source analyzer
 	lambdaClient = lambdaclient.NewFromConfig(cfg)
@@ -155,6 +169,32 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	case method == "GET" && path == "/api/analytics":
 		responseBody, statusCode = handleGetAnalytics(ctx, request.QueryStringParameters)
 
+	// Admin Crawling Endpoints
+	case method == "POST" && path == "/api/crawl/submit":
+		responseBody, statusCode = handleCrawlSubmission(ctx, request.Body)
+
+	case method == "GET" && path == "/api/events/pending":
+		responseBody, statusCode = handleGetPendingEvents(ctx, request.QueryStringParameters)
+
+	case method == "GET" && strings.HasPrefix(path, "/api/events/") && !strings.Contains(path[12:], "/"):
+		eventID := strings.TrimPrefix(path, "/api/events/")
+		responseBody, statusCode = handleGetEvent(ctx, eventID)
+
+	case method == "PUT" && strings.HasPrefix(path, "/api/events/") && strings.HasSuffix(path, "/approve"):
+		eventID := extractEventIDFromPath(path, "/approve")
+		responseBody, statusCode = handleApproveEvent(ctx, eventID, request.Body)
+
+	case method == "PUT" && strings.HasPrefix(path, "/api/events/") && strings.HasSuffix(path, "/reject"):
+		eventID := extractEventIDFromPath(path, "/reject")
+		responseBody, statusCode = handleRejectEvent(ctx, eventID, request.Body)
+
+	case method == "PUT" && strings.HasPrefix(path, "/api/events/") && strings.HasSuffix(path, "/edit"):
+		eventID := extractEventIDFromPath(path, "/edit")
+		responseBody, statusCode = handleEditEvent(ctx, eventID, request.Body)
+
+	case method == "GET" && path == "/api/schemas":
+		responseBody, statusCode = handleGetSchemas(ctx)
+
 	default:
 		responseBody = ResponseBody{
 			Success: false,
@@ -187,6 +227,14 @@ func extractSourceIDFromPath(path, suffix string) string {
 	withoutPrefix := strings.TrimPrefix(path, "/api/sources/")
 	sourceID := strings.TrimSuffix(withoutPrefix, suffix)
 	return sourceID
+}
+
+// extractEventIDFromPath extracts event ID from path like /api/events/{id}/approve
+func extractEventIDFromPath(path, suffix string) string {
+	// Remove /api/events/ prefix and suffix
+	withoutPrefix := strings.TrimPrefix(path, "/api/events/")
+	eventID := strings.TrimSuffix(withoutPrefix, suffix)
+	return eventID
 }
 
 // handleSourceSubmission handles POST /api/sources/submit
@@ -1058,6 +1106,437 @@ func parseLimit(limitStr string) int32 {
 	default:
 		return 0
 	}
+}
+
+// Admin Crawling Handler Functions
+
+// handleCrawlSubmission handles POST /api/crawl/submit
+func handleCrawlSubmission(ctx context.Context, body string) (ResponseBody, int) {
+	if firecrawlService == nil {
+		return ResponseBody{
+			Success: false,
+			Error:   "Firecrawl service not available",
+		}, 500
+	}
+
+	var req models.CrawlSubmissionRequest
+	if err := json.Unmarshal([]byte(body), &req); err != nil {
+		return ResponseBody{
+			Success: false,
+			Error:   "Invalid request body: " + err.Error(),
+		}, 400
+	}
+
+	// Validate the request
+	if err := req.Validate(); err != nil {
+		return ResponseBody{
+			Success: false,
+			Error:   "Validation error: " + err.Error(),
+		}, 400
+	}
+
+	// Create firecrawl extract request
+	extractRequest := services.AdminExtractRequest{
+		URL:          req.URL,
+		SchemaType:   req.SchemaType,
+		CustomSchema: req.CustomSchema,
+	}
+
+	// Perform extraction
+	extractResponse, err := firecrawlService.ExtractWithSchema(extractRequest)
+	if err != nil {
+		log.Printf("Error extracting with Firecrawl: %v", err)
+		return ResponseBody{
+			Success: false,
+			Error:   "Failed to extract data from URL: " + err.Error(),
+		}, 500
+	}
+
+	if !extractResponse.Success {
+		return ResponseBody{
+			Success: false,
+			Error:   "Extraction was not successful",
+		}, 500
+	}
+
+	// Generate unique event ID for this extraction
+	eventID := uuid.New().String()
+
+	// Create admin event record
+	adminEvent := &models.AdminEvent{
+		EventID:            eventID,
+		SourceURL:          req.URL,
+		SchemaType:         req.SchemaType,
+		SchemaUsed:         extractResponse.SchemaUsed,
+		RawExtractedData:   extractResponse.RawData,
+		Status:             models.AdminEventStatusPending,
+		ExtractedByUser:    req.ExtractedByUser,
+		SubmissionID:       uuid.New().String(),
+		AdminNotes:         req.AdminNotes,
+	}
+
+	// Generate conversion preview
+	conversionResult, err := conversionService.ConvertToActivity(adminEvent)
+	if err != nil {
+		log.Printf("Error generating conversion preview: %v", err)
+		// Continue without preview - admin can still review raw data
+	} else {
+		// Store conversion preview and issues
+		if conversionResult.Activity != nil {
+			activityJSON, _ := json.Marshal(conversionResult.Activity)
+			var activityMap map[string]interface{}
+			json.Unmarshal(activityJSON, &activityMap)
+			adminEvent.ConvertedData = activityMap
+		}
+		adminEvent.ConversionIssues = conversionResult.Issues
+	}
+
+	// Store in DynamoDB
+	if err := dynamoService.CreateAdminEvent(ctx, adminEvent); err != nil {
+		log.Printf("Error storing admin event: %v", err)
+		return ResponseBody{
+			Success: false,
+			Error:   "Failed to store extracted events",
+		}, 500
+	}
+
+	return ResponseBody{
+		Success: true,
+		Message: fmt.Sprintf("Successfully extracted %d events from URL", extractResponse.EventsCount),
+		Data: map[string]interface{}{
+			"event_id":      eventID,
+			"events_count":  extractResponse.EventsCount,
+			"credits_used":  extractResponse.CreditsUsed,
+			"processing_time": extractResponse.Metadata.ProcessingTime.String(),
+		},
+	}, 201
+}
+
+// handleGetPendingEvents handles GET /api/events/pending
+func handleGetPendingEvents(ctx context.Context, queryParams map[string]string) (ResponseBody, int) {
+	limit := int32(50)
+	if limitStr, ok := queryParams["limit"]; ok {
+		if parsedLimit := parseLimit(limitStr); parsedLimit > 0 {
+			limit = parsedLimit
+		}
+	}
+
+	// Get all pending events (pending + edited)
+	pendingEvents, err := dynamoService.GetAllPendingAdminEvents(ctx, limit)
+	if err != nil {
+		log.Printf("Error getting pending events: %v", err)
+		return ResponseBody{
+			Success: false,
+			Error:   "Failed to retrieve pending events",
+		}, 500
+	}
+
+	// Enhance each event with conversion preview
+	var enhancedEvents []map[string]interface{}
+	for _, event := range pendingEvents {
+		enhanced := map[string]interface{}{
+			"event_id":             event.EventID,
+			"source_url":           event.SourceURL,
+			"schema_type":          event.SchemaType,
+			"status":               event.Status,
+			"extracted_at":         event.ExtractedAt,
+			"extracted_by_user":    event.ExtractedByUser,
+			"events_count":         event.GetExtractedEventsCount(),
+			"conversion_issues":    event.ConversionIssues,
+			"can_approve":          event.CanBeApproved(),
+			"admin_notes":          event.AdminNotes,
+		}
+
+		// Add conversion preview if available
+		if event.ConvertedData != nil {
+			enhanced["conversion_preview"] = event.ConvertedData
+		}
+
+		enhancedEvents = append(enhancedEvents, enhanced)
+	}
+
+	return ResponseBody{
+		Success: true,
+		Message: "Pending events retrieved successfully",
+		Data:    enhancedEvents,
+	}, 200
+}
+
+// handleGetEvent handles GET /api/events/{id}
+func handleGetEvent(ctx context.Context, eventID string) (ResponseBody, int) {
+	if eventID == "" {
+		return ResponseBody{
+			Success: false,
+			Error:   "Event ID is required",
+		}, 400
+	}
+
+	// Get the admin event by ID
+	adminEvent, err := dynamoService.GetAdminEventByID(ctx, eventID)
+	if err != nil {
+		log.Printf("Error getting admin event: %v", err)
+		return ResponseBody{
+			Success: false,
+			Error:   "Event not found",
+		}, 404
+	}
+
+	// Generate fresh conversion preview
+	conversionPreview, err := conversionService.PreviewConversion(adminEvent)
+	if err != nil {
+		log.Printf("Error generating conversion preview: %v", err)
+		conversionPreview = map[string]interface{}{
+			"error": "Could not generate conversion preview",
+		}
+	}
+
+	eventDetails := map[string]interface{}{
+		"event_id":             adminEvent.EventID,
+		"source_url":           adminEvent.SourceURL,
+		"schema_type":          adminEvent.SchemaType,
+		"schema_used":          adminEvent.SchemaUsed,
+		"raw_extracted_data":   adminEvent.RawExtractedData,
+		"conversion_preview":   conversionPreview,
+		"status":               adminEvent.Status,
+		"extracted_at":         adminEvent.ExtractedAt,
+		"extracted_by_user":    adminEvent.ExtractedByUser,
+		"admin_notes":          adminEvent.AdminNotes,
+		"conversion_issues":    adminEvent.ConversionIssues,
+		"can_approve":          adminEvent.CanBeApproved(),
+		"events_count":         adminEvent.GetExtractedEventsCount(),
+	}
+
+	return ResponseBody{
+		Success: true,
+		Message: "Event details retrieved successfully",
+		Data:    eventDetails,
+	}, 200
+}
+
+// handleApproveEvent handles PUT /api/events/{id}/approve
+func handleApproveEvent(ctx context.Context, eventID string, body string) (ResponseBody, int) {
+	if eventID == "" {
+		return ResponseBody{
+			Success: false,
+			Error:   "Event ID is required",
+		}, 400
+	}
+
+	var req models.AdminEventReview
+	if err := json.Unmarshal([]byte(body), &req); err != nil {
+		return ResponseBody{
+			Success: false,
+			Error:   "Invalid request body: " + err.Error(),
+		}, 400
+	}
+
+	// Get the admin event
+	adminEvent, err := dynamoService.GetAdminEventByID(ctx, eventID)
+	if err != nil {
+		return ResponseBody{
+			Success: false,
+			Error:   "Event not found",
+		}, 404
+	}
+
+	// Check if event can be approved
+	if !adminEvent.IsPending() {
+		return ResponseBody{
+			Success: false,
+			Error:   fmt.Sprintf("Event cannot be approved - current status: %s", adminEvent.Status),
+		}, 400
+	}
+
+	// Convert to Activity model
+	conversionResult, err := conversionService.ConvertToActivity(adminEvent)
+	if err != nil {
+		return ResponseBody{
+			Success: false,
+			Error:   "Failed to convert event to activity: " + err.Error(),
+		}, 500
+	}
+
+	if conversionResult.Activity == nil {
+		return ResponseBody{
+			Success: false,
+			Error:   "Could not generate valid activity from event data",
+		}, 400
+	}
+
+	// Store the converted activity in the main activities table
+	activities := []*models.Activity{conversionResult.Activity}
+	if err := dynamoService.BatchPutActivities(ctx, activities); err != nil {
+		log.Printf("Error storing approved activity: %v", err)
+		return ResponseBody{
+			Success: false,
+			Error:   "Failed to publish approved event",
+		}, 500
+	}
+
+	// Update admin event status
+	now := time.Now()
+	adminEvent.Status = models.AdminEventStatusApproved
+	adminEvent.ReviewedAt = &now
+	adminEvent.ReviewedBy = req.ReviewedBy
+	adminEvent.AdminNotes = req.AdminNotes
+
+	if err := dynamoService.UpdateAdminEvent(ctx, adminEvent); err != nil {
+		log.Printf("Error updating admin event status: %v", err)
+		// Event was published but status update failed - log but don't fail
+	}
+
+	return ResponseBody{
+		Success: true,
+		Message: "Event approved and published successfully",
+		Data: map[string]interface{}{
+			"event_id":    eventID,
+			"activity_id": conversionResult.Activity.ID,
+			"status":      "approved",
+		},
+	}, 200
+}
+
+// handleRejectEvent handles PUT /api/events/{id}/reject
+func handleRejectEvent(ctx context.Context, eventID string, body string) (ResponseBody, int) {
+	if eventID == "" {
+		return ResponseBody{
+			Success: false,
+			Error:   "Event ID is required",
+		}, 400
+	}
+
+	var req models.AdminEventReview
+	if err := json.Unmarshal([]byte(body), &req); err != nil {
+		return ResponseBody{
+			Success: false,
+			Error:   "Invalid request body: " + err.Error(),
+		}, 400
+	}
+
+	// Get the admin event
+	adminEvent, err := dynamoService.GetAdminEventByID(ctx, eventID)
+	if err != nil {
+		return ResponseBody{
+			Success: false,
+			Error:   "Event not found",
+		}, 404
+	}
+
+	// Update admin event status
+	now := time.Now()
+	adminEvent.Status = models.AdminEventStatusRejected
+	adminEvent.ReviewedAt = &now
+	adminEvent.ReviewedBy = req.ReviewedBy
+	adminEvent.AdminNotes = req.AdminNotes
+
+	if err := dynamoService.UpdateAdminEvent(ctx, adminEvent); err != nil {
+		log.Printf("Error updating admin event status: %v", err)
+		return ResponseBody{
+			Success: false,
+			Error:   "Failed to reject event",
+		}, 500
+	}
+
+	return ResponseBody{
+		Success: true,
+		Message: "Event rejected successfully",
+		Data: map[string]interface{}{
+			"event_id": eventID,
+			"status":   "rejected",
+		},
+	}, 200
+}
+
+// handleEditEvent handles PUT /api/events/{id}/edit
+func handleEditEvent(ctx context.Context, eventID string, body string) (ResponseBody, int) {
+	if eventID == "" {
+		return ResponseBody{
+			Success: false,
+			Error:   "Event ID is required",
+		}, 400
+	}
+
+	var req models.AdminEventReview
+	if err := json.Unmarshal([]byte(body), &req); err != nil {
+		return ResponseBody{
+			Success: false,
+			Error:   "Invalid request body: " + err.Error(),
+		}, 400
+	}
+
+	// Get the admin event
+	adminEvent, err := dynamoService.GetAdminEventByID(ctx, eventID)
+	if err != nil {
+		return ResponseBody{
+			Success: false,
+			Error:   "Event not found",
+		}, 404
+	}
+
+	// Update raw extracted data with edited data
+	if req.EditedData != nil {
+		adminEvent.RawExtractedData = req.EditedData
+	}
+
+	// Update status to edited
+	now := time.Now()
+	adminEvent.Status = models.AdminEventStatusEdited
+	adminEvent.ReviewedAt = &now
+	adminEvent.ReviewedBy = req.ReviewedBy
+	adminEvent.AdminNotes = req.AdminNotes
+
+	// Regenerate conversion preview with edited data
+	conversionResult, err := conversionService.ConvertToActivity(adminEvent)
+	if err != nil {
+		log.Printf("Error regenerating conversion preview: %v", err)
+	} else {
+		if conversionResult.Activity != nil {
+			activityJSON, _ := json.Marshal(conversionResult.Activity)
+			var activityMap map[string]interface{}
+			json.Unmarshal(activityJSON, &activityMap)
+			adminEvent.ConvertedData = activityMap
+		}
+		adminEvent.ConversionIssues = conversionResult.Issues
+	}
+
+	if err := dynamoService.UpdateAdminEvent(ctx, adminEvent); err != nil {
+		log.Printf("Error updating admin event: %v", err)
+		return ResponseBody{
+			Success: false,
+			Error:   "Failed to save edited event",
+		}, 500
+	}
+
+	return ResponseBody{
+		Success: true,
+		Message: "Event edited successfully",
+		Data: map[string]interface{}{
+			"event_id": eventID,
+			"status":   "edited",
+		},
+	}, 200
+}
+
+// handleGetSchemas handles GET /api/schemas
+func handleGetSchemas(ctx context.Context) (ResponseBody, int) {
+	schemas := models.GetPredefinedSchemas()
+
+	// Format schemas for frontend consumption
+	formattedSchemas := make(map[string]interface{})
+	for key, schema := range schemas {
+		formattedSchemas[key] = map[string]interface{}{
+			"name":        schema.Name,
+			"description": schema.Description,
+			"examples":    schema.Examples,
+			"schema":      schema.Schema,
+		}
+	}
+
+	return ResponseBody{
+		Success: true,
+		Message: "Available extraction schemas",
+		Data:    formattedSchemas,
+	}, 200
 }
 
 func main() {

@@ -57,6 +57,7 @@ func init() {
 		os.Getenv("FAMILY_ACTIVITIES_TABLE"),
 		os.Getenv("SOURCE_MANAGEMENT_TABLE"),
 		os.Getenv("SCRAPING_OPERATIONS_TABLE"),
+		os.Getenv("ADMIN_EVENTS_TABLE"),
 	)
 
 	// Create FireCrawl client

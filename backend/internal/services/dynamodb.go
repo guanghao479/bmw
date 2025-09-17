@@ -20,15 +20,17 @@ type DynamoDBService struct {
 	familyActivitiesTable string
 	sourceManagementTable string
 	scrapingOperationsTable string
+	adminEventsTable string
 }
 
 // NewDynamoDBService creates a new DynamoDB service instance
-func NewDynamoDBService(client *dynamodb.Client, familyActivitiesTable, sourceManagementTable, scrapingOperationsTable string) *DynamoDBService {
+func NewDynamoDBService(client *dynamodb.Client, familyActivitiesTable, sourceManagementTable, scrapingOperationsTable, adminEventsTable string) *DynamoDBService {
 	return &DynamoDBService{
 		client:                  client,
 		familyActivitiesTable:   familyActivitiesTable,
 		sourceManagementTable:   sourceManagementTable,
 		scrapingOperationsTable: scrapingOperationsTable,
+		adminEventsTable:        adminEventsTable,
 	}
 }
 
@@ -740,4 +742,251 @@ func (s *DynamoDBService) UpdateScrapingTask(ctx context.Context, task *models.S
 	}
 
 	return nil
+}
+
+// Admin Events Table Operations
+
+// CreateAdminEvent stores an admin event in DynamoDB
+func (s *DynamoDBService) CreateAdminEvent(ctx context.Context, event *models.AdminEvent) error {
+	// Set timestamps
+	now := time.Now()
+	event.CreatedAt = now
+	event.UpdatedAt = now
+	event.ExtractedAt = now
+
+	// Generate keys
+	event.PK = models.CreateAdminEventPK(event.EventID)
+	event.SK = models.CreateAdminEventSK(event.ExtractedAt)
+	event.StatusKey = models.GenerateAdminEventStatusKey(event.Status)
+
+	// Marshal to DynamoDB attribute values
+	item, err := attributevalue.MarshalMap(event)
+	if err != nil {
+		return fmt.Errorf("failed to marshal admin event: %w", err)
+	}
+
+	// Put item
+	_, err = s.client.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: aws.String(s.adminEventsTable),
+		Item:      item,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create admin event: %w", err)
+	}
+
+	return nil
+}
+
+// GetAdminEvent retrieves an admin event by primary key
+func (s *DynamoDBService) GetAdminEvent(ctx context.Context, eventID string, extractedAt time.Time) (*models.AdminEvent, error) {
+	pk := models.CreateAdminEventPK(eventID)
+	sk := models.CreateAdminEventSK(extractedAt)
+
+	result, err := s.client.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: aws.String(s.adminEventsTable),
+		Key: map[string]types.AttributeValue{
+			"PK": &types.AttributeValueMemberS{Value: pk},
+			"SK": &types.AttributeValueMemberS{Value: sk},
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get admin event: %w", err)
+	}
+
+	if result.Item == nil {
+		return nil, fmt.Errorf("admin event not found")
+	}
+
+	var event models.AdminEvent
+	err = attributevalue.UnmarshalMap(result.Item, &event)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal admin event: %w", err)
+	}
+
+	return &event, nil
+}
+
+// GetAdminEventByID retrieves an admin event by event ID (scans for latest submission)
+func (s *DynamoDBService) GetAdminEventByID(ctx context.Context, eventID string) (*models.AdminEvent, error) {
+	pk := models.CreateAdminEventPK(eventID)
+
+	result, err := s.client.Query(ctx, &dynamodb.QueryInput{
+		TableName:              aws.String(s.adminEventsTable),
+		KeyConditionExpression: aws.String("PK = :pk"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":pk": &types.AttributeValueMemberS{Value: pk},
+		},
+		ScanIndexForward: aws.Bool(false), // Get latest first
+		Limit:           aws.Int32(1),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to query admin event: %w", err)
+	}
+
+	if len(result.Items) == 0 {
+		return nil, fmt.Errorf("admin event not found")
+	}
+
+	var event models.AdminEvent
+	err = attributevalue.UnmarshalMap(result.Items[0], &event)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal admin event: %w", err)
+	}
+
+	return &event, nil
+}
+
+// UpdateAdminEvent updates an existing admin event
+func (s *DynamoDBService) UpdateAdminEvent(ctx context.Context, event *models.AdminEvent) error {
+	// Update timestamp
+	event.UpdatedAt = time.Now()
+	event.StatusKey = models.GenerateAdminEventStatusKey(event.Status)
+
+	// Marshal to DynamoDB attribute values
+	item, err := attributevalue.MarshalMap(event)
+	if err != nil {
+		return fmt.Errorf("failed to marshal admin event: %w", err)
+	}
+
+	// Put item (upsert)
+	_, err = s.client.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: aws.String(s.adminEventsTable),
+		Item:      item,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update admin event: %w", err)
+	}
+
+	return nil
+}
+
+// QueryAdminEventsByStatus queries admin events by status using GSI
+func (s *DynamoDBService) QueryAdminEventsByStatus(ctx context.Context, status models.AdminEventStatus, limit int32) ([]models.AdminEvent, error) {
+	statusKey := models.GenerateAdminEventStatusKey(status)
+
+	result, err := s.client.Query(ctx, &dynamodb.QueryInput{
+		TableName:              aws.String(s.adminEventsTable),
+		IndexName:              aws.String("status-date-index"),
+		KeyConditionExpression: aws.String("StatusKey = :statusKey"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":statusKey": &types.AttributeValueMemberS{Value: statusKey},
+		},
+		ScanIndexForward: aws.Bool(false), // Get newest first
+		Limit:           aws.Int32(limit),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to query admin events by status: %w", err)
+	}
+
+	var events []models.AdminEvent
+	err = attributevalue.UnmarshalListOfMaps(result.Items, &events)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal admin events: %w", err)
+	}
+
+	return events, nil
+}
+
+// GetAllPendingAdminEvents retrieves all admin events that need review
+func (s *DynamoDBService) GetAllPendingAdminEvents(ctx context.Context, limit int32) ([]models.AdminEvent, error) {
+	// Get both pending and edited events
+	pendingEvents, err := s.QueryAdminEventsByStatus(ctx, models.AdminEventStatusPending, limit/2)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pending events: %w", err)
+	}
+
+	editedEvents, err := s.QueryAdminEventsByStatus(ctx, models.AdminEventStatusEdited, limit/2)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get edited events: %w", err)
+	}
+
+	// Combine and sort by extracted_at descending
+	allEvents := append(pendingEvents, editedEvents...)
+	sort.Slice(allEvents, func(i, j int) bool {
+		return allEvents[i].ExtractedAt.After(allEvents[j].ExtractedAt)
+	})
+
+	// Limit results
+	if len(allEvents) > int(limit) {
+		allEvents = allEvents[:limit]
+	}
+
+	return allEvents, nil
+}
+
+// DeleteAdminEvent removes an admin event
+func (s *DynamoDBService) DeleteAdminEvent(ctx context.Context, eventID string, extractedAt time.Time) error {
+	pk := models.CreateAdminEventPK(eventID)
+	sk := models.CreateAdminEventSK(extractedAt)
+
+	_, err := s.client.DeleteItem(ctx, &dynamodb.DeleteItemInput{
+		TableName: aws.String(s.adminEventsTable),
+		Key: map[string]types.AttributeValue{
+			"PK": &types.AttributeValueMemberS{Value: pk},
+			"SK": &types.AttributeValueMemberS{Value: sk},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete admin event: %w", err)
+	}
+
+	return nil
+}
+
+// BatchCreateAdminEvents creates multiple admin events from a crawl submission
+func (s *DynamoDBService) BatchCreateAdminEvents(ctx context.Context, events []*models.AdminEvent) error {
+	if len(events) == 0 {
+		return nil
+	}
+
+	// Process in batches of 25 (DynamoDB limit)
+	batchSize := 25
+	for i := 0; i < len(events); i += batchSize {
+		end := i + batchSize
+		if end > len(events) {
+			end = len(events)
+		}
+
+		batch := events[i:end]
+		if err := s.batchWriteAdminEvents(ctx, batch); err != nil {
+			return fmt.Errorf("failed to write batch %d-%d: %w", i, end-1, err)
+		}
+	}
+
+	return nil
+}
+
+// batchWriteAdminEvents writes a batch of admin events
+func (s *DynamoDBService) batchWriteAdminEvents(ctx context.Context, events []*models.AdminEvent) error {
+	writeRequests := make([]types.WriteRequest, 0, len(events))
+
+	for _, event := range events {
+		// Set timestamps and keys
+		now := time.Now()
+		event.CreatedAt = now
+		event.UpdatedAt = now
+		event.ExtractedAt = now
+		event.PK = models.CreateAdminEventPK(event.EventID)
+		event.SK = models.CreateAdminEventSK(event.ExtractedAt)
+		event.StatusKey = models.GenerateAdminEventStatusKey(event.Status)
+
+		// Marshal event
+		item, err := attributevalue.MarshalMap(event)
+		if err != nil {
+			return fmt.Errorf("failed to marshal admin event %s: %w", event.EventID, err)
+		}
+
+		writeRequests = append(writeRequests, types.WriteRequest{
+			PutRequest: &types.PutRequest{Item: item},
+		})
+	}
+
+	// Execute batch write
+	_, err := s.client.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
+		RequestItems: map[string][]types.WriteRequest{
+			s.adminEventsTable: writeRequests,
+		},
+	})
+
+	return err
 }

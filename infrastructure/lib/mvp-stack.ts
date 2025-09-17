@@ -131,6 +131,19 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       encryption: dynamodb.TableEncryption.AWS_MANAGED
     });
 
+    // DynamoDB Table 4: Admin Events (Admin Crawling Flow)
+    const adminEventsTable = new dynamodb.Table(this, 'AdminEventsTable', {
+      tableName: 'seattle-admin-events',
+      partitionKey: { name: 'PK', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'SK', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: RemovalPolicy.DESTROY, // For MVP - allows easy cleanup
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true // Important for admin data
+      },
+      encryption: dynamodb.TableEncryption.AWS_MANAGED
+    });
+
     // Add Global Secondary Index to Scraping Operations Table
     scrapingOperationsTable.addGlobalSecondaryIndex({
       indexName: 'next-run-index',
@@ -138,6 +151,14 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       sortKey: { name: 'PrioritySourceKey', type: dynamodb.AttributeType.STRING },
       projectionType: dynamodb.ProjectionType.INCLUDE,
       nonKeyAttributes: ['source_id', 'scheduled_time', 'task_type', 'status', 'retry_count']
+    });
+
+    // Add Global Secondary Index to Admin Events Table
+    adminEventsTable.addGlobalSecondaryIndex({
+      indexName: 'status-date-index',
+      partitionKey: { name: 'StatusKey', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'SK', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL
     });
 
     // SQS Dead Letter Queue for failed tasks
@@ -203,9 +224,11 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
                 familyActivitiesTable.tableArn,
                 sourceManagementTable.tableArn,
                 scrapingOperationsTable.tableArn,
+                adminEventsTable.tableArn,
                 `${familyActivitiesTable.tableArn}/index/*`,
                 `${sourceManagementTable.tableArn}/index/*`,
-                `${scrapingOperationsTable.tableArn}/index/*`
+                `${scrapingOperationsTable.tableArn}/index/*`,
+                `${adminEventsTable.tableArn}/index/*`
               ]
             })
           ]
@@ -385,9 +408,11 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
                 familyActivitiesTable.tableArn,
                 sourceManagementTable.tableArn,
                 scrapingOperationsTable.tableArn,
+                adminEventsTable.tableArn,
                 `${familyActivitiesTable.tableArn}/index/*`,
                 `${sourceManagementTable.tableArn}/index/*`,
-                `${scrapingOperationsTable.tableArn}/index/*`
+                `${scrapingOperationsTable.tableArn}/index/*`,
+                `${adminEventsTable.tableArn}/index/*`
               ]
             })
           ]
@@ -420,8 +445,10 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
         FAMILY_ACTIVITIES_TABLE: familyActivitiesTable.tableName,
         SOURCE_MANAGEMENT_TABLE: sourceManagementTable.tableName,
         SCRAPING_OPERATIONS_TABLE: scrapingOperationsTable.tableName,
+        ADMIN_EVENTS_TABLE: adminEventsTable.tableName,
         SOURCE_ANALYZER_FUNCTION_NAME: sourceAnalyzerFunction.functionName,
         ORCHESTRATOR_FUNCTION_NAME: scrapingOrchestratorFunction.functionName,
+        FIRECRAWL_API_KEY: process.env.FIRECRAWL_API_KEY || '',
       }
     });
 
@@ -480,6 +507,29 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
     pendingResource.addMethod('GET', adminApiIntegration); // GET /api/sources/pending
     activeResource.addMethod('GET', adminApiIntegration);  // GET /api/sources/active
 
+    // Admin Crawling Routes
+    const crawlResource = apiResource.addResource('crawl');
+    const crawlSubmitResource = crawlResource.addResource('submit');
+    crawlSubmitResource.addMethod('POST', adminApiIntegration); // POST /api/crawl/submit
+
+    const eventsResource = apiResource.addResource('events');
+    const eventsPendingResource = eventsResource.addResource('pending');
+    eventsPendingResource.addMethod('GET', adminApiIntegration); // GET /api/events/pending
+
+    const eventResource = eventsResource.addResource('{id}');
+    eventResource.addMethod('GET', adminApiIntegration); // GET /api/events/{id}
+
+    const approveResource = eventResource.addResource('approve');
+    const rejectEventResource = eventResource.addResource('reject');
+    const editResource = eventResource.addResource('edit');
+
+    approveResource.addMethod('PUT', adminApiIntegration); // PUT /api/events/{id}/approve
+    rejectEventResource.addMethod('PUT', adminApiIntegration); // PUT /api/events/{id}/reject
+    editResource.addMethod('PUT', adminApiIntegration); // PUT /api/events/{id}/edit
+
+    const schemasResource = apiResource.addResource('schemas');
+    schemasResource.addMethod('GET', adminApiIntegration); // GET /api/schemas
+
     // Outputs for reference
     new CfnOutput(this, 'S3BucketName', {
       value: eventsBucket.bucketName,
@@ -534,6 +584,12 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       value: scrapingOperationsTable.tableName,
       description: 'DynamoDB table name for scraping operations',
       exportName: 'SeattleFamilyActivities-ScrapingOperationsTableName'
+    });
+
+    new CfnOutput(this, 'AdminEventsTableName', {
+      value: adminEventsTable.tableName,
+      description: 'DynamoDB table name for admin events',
+      exportName: 'SeattleFamilyActivities-AdminEventsTableName'
     });
 
     new CfnOutput(this, 'AdminApiFunctionName', {

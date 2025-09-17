@@ -309,6 +309,7 @@
             <button class="tab-button active" data-tab="submit">Submit New Source</button>
             <button class="tab-button" data-tab="pending">Pending Analysis</button>
             <button class="tab-button" data-tab="sources">Source Management</button>
+            <button class="tab-button" data-tab="crawling">Event Crawling</button>
         </div>
 
         <!-- Tab 1: Submit New Source -->
@@ -425,18 +426,98 @@
             <div class="form-section">
                 <h3>Source Management & Analytics</h3>
                 <p>Monitor and manage active sources with real-time performance metrics.</p>
-                
+
                 <!-- Analytics Overview -->
                 <div id="analytics-overview">
                     <div class="alert alert-info">
                         Loading analytics overview...
                     </div>
                 </div>
-                
+
                 <!-- Active Sources with Enhanced Data -->
                 <div id="active-sources" class="sources-grid">
                     <div class="alert alert-info">
                         Loading active sources...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 4: Event Crawling -->
+        <div class="tab-content" id="crawling-tab">
+            <div class="form-section">
+                <h3>Extract Events from Websites</h3>
+                <p>Submit any website URL to extract events, activities, or venues using Firecrawl's AI-powered extraction.</p>
+
+                <form id="crawling-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="crawl-url">Website URL *</label>
+                            <input type="url" id="crawl-url" name="url" required
+                                   placeholder="https://example.com/events">
+                        </div>
+                        <div class="form-group">
+                            <label for="schema-type">Extraction Schema *</label>
+                            <select id="schema-type" name="schema_type" required>
+                                <option value="">Select extraction type...</option>
+                                <option value="events">Events (title, date, location, price)</option>
+                                <option value="activities">Activities (name, age groups, duration)</option>
+                                <option value="venues">Venues (name, address, facilities)</option>
+                                <option value="custom">Custom Schema (provide JSON)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group" id="schema-preview" style="display: none;">
+                        <label>Schema Preview</label>
+                        <div id="schema-preview-content" style="background: #f8f9fa; padding: 1rem; border-radius: 8px; font-family: monospace; font-size: 0.9rem; color: #495057;">
+                            Select a schema type to see what fields will be extracted...
+                        </div>
+                    </div>
+
+                    <div class="form-group" id="custom-schema-group" style="display: none;">
+                        <label for="custom-schema">Custom Extraction Schema</label>
+                        <p style="margin-bottom: 0.5rem; color: var(--text-secondary); font-size: 0.9rem;">
+                            Provide a JSON Schema for custom extraction. Must include 'type' and 'properties' fields.
+                        </p>
+                        <textarea id="custom-schema" name="custom_schema" rows="10"
+                                  placeholder='{"type": "object", "properties": {"items": {"type": "array", "items": {"type": "object", "properties": {"title": {"type": "string"}, "description": {"type": "string"}}}}}}'></textarea>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="crawl-user">Your Email *</label>
+                            <input type="email" id="crawl-user" name="extracted_by_user" required
+                                   placeholder="admin@seattlefamilyactivities.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="crawl-notes">Notes (Optional)</label>
+                            <input type="text" id="crawl-notes" name="admin_notes"
+                                   placeholder="Quick extraction for testing...">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="crawl-submit-btn">
+                        Extract Events
+                    </button>
+                </form>
+            </div>
+
+            <!-- Pending Events Review Section -->
+            <div class="form-section">
+                <h3>Pending Events Review</h3>
+                <p>Review and approve extracted events before they appear on the frontend.</p>
+
+                <div style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center;">
+                    <button class="btn btn-secondary" onclick="loadPendingEvents()">Refresh</button>
+                    <span id="pending-count" style="color: var(--text-secondary); font-size: 0.9rem;">
+                        Loading pending events...
+                    </span>
+                </div>
+
+                <div id="pending-events-container">
+                    <div class="alert alert-info">
+                        Loading pending events...
                     </div>
                 </div>
             </div>
