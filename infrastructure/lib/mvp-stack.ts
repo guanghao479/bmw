@@ -280,11 +280,10 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
         FAMILY_ACTIVITIES_TABLE: familyActivitiesTable.tableName,
         SOURCE_MANAGEMENT_TABLE: sourceManagementTable.tableName,
         SCRAPING_OPERATIONS_TABLE: scrapingOperationsTable.tableName,
-        OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
-        JINA_API_KEY: process.env.JINA_API_KEY || '',
+        FIRECRAWL_API_KEY: process.env.FIRECRAWL_API_KEY || '',
         LOG_LEVEL: 'INFO'
       },
-      description: 'Analyzes founder-submitted sources using Jina + OpenAI to determine scraping approach'
+      description: 'Analyzes founder-submitted sources using FireCrawl to determine scraping approach'
     });
 
     // Lambda function for scraping orchestration (Go runtime)
@@ -300,11 +299,10 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
         SOURCE_MANAGEMENT_TABLE: sourceManagementTable.tableName,
         SCRAPING_OPERATIONS_TABLE: scrapingOperationsTable.tableName,
         SCRAPING_TASK_QUEUE_URL: scrapingTaskQueue.queueUrl,
-        OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
-        JINA_API_KEY: process.env.JINA_API_KEY || '',
+        FIRECRAWL_API_KEY: process.env.FIRECRAWL_API_KEY || '',
         LOG_LEVEL: 'INFO'
       },
-      description: 'Orchestrates scraping tasks from DynamoDB sources, replacing hardcoded source list'
+      description: 'Orchestrates scraping tasks from DynamoDB sources using FireCrawl, replacing hardcoded source list'
     });
 
     // Task Executor Lambda function for processing SQS scraping tasks
@@ -319,11 +317,10 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
         FAMILY_ACTIVITIES_TABLE: familyActivitiesTable.tableName,
         SOURCE_MANAGEMENT_TABLE: sourceManagementTable.tableName,
         SCRAPING_OPERATIONS_TABLE: scrapingOperationsTable.tableName,
-        OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
-        JINA_API_KEY: process.env.JINA_API_KEY || '',
+        FIRECRAWL_API_KEY: process.env.FIRECRAWL_API_KEY || '',
         LOG_LEVEL: 'INFO'
       },
-      description: 'Processes individual scraping tasks from SQS queue'
+      description: 'Processes individual scraping tasks from SQS queue using FireCrawl'
     });
 
     // Connect task executor to SQS queue

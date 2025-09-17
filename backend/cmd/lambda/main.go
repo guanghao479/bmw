@@ -170,20 +170,19 @@ func generateParentMapSources() []SeattleSource {
 
 // ScrapingOrchestrator handles the complete scraping workflow
 type ScrapingOrchestrator struct {
-	jinaClient   *services.JinaClient
-	openaiClient *services.OpenAIClient
-	s3Client     *services.S3Client
-	runID        string
-	startTime    time.Time
+	firecrawlClient *services.FireCrawlClient
+	s3Client        *services.S3Client
+	runID           string
+	startTime       time.Time
 }
 
 // NewScrapingOrchestrator creates a new orchestrator with all required services
 func NewScrapingOrchestrator() (*ScrapingOrchestrator, error) {
-	// Initialize Jina client
-	jinaClient := services.NewJinaClient()
-
-	// Initialize OpenAI client
-	openaiClient := services.NewOpenAIClient()
+	// Initialize FireCrawl client
+	firecrawlClient, err := services.NewFireCrawlClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize FireCrawl client: %w", err)
+	}
 
 	// Initialize S3 client
 	s3Client, err := services.NewS3Client()
@@ -195,171 +194,157 @@ func NewScrapingOrchestrator() (*ScrapingOrchestrator, error) {
 	runID := models.GenerateScrapingRunID(time.Now())
 
 	return &ScrapingOrchestrator{
-		jinaClient:   jinaClient,
-		openaiClient: openaiClient,
-		s3Client:     s3Client,
-		runID:        runID,
-		startTime:    time.Now(),
+		firecrawlClient: firecrawlClient,
+		s3Client:        s3Client,
+		runID:           runID,
+		startTime:       time.Now(),
 	}, nil
 }
 
-// ScrapeSource scrapes a single source and returns the result
+// ScrapeSource scrapes a single source and returns the result using FireCrawl
 func (so *ScrapingOrchestrator) ScrapeSource(source SeattleSource) SourceResult {
 	start := time.Now()
-	
+
 	result := SourceResult{
 		Name: source.Name,
 		URL:  source.URL,
 	}
 
-	log.Printf("Starting to scrape source: %s (%s)", source.Name, source.URL)
+	log.Printf("Starting to extract activities from source: %s (%s)", source.Name, source.URL)
 
-	// Pre-process source-specific configurations
-	if err := so.prepareSourceSpecificConfig(source); err != nil {
-		result.Error = fmt.Sprintf("Source configuration failed: %v", err)
-		result.ProcessingTime = time.Since(start)
-		log.Printf("Failed to configure source %s: %v", source.Name, err)
-		return result
-	}
-
-	// Step 1: Extract content with Jina (with source-specific retry logic)
-	content, err := so.extractContentWithRetries(source)
+	// Step 1: Extract activities with FireCrawl (single API call)
+	firecrawlResponse, err := so.firecrawlClient.ExtractActivities(source.URL)
 	if err != nil {
-		result.Error = fmt.Sprintf("Content extraction failed: %v", err)
-		result.ProcessingTime = time.Since(start)
-		log.Printf("Failed to extract content from %s: %v", source.Name, err)
-		return result
-	}
-
-	log.Printf("Extracted %d characters from %s", len(content), source.Name)
-
-	// Skip if content is too short
-	if len(content) < 500 {
-		result.Error = fmt.Sprintf("Content too short (%d chars)", len(content))
-		result.ProcessingTime = time.Since(start)
-		log.Printf("Content too short for %s: %d characters", source.Name, len(content))
-		return result
-	}
-
-	// Step 2: Extract activities with OpenAI
-	openaiResponse, err := so.openaiClient.ExtractActivities(content, source.URL)
-	if err != nil {
-		result.Error = fmt.Sprintf("OpenAI extraction failed: %v", err)
+		result.Error = fmt.Sprintf("FireCrawl extraction failed: %v", err)
 		result.ProcessingTime = time.Since(start)
 		log.Printf("Failed to extract activities from %s: %v", source.Name, err)
 		return result
 	}
 
-	// Step 3: Validate extracted activities
-	issues := so.openaiClient.ValidateExtractionResponse(openaiResponse)
+	log.Printf("Extracted %d activities from %s", len(firecrawlResponse.Data.Activities), source.Name)
+
+	// Step 2: Validate extracted activities
+	issues := so.firecrawlClient.ValidateExtractResponse(firecrawlResponse)
 	if len(issues) > 0 {
 		log.Printf("Validation issues for %s: %v", source.Name, issues)
 		// Log issues but don't fail - some issues may be acceptable
 	}
 
-	// Step 4: Calculate quality score and generate report
-	qualityScore := so.openaiClient.CalculateQualityScore(openaiResponse)
-	qualityReport := so.openaiClient.GenerateQualityReport(openaiResponse)
+	// Step 3: Calculate quality metrics (simplified)
+	qualityScore := calculateFireCrawlQualityScore(firecrawlResponse.Data.Activities)
+	qualityReport := generateFireCrawlQualityReport(firecrawlResponse.Data.Activities)
 
 	// Success
 	result.Success = true
-	result.ActivitiesFound = openaiResponse.TotalFound
-	result.TokensUsed = openaiResponse.TokensUsed
-	result.Cost = openaiResponse.EstimatedCost
+	result.ActivitiesFound = len(firecrawlResponse.Data.Activities)
+	result.TokensUsed = 0 // FireCrawl doesn't expose token usage
+	result.Cost = float64(firecrawlResponse.CreditsUsed) * 0.01 // Estimate: 1 credit = $0.01
 	result.QualityScore = qualityScore
 	result.QualityReport = qualityReport
 	result.ProcessingTime = time.Since(start)
 
-	log.Printf("Successfully scraped %s: %d activities, %d tokens, $%.4f, quality: %.1f%%", 
-		source.Name, result.ActivitiesFound, result.TokensUsed, result.Cost, qualityScore)
+	log.Printf("Successfully extracted from %s: %d activities, %d credits used, $%.4f, quality: %.1f%%",
+		source.Name, result.ActivitiesFound, firecrawlResponse.CreditsUsed, result.Cost, qualityScore)
 
 	return result
 }
 
+// calculateFireCrawlQualityScore calculates a quality score for extracted activities
+func calculateFireCrawlQualityScore(activities []models.Activity) float64 {
+	if len(activities) == 0 {
+		return 0.0
+	}
+
+	totalScore := 0.0
+	for _, activity := range activities {
+		score := 0.0
+		maxScore := 6.0 // Maximum possible score per activity
+
+		// Required fields (2 points each)
+		if activity.Title != "" {
+			score += 2.0
+		}
+		if activity.Location.Name != "" {
+			score += 2.0
+		}
+
+		// Optional but valuable fields (0.5 points each)
+		if activity.Description != "" {
+			score += 0.5
+		}
+		if activity.Schedule.StartDate != "" {
+			score += 0.5
+		}
+		if len(activity.AgeGroups) > 0 {
+			score += 0.5
+		}
+		if activity.Pricing.Description != "" {
+			score += 0.5
+		}
+
+		totalScore += (score / maxScore) * 100.0
+	}
+
+	return totalScore / float64(len(activities))
+}
+
+// generateFireCrawlQualityReport generates a quality report for extracted activities
+func generateFireCrawlQualityReport(activities []models.Activity) map[string]interface{} {
+	report := map[string]interface{}{
+		"total_activities": len(activities),
+		"quality_breakdown": map[string]interface{}{
+			"with_title":       0,
+			"with_location":    0,
+			"with_description": 0,
+			"with_schedule":    0,
+			"with_age_groups":  0,
+			"with_pricing":     0,
+		},
+	}
+
+	breakdown := report["quality_breakdown"].(map[string]interface{})
+
+	for _, activity := range activities {
+		if activity.Title != "" {
+			breakdown["with_title"] = breakdown["with_title"].(int) + 1
+		}
+		if activity.Location.Name != "" {
+			breakdown["with_location"] = breakdown["with_location"].(int) + 1
+		}
+		if activity.Description != "" {
+			breakdown["with_description"] = breakdown["with_description"].(int) + 1
+		}
+		if activity.Schedule.StartDate != "" {
+			breakdown["with_schedule"] = breakdown["with_schedule"].(int) + 1
+		}
+		if len(activity.AgeGroups) > 0 {
+			breakdown["with_age_groups"] = breakdown["with_age_groups"].(int) + 1
+		}
+		if activity.Pricing.Description != "" {
+			breakdown["with_pricing"] = breakdown["with_pricing"].(int) + 1
+		}
+	}
+
+	return report
+}
+
 // prepareSourceSpecificConfig configures source-specific settings before scraping
+// Note: Simplified since FireCrawl handles anti-scraping and rate limiting automatically
 func (so *ScrapingOrchestrator) prepareSourceSpecificConfig(source SeattleSource) error {
-	switch source.Domain {
-	case "seattleschild.com":
-		// Add more realistic user agents for anti-scraping protection
-		additionalUserAgents := []string{
-			"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-			"Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-		}
-		for _, ua := range additionalUserAgents {
-			so.jinaClient.AddUserAgent(ua)
-		}
-		log.Printf("Enhanced user agent rotation for %s", source.Domain)
-		
-	case "peps.org":
-		// No specific preparation needed - SSL issues are handled in transport config
-		log.Printf("Using enhanced SSL configuration for %s", source.Domain)
-		
-	case "seattlefunforkids.com":
-		// This source is disabled due to DNS issues, should not reach here
-		return fmt.Errorf("source %s is disabled due to DNS resolution issues", source.Domain)
+	// FireCrawl handles most source-specific concerns automatically
+	// Just log what we're about to process
+	log.Printf("Preparing to extract from %s using FireCrawl", source.Domain)
+
+	// Check for known problematic sources
+	if !source.Enabled {
+		return fmt.Errorf("source %s is disabled", source.Name)
 	}
-	
+
 	return nil
 }
 
-// extractContentWithRetries handles source-specific retry logic
-func (so *ScrapingOrchestrator) extractContentWithRetries(source SeattleSource) (string, error) {
-	var lastErr error
-	
-	for attempt := 0; attempt < source.RetryCount; attempt++ {
-		content, err := so.jinaClient.ExtractContent(source.URL)
-		if err == nil {
-			return content, nil
-		}
-		
-		lastErr = err
-		
-		// Source-specific error handling
-		if err := so.handleSourceSpecificError(source, err, attempt); err != nil {
-			return "", err
-		}
-		
-		// Wait before retry
-		if attempt < source.RetryCount-1 {
-			waitTime := time.Duration(attempt+1) * 2 * time.Second
-			log.Printf("Retrying %s in %v (attempt %d/%d): %v", 
-				source.Name, waitTime, attempt+1, source.RetryCount, err)
-			time.Sleep(waitTime)
-		}
-	}
-	
-	return "", fmt.Errorf("failed after %d attempts: %w", source.RetryCount, lastErr)
-}
-
-// handleSourceSpecificError provides source-specific error handling
-func (so *ScrapingOrchestrator) handleSourceSpecificError(source SeattleSource, err error, attempt int) error {
-	errStr := err.Error()
-	
-	switch source.Domain {
-	case "seattleschild.com":
-		if strings.Contains(errStr, "403") || strings.Contains(errStr, "forbidden") {
-			log.Printf("Anti-scraping protection detected for %s, attempt %d", source.Name, attempt+1)
-			// Continue retrying - the enhanced headers might work
-			return nil
-		}
-		
-	case "peps.org":
-		if strings.Contains(errStr, "tls") || strings.Contains(errStr, "certificate") || strings.Contains(errStr, "ssl") {
-			log.Printf("SSL/TLS issue detected for %s, attempt %d", source.Name, attempt+1)
-			// Continue retrying - the enhanced TLS config might work
-			return nil
-		}
-		
-	case "seattlefunforkids.com":
-		if strings.Contains(errStr, "no such host") || strings.Contains(errStr, "ENOTFOUND") {
-			// Don't retry DNS failures
-			return fmt.Errorf("DNS resolution failed for %s: %w", source.Domain, err)
-		}
-	}
-	
-	// Default: continue retrying for other errors
-	return nil
-}
+// Note: extractContentWithRetries and handleSourceSpecificError methods removed
+// FireCrawl handles retry logic and error handling automatically
 
 // ScrapeAllSources orchestrates scraping from all enabled Seattle sources
 func (so *ScrapingOrchestrator) ScrapeAllSources(sources []SeattleSource, sourceFilter []string) (*ScrapingSummary, []models.Activity, error) {
@@ -417,15 +402,12 @@ func (so *ScrapingOrchestrator) ScrapeAllSources(sources []SeattleSource, source
 			result := so.ScrapeSource(src)
 			results[index] = result
 
-			// If successful, extract activities
+			// If successful, extract activities using FireCrawl
 			if result.Success {
-				// Re-extract activities for final collection
-				content, err := so.jinaClient.ExtractContent(src.URL)
-				if err == nil && len(content) >= 500 {
-					openaiResponse, err := so.openaiClient.ExtractActivities(content, src.URL)
-					if err == nil {
-						allActivities[index] = openaiResponse.Activities
-					}
+				// Extract activities using FireCrawl
+				firecrawlResponse, err := so.firecrawlClient.ExtractActivities(src.URL)
+				if err == nil {
+					allActivities[index] = firecrawlResponse.Data.Activities
 				}
 			}
 		}(i, source)

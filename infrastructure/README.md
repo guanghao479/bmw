@@ -5,7 +5,7 @@ AWS CDK infrastructure for the Seattle Family Activities MVP platform.
 ## Architecture
 
 - **S3 Bucket**: Public read access for JSON event data
-- **Lambda Function**: Go runtime for Jina + OpenAI scraping
+- **Lambda Function**: Go runtime for FireCrawl extraction
 - **EventBridge**: Scheduled scraping every 6 hours
 - **CloudWatch**: Monitoring and alerting
 - **SNS**: Email notifications for failures
@@ -32,7 +32,7 @@ Set these environment variables before deployment:
 ```bash
 export AWS_PROFILE=your-aws-profile-name
 export AWS_REGION=us-west-2
-export OPENAI_API_KEY="your-openai-api-key"
+export FIRECRAWL_API_KEY="your-firecrawl-api-key"
 export ADMIN_EMAIL="your-email@example.com"  # Optional for alerts
 ```
 

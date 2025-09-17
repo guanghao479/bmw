@@ -1,6 +1,6 @@
 module seattle-family-activities-scraper
 
-go 1.22
+go 1.22.5
 
 toolchain go1.24.2
 
@@ -12,8 +12,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.49.0
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.76.2
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.38.5
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.0
 	github.com/google/uuid v1.6.0
-	github.com/sashabaranov/go-openai v1.15.3
+	github.com/mendableai/firecrawl-go v1.0.0
 )
 
 require (
@@ -30,7 +31,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.37 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.15.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.15.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.17.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.23.2 // indirect
