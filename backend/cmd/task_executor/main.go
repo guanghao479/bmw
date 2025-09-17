@@ -36,11 +36,10 @@ type TaskExecutorEvent struct {
 var (
 	// AWS services
 	dynamoService *services.DynamoDBService
-	
+
 	// Scraping services
-	jinaClient   *services.JinaClient
-	openaiClient *services.OpenAIClient
-	
+	firecrawlClient *services.FireCrawlClient
+
 	// Environment variables
 	familyActivitiesTableName  = os.Getenv("FAMILY_ACTIVITIES_TABLE")
 	sourceManagementTableName  = os.Getenv("SOURCE_MANAGEMENT_TABLE")
@@ -64,9 +63,11 @@ func init() {
 		scrapingOperationsTableName,
 	)
 	
-	// Initialize scraping services
-	jinaClient = services.NewJinaClient()
-	openaiClient = services.NewOpenAIClient()
+	// Initialize FireCrawl client
+	firecrawlClient, err = services.NewFireCrawlClient()
+	if err != nil {
+		log.Fatalf("Failed to create FireCrawl client: %v", err)
+	}
 }
 
 func main() {
@@ -182,26 +183,17 @@ func performScraping(ctx context.Context, taskEvent TaskExecutorEvent) ([]models
 	for _, url := range taskEvent.TargetURLs {
 		log.Printf("Extracting content from URL: %s", url)
 		
-		// Step 1: Extract content using Jina
-		content, err := jinaClient.ExtractContent(url)
-		if err != nil {
-			log.Printf("Failed to extract content from %s: %v", url, err)
-			continue // Continue with other URLs
-		}
-		
-		log.Printf("Extracted %d characters from %s", len(content), url)
-		
-		// Step 2: Extract structured activities using OpenAI
-		response, err := openaiClient.ExtractActivities(content, url)
+		// Extract structured activities using FireCrawl
+		response, err := firecrawlClient.ExtractActivities(url)
 		if err != nil {
 			log.Printf("Failed to extract activities from %s: %v", url, err)
 			continue // Continue with other URLs
 		}
-		
-		log.Printf("OpenAI extracted %d activities from %s", len(response.Activities), url)
+
+		log.Printf("FireCrawl extracted %d activities from %s", len(response.Data.Activities), url)
 		
 		// Step 3: Convert to DynamoDB format and store
-		for _, activity := range response.Activities {
+		for _, activity := range response.Data.Activities {
 			// Convert Activity to FamilyActivity for DynamoDB storage
 			// Use source name as fallback for sourceID if not provided
 			sourceID := taskEvent.SourceID

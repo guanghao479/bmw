@@ -54,12 +54,11 @@ type TaskSummary struct {
 }
 
 var (
-	dynamoService *services.DynamoDBService
-	jinaClient    *services.JinaClient
-	openAIClient  *services.OpenAIClient
-	s3Client      *services.S3Client
-	sqsClient     *sqs.Client
-	taskQueueURL  string
+	dynamoService   *services.DynamoDBService
+	firecrawlClient *services.FireCrawlClient
+	s3Client        *services.S3Client
+	sqsClient       *sqs.Client
+	taskQueueURL    string
 )
 
 func init() {
@@ -78,9 +77,11 @@ func init() {
 		os.Getenv("SCRAPING_OPERATIONS_TABLE"),
 	)
 
-	// Create external API clients
-	jinaClient = services.NewJinaClient()
-	openAIClient = services.NewOpenAIClient()
+	// Create FireCrawl client
+	firecrawlClient, err = services.NewFireCrawlClient()
+	if err != nil {
+		log.Fatalf("Failed to create FireCrawl client: %v", err)
+	}
 	
 	// Create S3 client for data storage
 	s3Client, err = services.NewS3Client()
@@ -361,19 +362,19 @@ func executeScrapingTask(ctx context.Context, task *models.ScrapingTask, sourceC
 	for _, url := range task.TargetURLs {
 		log.Printf("Scraping URL: %s", url)
 		
-		// Extract content using Jina
-		content, err := jinaClient.ExtractContent(url)
+		// Extract activities using FireCrawl
+		response, err := firecrawlClient.ExtractActivities(url)
 		if err != nil {
-			errorMsg := fmt.Sprintf("Failed to extract content from %s: %v", url, err)
+			errorMsg := fmt.Sprintf("Failed to extract activities from %s: %v", url, err)
 			log.Printf(errorMsg)
 			totalErrors = append(totalErrors, errorMsg)
 			continue
 		}
 
-		// Extract activities using OpenAI
-		activities, err := extractActivitiesFromContent(ctx, content, url, sourceConfig)
-		if err != nil {
-			errorMsg := fmt.Sprintf("Failed to extract activities from %s: %v", url, err)
+		// Use extracted activities from FireCrawl
+		activities := response.Data.Activities
+		if len(activities) == 0 {
+			errorMsg := fmt.Sprintf("No activities found from %s", url)
 			log.Printf(errorMsg)
 			totalErrors = append(totalErrors, errorMsg)
 			continue
@@ -445,17 +446,7 @@ func executeScrapingTask(ctx context.Context, task *models.ScrapingTask, sourceC
 	return nil
 }
 
-// extractActivitiesFromContent uses OpenAI to extract activities from content
-func extractActivitiesFromContent(ctx context.Context, content, url string, sourceConfig *models.DynamoSourceConfig) ([]models.Activity, error) {
-	// Use the existing OpenAI client to extract activities
-	response, err := openAIClient.ExtractActivities(content, url)
-	if err != nil {
-		return nil, fmt.Errorf("OpenAI extraction failed: %w", err)
-	}
-
-	// The activities are already enriched by the OpenAI client with source information
-	return response.Activities, nil
-}
+// extractActivitiesFromContent is no longer needed as FireCrawl extracts activities directly
 
 // storeActivitiesInDynamoDB stores activities in the family-activities table
 func storeActivitiesInDynamoDB(ctx context.Context, activities []models.Activity, sourceID string) error {

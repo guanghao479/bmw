@@ -40,8 +40,7 @@ type ResponseBody struct {
 
 var (
 	dynamoService    *services.DynamoDBService
-	jinaClient       *services.JinaClient
-	openAIClient     *services.OpenAIClient
+	firecrawlClient  *services.FireCrawlClient
 )
 
 func init() {
@@ -60,9 +59,12 @@ func init() {
 		os.Getenv("SCRAPING_OPERATIONS_TABLE"),
 	)
 
-	// Create external API clients
-	jinaClient = services.NewJinaClient()
-	openAIClient = services.NewOpenAIClient()
+	// Create FireCrawl client
+	var err2 error
+	firecrawlClient, err2 = services.NewFireCrawlClient()
+	if err2 != nil {
+		log.Fatalf("Failed to create FireCrawl client: %v", err2)
+	}
 }
 
 // handleRequest processes the source analyzer Lambda request
@@ -180,8 +182,8 @@ func performWebsiteDiscovery(ctx context.Context, submission *models.SourceSubmi
 		ContentPages: make([]models.ContentPage, 0),
 	}
 
-	// Use Jina to analyze the main website
-	mainPageContent, err := jinaClient.ExtractContent(submission.BaseURL)
+	// Use FireCrawl to analyze the main website
+	mainPageResponse, err := firecrawlClient.ExtractActivities(submission.BaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract main page content: %w", err)
 	}
@@ -190,42 +192,34 @@ func performWebsiteDiscovery(ctx context.Context, submission *models.SourceSubmi
 	for _, hintURL := range submission.HintURLs {
 		log.Printf("Analyzing hint URL: %s", hintURL)
 		
-		content, err := jinaClient.ExtractContent(hintURL)
+		response, err := firecrawlClient.ExtractActivities(hintURL)
 		if err != nil {
 			log.Printf("Failed to extract content from %s: %v", hintURL, err)
 			continue
 		}
 
-		// Use OpenAI to analyze content and determine page type
-		pageType, confidence, err := analyzePageTypeWithOpenAI(ctx, content, submission.ExpectedContent)
-		if err != nil {
-			log.Printf("Failed to analyze page type for %s: %v", hintURL, err)
-			continue
-		}
+		// Determine page type based on extracted activities
+		pageType, confidence := analyzePageTypeFromFireCrawl(response, submission.ExpectedContent)
 
 		contentPage := models.ContentPage{
 			URL:        hintURL,
 			Type:       pageType,
 			Confidence: confidence,
-			Title:      extractTitleFromContent(content),
+			Title:      extractTitleFromFireCrawlResponse(response),
 			Language:   "en", // Assume English for Seattle sources
 		}
 
 		discovery.ContentPages = append(discovery.ContentPages, contentPage)
 	}
 
-	// Generate CSS selectors using OpenAI analysis
+	// Generate CSS selectors using FireCrawl analysis
 	if len(discovery.ContentPages) > 0 {
-		selectors, err := generateCSSSelectorsWithOpenAI(ctx, mainPageContent, discovery.ContentPages[0].Type)
-		if err != nil {
-			log.Printf("Failed to generate CSS selectors: %v", err)
-		} else {
-			discovery.DataSelectors = *selectors
-		}
+		selectors := generateCSSSelectorsFromFireCrawl(mainPageResponse, discovery.ContentPages[0].Type)
+		discovery.DataSelectors = *selectors
 	}
 
-	// Check for structured data (simplified version)
-	if containsStructuredData(mainPageContent) {
+	// Check for structured data based on FireCrawl extraction success
+	if len(mainPageResponse.Data.Activities) > 0 {
 		discovery.StructuredDataFound = true
 		discovery.SchemaTypes = []string{"Event", "Place"} // Common types for family activities
 	}
@@ -244,17 +238,14 @@ func performExtractionTesting(ctx context.Context, submission *models.SourceSubm
 	log.Printf("Testing extraction on URL: %s", testURL)
 
 	startTime := time.Now()
-	content, err := jinaClient.ExtractContent(testURL)
+	response, err := firecrawlClient.ExtractActivities(testURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract test content: %w", err)
 	}
 	duration := time.Since(startTime).Milliseconds()
 
-	// Use OpenAI to extract sample activities
-	sampleActivities, err := extractSampleActivitiesWithOpenAI(ctx, content, submission.ExpectedContent)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract sample activities: %w", err)
-	}
+	// Convert FireCrawl activities to sample activities format
+	sampleActivities := convertFireCrawlToSampleActivities(response.Data.Activities)
 
 	// Calculate quality metrics
 	qualityScore := calculateExtractionQualityScore(sampleActivities)
@@ -331,19 +322,24 @@ func generateConfigurationRecommendations(ctx context.Context, submission *model
 	return config, nil
 }
 
-// Helper functions for OpenAI integration
-func analyzePageTypeWithOpenAI(ctx context.Context, content string, expectedContent []string) (string, float64, error) {
-	// This would use OpenAI to analyze the content and determine if it contains events, venues, etc.
-	// For now, return a simple classification based on expected content
-	if len(expectedContent) > 0 {
-		return expectedContent[0], 0.8, nil
+// Helper functions for FireCrawl integration
+func analyzePageTypeFromFireCrawl(response *services.FireCrawlExtractResponse, expectedContent []string) (string, float64) {
+	// Analyze the FireCrawl response to determine page type
+	if len(response.Data.Activities) > 0 {
+		// If we successfully extracted activities, high confidence it's an events page
+		return "events", 0.9
 	}
-	return "unknown", 0.3, nil
+
+	// Fall back to expected content if no activities found
+	if len(expectedContent) > 0 {
+		return expectedContent[0], 0.5
+	}
+	return "unknown", 0.3
 }
 
-func generateCSSSelectorsWithOpenAI(ctx context.Context, content, pageType string) (*models.DataSelectors, error) {
-	// This would use OpenAI to analyze HTML and generate appropriate CSS selectors
-	// For now, return default selectors
+func generateCSSSelectorsFromFireCrawl(response *services.FireCrawlExtractResponse, pageType string) *models.DataSelectors {
+	// Generate selectors based on FireCrawl extraction success
+	// For now, return default selectors since FireCrawl handles extraction internally
 	return &models.DataSelectors{
 		Title:       "h1, h2, .title, .event-title",
 		Date:        ".date, .event-date, time",
@@ -351,39 +347,46 @@ func generateCSSSelectorsWithOpenAI(ctx context.Context, content, pageType strin
 		Location:    ".location, .venue, .address",
 		Price:       ".price, .cost, .fee",
 		AgeRange:    ".age, .age-range, .ages",
-	}, nil
+	}
 }
 
-func extractSampleActivitiesWithOpenAI(ctx context.Context, content string, expectedContent []string) ([]models.ExtractedActivity, error) {
-	// This would use OpenAI to extract structured activity data
-	// For now, return sample data
-	return []models.ExtractedActivity{
-		{
-			Title:       "Sample Activity",
-			Date:        "2025-09-01",
-			Time:        "10:00 AM",
-			Description: "Sample description",
-			Location:    "Seattle, WA",
-			Price:       "$20",
-			AgeRange:    "3-12",
-			Category:    "arts",
-		},
-	}, nil
+func convertFireCrawlToSampleActivities(activities []models.Activity) []models.ExtractedActivity {
+	sampleActivities := make([]models.ExtractedActivity, len(activities))
+
+	for i, activity := range activities {
+		sampleActivities[i] = models.ExtractedActivity{
+			Title:       activity.Title,
+			Date:        activity.Schedule.StartDate,
+			Time:        activity.Schedule.StartTime,
+			Description: activity.Description,
+			Location:    activity.Location.Name,
+			Price:       activity.Pricing.Description,
+			AgeRange:    "", // Convert age groups array to string if needed
+			Category:    activity.Category,
+		}
+
+		// Convert age groups to string
+		if len(activity.AgeGroups) > 0 {
+			ageGroup := activity.AgeGroups[0]
+			if ageGroup.Description != "" {
+				sampleActivities[i].AgeRange = ageGroup.Description
+			} else {
+				sampleActivities[i].AgeRange = ageGroup.Category
+			}
+		}
+	}
+
+	return sampleActivities
+}
+
+func extractTitleFromFireCrawlResponse(response *services.FireCrawlExtractResponse) string {
+	if len(response.Data.Activities) > 0 {
+		return response.Data.Activities[0].Title
+	}
+	return "Unknown Title"
 }
 
 // Helper functions
-func extractTitleFromContent(content string) string {
-	// Extract title from content (simplified)
-	if len(content) > 100 {
-		return content[:100] + "..."
-	}
-	return content
-}
-
-func containsStructuredData(content string) bool {
-	// Check for schema.org structured data (simplified)
-	return false // For now, assume no structured data
-}
 
 func calculateExtractionQualityScore(activities []models.ExtractedActivity) float64 {
 	if len(activities) == 0 {
