@@ -94,7 +94,7 @@ jobs:
       working-directory: backend
       run: |
         aws lambda update-function-code \
-          --function-name seattle-family-activities-scraper \
+          --function-name seattle-family-activities-scraping-orchestrator \
           --zip-file fileb://lambda-deployment.zip \
           --region us-west-2
 
@@ -106,7 +106,7 @@ jobs:
         
         # Check if function exists
         aws lambda get-function \
-          --function-name seattle-family-activities-scraper \
+          --function-name seattle-family-activities-scraping-orchestrator \
           --region us-west-2 > function-info.json
         
         echo "✅ Lambda function deployed successfully"
@@ -117,7 +117,7 @@ jobs:
         # Start async invocation (don't wait for completion)
         echo "🚀 Starting Lambda function for data collection (async)..."
         aws lambda invoke \
-          --function-name seattle-family-activities-scraper \
+          --function-name seattle-family-activities-scraping-orchestrator \
           --invocation-type Event \
           --payload '{}' \
           --region us-west-2 \
