@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Integration test runner for Seattle Family Activities scraper
-# This script runs integration tests for both Jina and OpenAI services
+# This script runs integration tests for FireCrawl services
 
 set -e
 
@@ -11,13 +11,13 @@ echo "================================================="
 # Check environment variables
 echo "🔍 Checking environment variables..."
 
-if [ -z "$OPENAI_API_KEY" ]; then
-    echo "❌ OPENAI_API_KEY is not set"
-    echo "   Please set your OpenAI API key:"
-    echo "   export OPENAI_API_KEY=your_key_here"
+if [ -z "$FIRECRAWL_API_KEY" ]; then
+    echo "❌ FIRECRAWL_API_KEY is not set"
+    echo "   Please set your FireCrawl API key:"
+    echo "   export FIRECRAWL_API_KEY=your_key_here"
     exit 1
 else
-    echo "✅ OPENAI_API_KEY is set"
+    echo "✅ FIRECRAWL_API_KEY is set"
 fi
 
 # Check Go installation
@@ -52,15 +52,13 @@ export INTEGRATION_TESTS=true
 
 # Test categories
 declare -a test_categories=(
-    "Jina service tests"
-    "OpenAI service tests" 
-    "Pipeline tests"
+    "FireCrawl service tests"
+    "S3 service tests"
 )
 
 declare -a test_patterns=(
-    "TestJinaClient"
-    "TestOpenAIClient"
-    "TestPipeline"
+    "TestFireCrawl"
+    "TestS3"
 )
 
 total_tests=0

@@ -21,8 +21,8 @@ type ScrapingJob struct {
 	
 	// Processing details
 	ContentLength   int    `json:"contentLength,omitempty"`   // length of scraped content
-	ProcessingTime  int64  `json:"processingTime,omitempty"`  // OpenAI processing time in ms
-	TokensUsed      int    `json:"tokensUsed,omitempty"`      // OpenAI tokens consumed
+	ProcessingTime  int64  `json:"processingTime,omitempty"`  // FireCrawl processing time in ms
+	CreditsUsed     int    `json:"creditsUsed,omitempty"`     // FireCrawl credits consumed
 	
 	// Metadata
 	UserAgent       string `json:"userAgent,omitempty"`
@@ -115,14 +115,9 @@ type ScrapingConfig struct {
 	ConcurrentLimit int            `json:"concurrentLimit"` // max concurrent scraping jobs
 	UserAgent       string         `json:"userAgent"`
 	
-	// OpenAI configuration
-	OpenAIModel       string  `json:"openaiModel"`
-	OpenAITemperature float64 `json:"openaiTemperature"`
-	OpenAIMaxTokens   int     `json:"openaiMaxTokens"`
-	
-	// Jina configuration
-	JinaTimeout int  `json:"jinaTimeout"`
-	JinaEnabled bool `json:"jinaEnabled"`
+	// FireCrawl configuration
+	FireCrawlTimeout int `json:"firecrawlTimeout"`
+	FireCrawlEnabled bool `json:"firecrawlEnabled"`
 	
 	// Quality controls
 	MinContentLength  int     `json:"minContentLength"`  // minimum content length to process
