@@ -79,7 +79,7 @@ jobs:
       run: |
         echo "Invoking Lambda function for full scrape..."
         aws lambda invoke \
-          --function-name seattle-family-activities-scraper \
+          --function-name seattle-family-activities-scraping-orchestrator \
           --payload '{}' \
           --region us-west-2 \
           response.json

@@ -74,12 +74,6 @@ jobs:
         FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
         JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
 
-    - name: Build Lambda function
-      working-directory: backend
-      run: |
-        GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o bootstrap cmd/lambda/main.go
-        zip lambda-deployment.zip bootstrap
-
     - name: Deploy CDK infrastructure
       working-directory: infrastructure
       run: |
@@ -89,14 +83,6 @@ jobs:
         CDK_DEFAULT_REGION: us-west-2
         FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
         JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
-
-    - name: Upload Lambda deployment package
-      working-directory: backend
-      run: |
-        aws lambda update-function-code \
-          --function-name seattle-family-activities-scraping-orchestrator \
-          --zip-file fileb://lambda-deployment.zip \
-          --region us-west-2
 
     - name: Test Lambda function (quick validation)
       timeout-minutes: 2
