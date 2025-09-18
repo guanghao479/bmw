@@ -78,7 +78,7 @@ func TestScrapingOrchestrator_Initialization(t *testing.T) {
 	_, err := NewScrapingOrchestrator()
 	if err != nil {
 		// Expected in unit test environment without API keys
-		if strings.Contains(err.Error(), "OPENAI_API_KEY") || 
+		if strings.Contains(err.Error(), "FIRECRAWL_API_KEY") ||
 		   strings.Contains(err.Error(), "AWS") {
 			t.Logf("Expected initialization failure without API credentials: %v", err)
 		} else {
@@ -417,8 +417,9 @@ func TestHandleLambdaEvent_Structure(t *testing.T) {
 	}
 	
 	// If it failed due to missing credentials, that's expected
-	if err != nil && (strings.Contains(err.Error(), "credential") || 
+	if err != nil && (strings.Contains(err.Error(), "credential") ||
 					  strings.Contains(err.Error(), "AWS") ||
+					  strings.Contains(err.Error(), "FIRECRAWL_API_KEY") ||
 					  strings.Contains(err.Error(), "no enabled sources")) {
 		t.Logf("Expected failure due to missing AWS credentials or filtered sources: %v", err)
 	} else if err != nil {

@@ -575,6 +575,9 @@ func HandleLambdaEvent(ctx context.Context, event LambdaEvent) (LambdaResponse, 
 
 	log.Printf("Lambda function started with event: %+v", event)
 
+	// Generate run ID upfront for consistent tracking
+	runID := models.GenerateScrapingRunID(start)
+
 	// Initialize orchestrator
 	orchestrator, err := NewScrapingOrchestrator()
 	if err != nil {
@@ -583,6 +586,7 @@ func HandleLambdaEvent(ctx context.Context, event LambdaEvent) (LambdaResponse, 
 		return LambdaResponse{
 			Success:        false,
 			Message:        errorMsg,
+			ScrapingRunID:  runID,
 			ProcessingTime: time.Since(start).Milliseconds(),
 		}, err
 	}
