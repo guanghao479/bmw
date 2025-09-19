@@ -292,23 +292,6 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       ]
     });
 
-    // Lambda function for source analysis (Go runtime)
-    const sourceAnalyzerFunction = new GoFunction(this, 'SourceAnalyzerFunction', {
-      entry: '../backend/cmd/source_analyzer',
-      functionName: 'seattle-family-activities-source-analyzer',
-      timeout: Duration.minutes(10),
-      memorySize: 1024,
-      role: scraperRole, // Reuse the same role since it has DynamoDB access
-      environment: {
-        FAMILY_ACTIVITIES_TABLE: familyActivitiesTable.tableName,
-        SOURCE_MANAGEMENT_TABLE: sourceManagementTable.tableName,
-        SCRAPING_OPERATIONS_TABLE: scrapingOperationsTable.tableName,
-        FIRECRAWL_API_KEY: process.env.FIRECRAWL_API_KEY || '',
-        LOG_LEVEL: 'INFO'
-      },
-      description: 'Analyzes founder-submitted sources using FireCrawl to determine scraping approach'
-    });
-
     // Lambda function for scraping orchestration (Go runtime)
     const scrapingOrchestratorFunction = new GoFunction(this, 'ScrapingOrchestratorFunction', {
       entry: '../backend/cmd/scraping_orchestrator',
@@ -425,7 +408,6 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
                 'lambda:InvokeFunction'
               ],
               resources: [
-                sourceAnalyzerFunction.functionArn,
                 scrapingOrchestratorFunction.functionArn
               ]
             })
@@ -446,7 +428,6 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
         SOURCE_MANAGEMENT_TABLE: sourceManagementTable.tableName,
         SCRAPING_OPERATIONS_TABLE: scrapingOperationsTable.tableName,
         ADMIN_EVENTS_TABLE: adminEventsTable.tableName,
-        SOURCE_ANALYZER_FUNCTION_NAME: sourceAnalyzerFunction.functionName,
         ORCHESTRATOR_FUNCTION_NAME: scrapingOrchestratorFunction.functionName,
         FIRECRAWL_API_KEY: process.env.FIRECRAWL_API_KEY || '',
       }
@@ -544,11 +525,6 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
     });
 
 
-    new CfnOutput(this, 'SourceAnalyzerFunctionName', {
-      value: sourceAnalyzerFunction.functionName,
-      description: 'Source analyzer Lambda function name for manual invocation',
-      exportName: 'SeattleFamilyActivities-SourceAnalyzerFunctionName'
-    });
 
     new CfnOutput(this, 'ScrapingOrchestratorFunctionName', {
       value: scrapingOrchestratorFunction.functionName,
