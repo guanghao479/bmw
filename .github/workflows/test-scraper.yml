@@ -54,7 +54,7 @@ jobs:
         export JINA_API_KEY=${{ secrets.JINA_API_KEY }}
         
         # Run integration tests
-        go test ./cmd/lambda -v -tags=integration -timeout=10m
+        go test ./internal/services -v -tags=integration -timeout=10m
 
     - name: Test individual services
       working-directory: backend
