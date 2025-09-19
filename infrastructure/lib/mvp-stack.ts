@@ -208,24 +208,6 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
               ]
             })
           ]
-        }),
-        SQSAccess: new iam.PolicyDocument({
-          statements: [
-            new iam.PolicyStatement({
-              effect: iam.Effect.ALLOW,
-              actions: [
-                'sqs:SendMessage',
-                'sqs:ReceiveMessage',
-                'sqs:DeleteMessage',
-                'sqs:GetQueueAttributes',
-                'sqs:GetQueueUrl'
-              ],
-              resources: [
-                scrapingTaskQueue.queueArn,
-                scrapingTaskDLQ.queueArn
-              ]
-            })
-          ]
         })
       }
     });
@@ -280,7 +262,6 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
         FAMILY_ACTIVITIES_TABLE: familyActivitiesTable.tableName,
         SOURCE_MANAGEMENT_TABLE: sourceManagementTable.tableName,
         SCRAPING_OPERATIONS_TABLE: scrapingOperationsTable.tableName,
-        SCRAPING_TASK_QUEUE_URL: scrapingTaskQueue.queueUrl,
         FIRECRAWL_API_KEY: process.env.FIRECRAWL_API_KEY || '',
         LOG_LEVEL: 'INFO'
       },
@@ -522,22 +503,5 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       exportName: 'SeattleFamilyActivities-AdminApiId'
     });
 
-    new CfnOutput(this, 'ScrapingTaskQueueUrl', {
-      value: scrapingTaskQueue.queueUrl,
-      description: 'SQS queue URL for scraping tasks',
-      exportName: 'SeattleFamilyActivities-ScrapingTaskQueueUrl'
-    });
-
-    new CfnOutput(this, 'ScrapingTaskQueueArn', {
-      value: scrapingTaskQueue.queueArn,
-      description: 'SQS queue ARN for scraping tasks',
-      exportName: 'SeattleFamilyActivities-ScrapingTaskQueueArn'
-    });
-
-    new CfnOutput(this, 'TaskExecutorFunctionName', {
-      value: taskExecutorFunction.functionName,
-      description: 'Task executor Lambda function name',
-      exportName: 'SeattleFamilyActivities-TaskExecutorFunctionName'
-    });
   }
 }
