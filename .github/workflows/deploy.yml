@@ -105,7 +105,7 @@ jobs:
         aws lambda invoke \
           --function-name seattle-family-activities-scraping-orchestrator \
           --invocation-type Event \
-          --payload '{}' \
+          --payload '{"trigger_type": "manual"}' \
           --region us-west-2 \
           async-response.json
         

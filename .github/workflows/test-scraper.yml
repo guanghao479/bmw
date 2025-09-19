@@ -80,7 +80,7 @@ jobs:
         echo "Invoking Lambda function for full scrape..."
         aws lambda invoke \
           --function-name seattle-family-activities-scraping-orchestrator \
-          --payload '{}' \
+          --payload '{"trigger_type": "manual"}' \
           --region us-west-2 \
           response.json
         

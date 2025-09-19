@@ -4,8 +4,6 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
-import * as events from 'aws-cdk-lib/aws-events';
-import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as sns from 'aws-cdk-lib/aws-sns';
@@ -290,20 +288,6 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
     });
 
 
-    // EventBridge rule for DynamoDB-driven orchestrator (every 15 minutes)
-    const orchestratorRule = new events.Rule(this, 'OrchestratorScheduleRule', {
-      ruleName: 'SeattleFamilyActivities-OrchestratorSchedule',
-      description: 'Triggers scraping orchestrator to check for scheduled tasks',
-      schedule: events.Schedule.rate(Duration.minutes(15)),
-      targets: [
-        new targets.LambdaFunction(scrapingOrchestratorFunction, {
-          retryAttempts: 1,
-          event: events.RuleTargetInput.fromObject({
-            trigger_type: 'scheduled'
-          })
-        })
-      ]
-    });
 
     // SNS topic for alerts
     const alertTopic = new sns.Topic(this, 'ScrapingAlertsTopic', {
