@@ -30,8 +30,7 @@ type Source struct {
 
 // ScrapingOrchestratorEvent represents the input event for orchestrator
 type ScrapingOrchestratorEvent struct {
-	TriggerType string `json:"trigger_type"` // scheduled, manual, on-demand
-	SourceID    string `json:"source_id,omitempty"` // optional: scrape specific source
+	SourceID string `json:"source_id,omitempty"` // optional: scrape specific source
 }
 
 // ScrapingOrchestratorResponse represents the Lambda response
@@ -149,7 +148,7 @@ func init() {
 func handleRequest(ctx context.Context, event ScrapingOrchestratorEvent) (ScrapingOrchestratorResponse, error) {
 	start := time.Now()
 
-	log.Printf("Starting scraping orchestrator with trigger type: %s", event.TriggerType)
+	log.Printf("Starting scraping orchestrator")
 
 	var allActivities []models.Activity
 	var errors []string
