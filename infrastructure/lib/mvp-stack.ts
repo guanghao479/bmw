@@ -6,12 +6,10 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
-import * as eventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as snsSubscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
-import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as cloudwatchActions from 'aws-cdk-lib/aws-cloudwatch-actions';
 import { GoFunction } from '@aws-cdk/aws-lambda-go-alpha';
 
@@ -161,26 +159,6 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       projectionType: dynamodb.ProjectionType.ALL
     });
 
-    // SQS Dead Letter Queue for failed tasks
-    const scrapingTaskDLQ = new sqs.Queue(this, 'ScrapingTaskDLQ', {
-      queueName: 'seattle-family-activities-scraping-tasks-dlq',
-      retentionPeriod: Duration.days(14), // Keep failed messages for 14 days
-      encryption: sqs.QueueEncryption.SQS_MANAGED,
-      removalPolicy: RemovalPolicy.DESTROY // For MVP - allows easy cleanup
-    });
-
-    // SQS Queue for scraping tasks
-    const scrapingTaskQueue = new sqs.Queue(this, 'ScrapingTaskQueue', {
-      queueName: 'seattle-family-activities-scraping-tasks',
-      visibilityTimeout: Duration.minutes(20), // 20 minutes for task execution + buffer
-      receiveMessageWaitTime: Duration.seconds(20), // Long polling
-      deadLetterQueue: {
-        queue: scrapingTaskDLQ,
-        maxReceiveCount: 3 // Retry failed tasks 3 times before moving to DLQ
-      },
-      encryption: sqs.QueueEncryption.SQS_MANAGED,
-      removalPolicy: RemovalPolicy.DESTROY // For MVP - allows easy cleanup
-    });
 
     // IAM role for Lambda function
     const scraperRole = new iam.Role(this, 'ScraperLambdaRole', {
@@ -311,32 +289,6 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       description: 'Orchestrates scraping tasks from DynamoDB sources using FireCrawl, replacing hardcoded source list'
     });
 
-    // Task Executor Lambda function for processing SQS scraping tasks
-    const taskExecutorFunction = new GoFunction(this, 'TaskExecutorFunction', {
-      entry: '../backend/cmd/task_executor',
-      functionName: 'seattle-family-activities-task-executor',
-      timeout: Duration.minutes(15),
-      memorySize: 1024,
-      role: scraperRole, // Reuse the same role since it has all necessary permissions
-      environment: {
-        S3_BUCKET_NAME: eventsBucket.bucketName,
-        FAMILY_ACTIVITIES_TABLE: familyActivitiesTable.tableName,
-        SOURCE_MANAGEMENT_TABLE: sourceManagementTable.tableName,
-        SCRAPING_OPERATIONS_TABLE: scrapingOperationsTable.tableName,
-        FIRECRAWL_API_KEY: process.env.FIRECRAWL_API_KEY || '',
-        LOG_LEVEL: 'INFO'
-      },
-      description: 'Processes individual scraping tasks from SQS queue using FireCrawl'
-    });
-
-    // Connect task executor to SQS queue
-    taskExecutorFunction.addEventSource(
-      new eventSources.SqsEventSource(scrapingTaskQueue, {
-        batchSize: 1, // Process one task at a time for better error isolation
-        maxBatchingWindow: Duration.seconds(20),
-        reportBatchItemFailures: true, // Enable partial batch failure reporting
-      })
-    );
 
     // EventBridge rule for DynamoDB-driven orchestrator (every 15 minutes)
     const orchestratorRule = new events.Rule(this, 'OrchestratorScheduleRule', {
