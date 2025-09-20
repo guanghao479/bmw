@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"log"
 	"sort"
 	"time"
 
@@ -834,6 +835,127 @@ func (s *DynamoDBService) GetAdminEventByID(ctx context.Context, eventID string)
 	}
 
 	return &event, nil
+}
+
+// GetAdminEventByURL finds an admin event by source URL
+func (s *DynamoDBService) GetAdminEventByURL(ctx context.Context, sourceURL string) (*models.AdminEvent, error) {
+	// We need to scan the table to find events by URL since URL is not a key
+	// For better performance, we could add a GSI on source_url in the future
+	result, err := s.client.Scan(ctx, &dynamodb.ScanInput{
+		TableName:        aws.String(s.adminEventsTable),
+		FilterExpression: aws.String("source_url = :url"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":url": &types.AttributeValueMemberS{Value: sourceURL},
+		},
+		Limit: aws.Int32(1), // We only need to find one match
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan for admin event by URL: %w", err)
+	}
+
+	if len(result.Items) == 0 {
+		return nil, fmt.Errorf("admin event not found for URL: %s", sourceURL)
+	}
+
+	var event models.AdminEvent
+	err = attributevalue.UnmarshalMap(result.Items[0], &event)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal admin event: %w", err)
+	}
+
+	return &event, nil
+}
+
+// GetSourceByURL finds a source submission by base URL
+func (s *DynamoDBService) GetSourceByURL(ctx context.Context, baseURL string) (*models.SourceSubmission, error) {
+	// Scan the source management table to find sources by URL
+	// For better performance, we could add a GSI on base_url in the future
+	result, err := s.client.Scan(ctx, &dynamodb.ScanInput{
+		TableName:        aws.String(s.sourceManagementTable),
+		FilterExpression: aws.String("base_url = :url"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":url": &types.AttributeValueMemberS{Value: baseURL},
+		},
+		Limit: aws.Int32(1), // We only need to find one match
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan for source by URL: %w", err)
+	}
+
+	if len(result.Items) == 0 {
+		return nil, fmt.Errorf("source not found for URL: %s", baseURL)
+	}
+
+	var source models.SourceSubmission
+	err = attributevalue.UnmarshalMap(result.Items[0], &source)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal source submission: %w", err)
+	}
+
+	return &source, nil
+}
+
+// GetApprovedAdminEvents retrieves all approved admin events
+func (s *DynamoDBService) GetApprovedAdminEvents(ctx context.Context, limit int32) ([]models.AdminEvent, error) {
+	result, err := s.client.Query(ctx, &dynamodb.QueryInput{
+		TableName:              aws.String(s.adminEventsTable),
+		IndexName:              aws.String("StatusIndex"), // Assumes GSI on status exists
+		KeyConditionExpression: aws.String("status_key = :status"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":status": &types.AttributeValueMemberS{Value: models.GenerateAdminEventStatusKey(models.AdminEventStatusApproved)},
+		},
+		ScanIndexForward: aws.Bool(false), // Get newest first
+		Limit:           aws.Int32(limit),
+	})
+	if err != nil {
+		// If GSI doesn't exist, fall back to scan
+		log.Printf("Query failed, falling back to scan: %v", err)
+		return s.scanForApprovedEvents(ctx, limit)
+	}
+
+	var events []models.AdminEvent
+	for _, item := range result.Items {
+		var event models.AdminEvent
+		err = attributevalue.UnmarshalMap(item, &event)
+		if err != nil {
+			log.Printf("Failed to unmarshal admin event: %v", err)
+			continue
+		}
+		events = append(events, event)
+	}
+
+	return events, nil
+}
+
+// scanForApprovedEvents is a fallback method when GSI is not available
+func (s *DynamoDBService) scanForApprovedEvents(ctx context.Context, limit int32) ([]models.AdminEvent, error) {
+	result, err := s.client.Scan(ctx, &dynamodb.ScanInput{
+		TableName:        aws.String(s.adminEventsTable),
+		FilterExpression: aws.String("#status = :status"),
+		ExpressionAttributeNames: map[string]string{
+			"#status": "status",
+		},
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":status": &types.AttributeValueMemberS{Value: string(models.AdminEventStatusApproved)},
+		},
+		Limit: aws.Int32(limit),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan for approved events: %w", err)
+	}
+
+	var events []models.AdminEvent
+	for _, item := range result.Items {
+		var event models.AdminEvent
+		err = attributevalue.UnmarshalMap(item, &event)
+		if err != nil {
+			log.Printf("Failed to unmarshal admin event: %v", err)
+			continue
+		}
+		events = append(events, event)
+	}
+
+	return events, nil
 }
 
 // UpdateAdminEvent updates an existing admin event

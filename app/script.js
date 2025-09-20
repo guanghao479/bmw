@@ -70,14 +70,14 @@ class FamilyEventsApp {
         if (isDevelopment) {
             return {
                 ...baseConfig,
-                s3Endpoint: 'https://seattle-family-activities-mvp-data-usw2.s3.us-west-2.amazonaws.com/activities/latest.json',
+                apiEndpoint: 'https://your-api-gateway-url.amazonaws.com/api/events/approved', // TODO: Update with actual API Gateway URL
                 refreshIntervalMs: 5 * 60 * 1000, // 5 minutes for development
                 debugMode: true
             };
         } else {
             return {
                 ...baseConfig,
-                s3Endpoint: 'https://seattle-family-activities-mvp-data-usw2.s3.us-west-2.amazonaws.com/activities/latest.json',
+                apiEndpoint: 'https://your-api-gateway-url.amazonaws.com/api/events/approved', // TODO: Update with actual API Gateway URL
                 debugMode: false
             };
         }
@@ -92,11 +92,11 @@ class FamilyEventsApp {
         this.hideLoading();
     }
 
-    // Load data from S3 with offline fallback
+    // Load data from API with offline fallback
     async loadData() {
         try {
-            // Try to fetch fresh data from S3
-            const freshData = await this.fetchFromS3();
+            // Try to fetch fresh data from API
+            const freshData = await this.fetchFromAPI();
             if (freshData) {
                 this.processData(freshData);
                 this.cacheData(freshData);
@@ -118,14 +118,14 @@ class FamilyEventsApp {
         }
 
         // No data available - show error message
-        this.showError('Unable to load family activities from our Seattle events database. Please check your internet connection and try refreshing the page.');
-        this.showDataStatus('Failed to load S3 data', 'error');
+        this.showError('Unable to load family activities from our database. Please check your internet connection and try refreshing the page.');
+        this.showDataStatus('Failed to load API data', 'error');
     }
 
-    // Fetch data from S3 endpoint
-    async fetchFromS3() {
+    // Fetch data from API endpoint
+    async fetchFromAPI() {
         if (this.config.debugMode) {
-            console.log(`Fetching data from S3: ${this.config.s3Endpoint}`);
+            console.log(`Fetching data from API: ${this.config.apiEndpoint}`);
         }
 
         for (let attempt = 1; attempt <= this.config.retryAttempts; attempt++) {
@@ -133,10 +133,24 @@ class FamilyEventsApp {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-                const response = await fetch(this.config.s3Endpoint, {
+                // Build query parameters for the API
+                const params = new URLSearchParams({
+                    limit: '200' // Request more activities for better user experience
+                });
+
+                // Add updated_since parameter if we have cached data
+                const lastUpdateTimestamp = this.getLastUpdateTimestamp();
+                if (lastUpdateTimestamp) {
+                    params.append('updated_since', lastUpdateTimestamp);
+                }
+
+                const apiUrl = `${this.config.apiEndpoint}?${params}`;
+
+                const response = await fetch(apiUrl, {
                     signal: controller.signal,
                     headers: {
-                        'Cache-Control': 'no-cache'
+                        'Cache-Control': 'no-cache',
+                        'Accept': 'application/json'
                     }
                 });
 
@@ -146,33 +160,60 @@ class FamilyEventsApp {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
 
-                const data = await response.json();
-                
-                // Validate data structure
-                if (!data.activities || !Array.isArray(data.activities)) {
-                    throw new Error('Invalid data structure from S3');
+                const apiResponse = await response.json();
+
+                // Validate API response structure
+                if (!apiResponse.success) {
+                    throw new Error(`API error: ${apiResponse.error || 'Unknown error'}`);
+                }
+
+                const activities = apiResponse.data?.activities || [];
+                if (!Array.isArray(activities)) {
+                    throw new Error('Invalid data structure from API');
                 }
 
                 if (this.config.debugMode) {
-                    console.log(`S3 fetch successful: ${data.activities.length} activities, last updated: ${data.metadata?.lastUpdated}`);
+                    console.log(`API fetch successful: ${activities.length} activities, last updated: ${apiResponse.data?.meta?.last_updated}`);
                 }
 
-                return data;
+                // Update last update timestamp from API metadata
+                if (apiResponse.data?.meta?.last_updated) {
+                    this.setLastUpdateTimestamp(apiResponse.data.meta.last_updated);
+                }
+
+                // Convert API response to the expected format
+                return {
+                    activities: activities,
+                    metadata: {
+                        lastUpdated: apiResponse.data?.meta?.last_updated || new Date().toISOString(),
+                        total: apiResponse.data?.meta?.total || activities.length,
+                        source: 'database_api'
+                    }
+                };
             } catch (error) {
                 if (this.config.debugMode) {
-                    console.warn(`S3 fetch attempt ${attempt}/${this.config.retryAttempts} failed:`, error);
+                    console.warn(`API fetch attempt ${attempt}/${this.config.retryAttempts} failed:`, error);
                 }
-                
+
                 if (attempt < this.config.retryAttempts) {
                     await new Promise(resolve => setTimeout(resolve, this.config.retryDelay * attempt));
                 }
             }
         }
-        
+
         return null;
     }
 
-    // Process data from S3 (new schema) to legacy format for compatibility
+    // Helper functions for timestamp management
+    getLastUpdateTimestamp() {
+        return localStorage.getItem('familyEvents_last_updated');
+    }
+
+    setLastUpdateTimestamp(timestamp) {
+        localStorage.setItem('familyEvents_last_updated', timestamp);
+    }
+
+    // Process data from API (new schema) to legacy format for compatibility
     processData(data) {
         if (!data.activities) {
             console.error('No activities in data:', data);
@@ -180,11 +221,11 @@ class FamilyEventsApp {
         }
 
         this.lastUpdated = data.metadata?.lastUpdated || new Date().toISOString();
-        
+
         // Store original data for detail page access
         this.originalData = data;
-        
-        // Convert new schema activities to legacy format for existing UI compatibility
+
+        // Convert API response activities to legacy format for existing UI compatibility
         this.allData = data.activities.map(activity => this.convertToLegacyFormat(activity));
         
         // Update date tabs when data changes

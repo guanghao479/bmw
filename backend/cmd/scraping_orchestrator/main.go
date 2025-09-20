@@ -54,66 +54,10 @@ type ResponseBody struct {
 var (
 	dynamoService   *services.DynamoDBService
 	firecrawlClient *services.FireCrawlClient
-	s3Client        *services.S3Client
 )
 
-// Hardcoded sources for now (replace with DynamoDB later if needed)
-var seattleSources = []Source{
-	{
-		ID:          "parentmap",
-		Name:        "ParentMap",
-		BaseURL:     "https://www.parentmap.com",
-		TargetURLs:  []string{"https://www.parentmap.com/calendar"},
-		Enabled:     true,
-		Priority:    "high",
-		Category:    "events",
-	},
-	{
-		ID:          "seattleschild",
-		Name:        "Seattle's Child",
-		BaseURL:     "https://www.seattleschild.com",
-		TargetURLs:  []string{"https://www.seattleschild.com/calendar/", "https://www.seattleschild.com/things-to-do/"},
-		Enabled:     true,
-		Priority:    "high",
-		Category:    "events",
-	},
-	{
-		ID:          "peps",
-		Name:        "PEPS",
-		BaseURL:     "https://www.peps.org",
-		TargetURLs:  []string{"https://www.peps.org/events/", "https://www.peps.org/classes/"},
-		Enabled:     true,
-		Priority:    "medium",
-		Category:    "classes",
-	},
-	{
-		ID:          "tinybeans",
-		Name:        "Tinybeans Seattle",
-		BaseURL:     "https://tinybeans.com",
-		TargetURLs:  []string{"https://tinybeans.com/seattle/"},
-		Enabled:     true,
-		Priority:    "medium",
-		Category:    "activities",
-	},
-	{
-		ID:          "seattlefunforkids",
-		Name:        "Seattle Fun for Kids",
-		BaseURL:     "https://www.seattlefunforkids.com",
-		TargetURLs:  []string{"https://www.seattlefunforkids.com/events/"},
-		Enabled:     true,
-		Priority:    "low",
-		Category:    "activities",
-	},
-	{
-		ID:          "macaronikid",
-		Name:        "Macaroni Kid West Seattle",
-		BaseURL:     "https://westseattle.macaronikid.com",
-		TargetURLs:  []string{"https://westseattle.macaronikid.com/events"},
-		Enabled:     true,
-		Priority:    "low",
-		Category:    "local-events",
-	},
-}
+// Note: All sources are now managed dynamically through the admin interface
+// No hardcoded sources - all sources come from DynamoDB
 
 func init() {
 	// Load AWS configuration
@@ -136,12 +80,6 @@ func init() {
 	firecrawlClient, err = services.NewFireCrawlClient()
 	if err != nil {
 		log.Fatalf("Failed to create FireCrawl client: %v", err)
-	}
-
-	// Create S3 client for data storage
-	s3Client, err = services.NewS3Client()
-	if err != nil {
-		log.Fatalf("Failed to create S3 client: %v", err)
 	}
 }
 
@@ -207,16 +145,11 @@ func handleRequest(ctx context.Context, event ScrapingOrchestratorEvent) (Scrapi
 
 	log.Printf("Total activities extracted: %d", len(allActivities))
 
-	// Store activities in S3
+	// Note: Activities are now stored directly via admin API flow
+	// The orchestrator extracts activities and they go through the admin approval process
+	// No direct storage needed here - activities will be approved and served via database API
 	if len(allActivities) > 0 {
-		err := storeActivitiesInS3(allActivities)
-		if err != nil {
-			errorMsg := fmt.Sprintf("Failed to store activities in S3: %v", err)
-			log.Printf("ERROR: %s", errorMsg)
-			errors = append(errors, errorMsg)
-		} else {
-			log.Printf("Successfully stored %d activities in S3", len(allActivities))
-		}
+		log.Printf("Extracted %d activities - these will be available via admin interface for review", len(allActivities))
 	}
 
 	processingTime := time.Since(start).Milliseconds()
@@ -293,10 +226,10 @@ func getActiveSources(ctx context.Context, sourceID string) ([]Source, error) {
 		}
 	}
 
-	// If no sources found in DynamoDB, fallback to hardcoded sources for backward compatibility
+	// If no sources found in DynamoDB, return empty slice
 	if len(sources) == 0 {
-		log.Printf("No active sources found in DynamoDB, falling back to hardcoded sources")
-		return seattleSources, nil
+		log.Printf("No active sources found in DynamoDB - sources must be added via admin interface")
+		return []Source{}, nil
 	}
 
 	return sources, nil
@@ -380,25 +313,7 @@ func extractActivitiesFromURL(url string, source Source) ([]models.Activity, err
 	return response.Data.Activities, nil
 }
 
-func storeActivitiesInS3(activities []models.Activity) error {
-	// Upload to S3 as latest.json
-	result, err := s3Client.UploadLatestActivities(activities)
-	if err != nil {
-		return fmt.Errorf("failed to upload latest activities: %w", err)
-	}
-	log.Printf("Uploaded latest activities to S3: %s", result.Location)
-
-	// Also create a timestamped backup
-	backupResult, err := s3Client.UploadActivitiesWithTimestamp(activities)
-	if err != nil {
-		log.Printf("Warning: Failed to create timestamped backup: %v", err)
-		// Don't fail the entire operation for backup failure
-	} else {
-		log.Printf("Created timestamped backup: %s", backupResult.Location)
-	}
-
-	return nil
-}
+// Note: S3 storage function removed - activities now flow through admin API for approval
 
 func extractDomain(urlStr string) string {
 	parsedURL, err := url.Parse(urlStr)

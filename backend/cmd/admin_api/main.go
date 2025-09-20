@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -194,6 +195,14 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 
 	case method == "GET" && path == "/api/schemas":
 		responseBody, statusCode = handleGetSchemas(ctx)
+
+	// Public Events API for main frontend
+	case method == "GET" && path == "/api/events/approved":
+		responseBody, statusCode = handleGetApprovedEvents(ctx, request.QueryStringParameters)
+
+	// Source Management API for admin interface
+	case method == "GET" && path == "/api/sources/active":
+		responseBody, statusCode = handleGetActiveSources(ctx, request.QueryStringParameters)
 
 	default:
 		responseBody = ResponseBody{
@@ -1135,6 +1144,24 @@ func handleCrawlSubmission(ctx context.Context, body string) (ResponseBody, int)
 		}, 400
 	}
 
+	// Check for duplicate URLs in pending/approved admin events
+	existingEvent, err := dynamoService.GetAdminEventByURL(ctx, req.URL)
+	if err == nil && existingEvent != nil {
+		return ResponseBody{
+			Success: false,
+			Error:   fmt.Sprintf("URL already exists with status: %s. Event ID: %s", existingEvent.Status, existingEvent.EventID),
+		}, 409 // Conflict
+	}
+
+	// Check if URL is already configured as a source
+	existingSource, err := dynamoService.GetSourceByURL(ctx, req.URL)
+	if err == nil && existingSource != nil {
+		return ResponseBody{
+			Success: false,
+			Error:   fmt.Sprintf("URL already exists as source: %s (ID: %s)", existingSource.SourceName, existingSource.SourceID),
+		}, 409 // Conflict
+	}
+
 	// Create firecrawl extract request
 	extractRequest := services.AdminExtractRequest{
 		URL:          req.URL,
@@ -1198,6 +1225,13 @@ func handleCrawlSubmission(ctx context.Context, body string) (ResponseBody, int)
 			Success: false,
 			Error:   "Failed to store extracted events",
 		}, 500
+	}
+
+	// Create or update source record if extraction was successful
+	err = createOrUpdateSourceRecord(ctx, req, extractResponse.EventsCount)
+	if err != nil {
+		log.Printf("Warning: Failed to create/update source record: %v", err)
+		// Don't fail the entire request for source management issues
 	}
 
 	return ResponseBody{
@@ -1538,6 +1572,311 @@ func handleGetSchemas(ctx context.Context) (ResponseBody, int) {
 		Data:    formattedSchemas,
 	}, 200
 }
+
+// handleGetApprovedEvents handles GET /api/events/approved - Public endpoint for main frontend
+func handleGetApprovedEvents(ctx context.Context, queryParams map[string]string) (ResponseBody, int) {
+	// Parse query parameters
+	limit := int32(100) // Default limit
+	if limitStr, ok := queryParams["limit"]; ok {
+		if parsedLimit := parseLimit(limitStr); parsedLimit > 0 && parsedLimit <= 500 {
+			limit = parsedLimit
+		}
+	}
+
+	offset := int32(0)
+	if offsetStr, ok := queryParams["offset"]; ok {
+		if parsedOffset := parseLimit(offsetStr); parsedOffset > 0 {
+			offset = parsedOffset
+		}
+	}
+
+	// Get all approved admin events
+	approvedEvents, err := dynamoService.GetApprovedAdminEvents(ctx, limit+offset) // Get extra for offset
+	if err != nil {
+		log.Printf("Error getting approved events: %v", err)
+		return ResponseBody{
+			Success: false,
+			Error:   "Failed to retrieve approved events",
+		}, 500
+	}
+
+	// Apply offset if specified
+	if offset > 0 && int(offset) < len(approvedEvents) {
+		approvedEvents = approvedEvents[offset:]
+	}
+
+	// Apply limit
+	if int(limit) < len(approvedEvents) {
+		approvedEvents = approvedEvents[:limit]
+	}
+
+	// Convert AdminEvents to Activity format for frontend compatibility
+	var activities []map[string]interface{}
+	for _, event := range approvedEvents {
+		activity, err := convertAdminEventToActivity(&event)
+		if err != nil {
+			log.Printf("Error converting admin event to activity: %v", err)
+			continue // Skip this event rather than fail entire request
+		}
+		activities = append(activities, activity)
+	}
+
+	// Create response metadata
+	meta := map[string]interface{}{
+		"total":         len(activities),
+		"limit":         limit,
+		"offset":        offset,
+		"last_updated":  time.Now().Format(time.RFC3339),
+		"cache_duration": 300, // 5 minutes cache suggestion
+	}
+
+	// Apply additional filters if provided
+	if category, ok := queryParams["category"]; ok && category != "" {
+		activities = filterActivitiesByCategory(activities, category)
+		meta["filtered_by_category"] = category
+	}
+
+	if dateFrom, ok := queryParams["date_from"]; ok && dateFrom != "" {
+		activities = filterActivitiesByDate(activities, dateFrom)
+		meta["filtered_from_date"] = dateFrom
+	}
+
+	if updatedSince, ok := queryParams["updated_since"]; ok && updatedSince != "" {
+		activities = filterActivitiesByUpdatedSince(activities, updatedSince)
+		meta["filtered_updated_since"] = updatedSince
+	}
+
+	// Update final count after filtering
+	meta["total"] = len(activities)
+
+	return ResponseBody{
+		Success: true,
+		Message: fmt.Sprintf("Retrieved %d approved events", len(activities)),
+		Data: map[string]interface{}{
+			"activities": activities,
+			"meta":       meta,
+		},
+	}, 200
+}
+
+// Helper functions for approved events endpoint
+
+// convertAdminEventToActivity converts an AdminEvent to Activity format for frontend
+func convertAdminEventToActivity(event *models.AdminEvent) (map[string]interface{}, error) {
+	// Use the conversion service if available, otherwise create basic mapping
+	if conversionService != nil {
+		conversionResult, err := conversionService.ConvertToActivity(event)
+		if err != nil {
+			return nil, fmt.Errorf("conversion service failed: %w", err)
+		}
+		if conversionResult.Activity != nil {
+			// Convert Activity struct to map for JSON response
+			activityJSON, _ := json.Marshal(conversionResult.Activity)
+			var activityMap map[string]interface{}
+			json.Unmarshal(activityJSON, &activityMap)
+
+			// Add admin metadata
+			activityMap["admin_metadata"] = map[string]interface{}{
+				"extracted_at":     event.ExtractedAt,
+				"extracted_by":     event.ExtractedByUser,
+				"event_id":         event.EventID,
+				"source_url":       event.SourceURL,
+				"schema_type":      event.SchemaType,
+			}
+
+			return activityMap, nil
+		}
+	}
+
+	// Fallback: create basic activity from raw data
+	activity := map[string]interface{}{
+		"id":          event.EventID,
+		"source":      map[string]interface{}{
+			"url":       event.SourceURL,
+			"scraped_at": event.ExtractedAt,
+		},
+		"updated_at":  event.UpdatedAt,
+		"created_at":  event.ExtractedAt,
+	}
+
+	// Try to extract basic fields from raw data
+	if rawData := event.RawExtractedData; rawData != nil {
+		if events, ok := rawData["events"].([]interface{}); ok && len(events) > 0 {
+			if firstEvent, ok := events[0].(map[string]interface{}); ok {
+				activity["title"] = firstEvent["title"]
+				activity["description"] = firstEvent["description"]
+				activity["location"] = firstEvent["location"]
+				activity["schedule"] = firstEvent["date"]
+				activity["pricing"] = firstEvent["price"]
+			}
+		}
+	}
+
+	return activity, nil
+}
+
+// filterActivitiesByCategory filters activities by category type
+func filterActivitiesByCategory(activities []map[string]interface{}, category string) []map[string]interface{} {
+	var filtered []map[string]interface{}
+	for _, activity := range activities {
+		// Check if activity matches category
+		if activityCategory, ok := activity["category"].(string); ok && activityCategory == category {
+			filtered = append(filtered, activity)
+		}
+	}
+	return filtered
+}
+
+// filterActivitiesByDate filters activities from a specific date
+func filterActivitiesByDate(activities []map[string]interface{}, dateFrom string) []map[string]interface{} {
+	var filtered []map[string]interface{}
+	fromDate, err := time.Parse("2006-01-02", dateFrom)
+	if err != nil {
+		return activities // Return unfiltered if date parsing fails
+	}
+
+	for _, activity := range activities {
+		// Check activity date
+		if schedule, ok := activity["schedule"].(map[string]interface{}); ok {
+			if startDate, ok := schedule["start_date"].(string); ok {
+				if activityDate, err := time.Parse("2006-01-02", startDate); err == nil {
+					if activityDate.After(fromDate) || activityDate.Equal(fromDate) {
+						filtered = append(filtered, activity)
+					}
+				}
+			}
+		}
+	}
+	return filtered
+}
+
+// filterActivitiesByUpdatedSince filters activities updated since a timestamp
+func filterActivitiesByUpdatedSince(activities []map[string]interface{}, updatedSince string) []map[string]interface{} {
+	var filtered []map[string]interface{}
+	sinceTime, err := time.Parse(time.RFC3339, updatedSince)
+	if err != nil {
+		return activities // Return unfiltered if timestamp parsing fails
+	}
+
+	for _, activity := range activities {
+		if updatedAt, ok := activity["updated_at"].(time.Time); ok {
+			if updatedAt.After(sinceTime) {
+				filtered = append(filtered, activity)
+			}
+		}
+	}
+	return filtered
+}
+
+// createOrUpdateSourceRecord creates or updates a source record when a URL is successfully crawled
+func createOrUpdateSourceRecord(ctx context.Context, req models.CrawlSubmissionRequest, eventsCount int) error {
+	// Check if source already exists
+	existingSource, err := dynamoService.GetSourceByURL(ctx, req.URL)
+	if err != nil && !strings.Contains(err.Error(), "not found") {
+		return fmt.Errorf("failed to check existing source: %w", err)
+	}
+
+	if existingSource != nil {
+		// Update existing source with latest extraction stats
+		existingSource.UpdatedAt = time.Now()
+
+		// If source was inactive, activate it since extraction was successful
+		if existingSource.Status != "active" {
+			existingSource.Status = "active"
+			existingSource.StatusKey = "STATUS#active"
+			log.Printf("Activated source %s due to successful extraction", existingSource.SourceID)
+		}
+
+		log.Printf("Updated existing source %s - extracted %d events", existingSource.SourceID, eventsCount)
+		return dynamoService.UpdateSourceSubmission(ctx, existingSource)
+	}
+
+	// Create new source record
+	sourceID := generateSourceIDFromURL(req.URL)
+
+	sourceRecord := &models.SourceSubmission{
+		PK:           fmt.Sprintf("SOURCE#%s", sourceID),
+		SK:           "SUBMISSION",
+		SourceID:     sourceID,
+		SourceName:   extractSourceNameFromURL(req.URL),
+		BaseURL:      req.URL,
+		SourceType:   "auto-discovered", // Mark as auto-discovered from crawl
+		Priority:     "medium",
+		ExpectedContent: []string{req.SchemaType}, // Use the schema type that was used
+		HintURLs:     []string{req.URL},
+		SubmittedBy:  fmt.Sprintf("auto-discovery-by-%s", req.ExtractedByUser),
+		SubmittedAt:  time.Now(),
+		UpdatedAt:    time.Now(),
+		Status:       "active", // Auto-approve since extraction was successful
+		StatusKey:    "STATUS#active",
+		PriorityKey:  fmt.Sprintf("PRIORITY#medium#%s", sourceID),
+	}
+
+	log.Printf("Creating new auto-discovered source: %s (%s)", sourceRecord.SourceName, sourceID)
+	return dynamoService.CreateSourceSubmission(ctx, sourceRecord)
+}
+
+// generateSourceIDFromURL creates a source ID from a URL
+func generateSourceIDFromURL(urlStr string) string {
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		// Fallback to simple slug generation
+		return strings.ReplaceAll(strings.ToLower(urlStr), "/", "-")
+	}
+
+	// Use domain name as base for ID
+	domain := parsedURL.Host
+	if strings.HasPrefix(domain, "www.") {
+		domain = domain[4:]
+	}
+
+	// Remove common TLD for cleaner ID
+	if strings.HasSuffix(domain, ".com") {
+		domain = domain[:len(domain)-4]
+	} else if strings.HasSuffix(domain, ".org") {
+		domain = domain[:len(domain)-4]
+	}
+
+	// Replace dots with dashes for valid ID
+	sourceID := strings.ReplaceAll(domain, ".", "-")
+
+	// Add random suffix to prevent collisions
+	return fmt.Sprintf("%s-%s", sourceID, uuid.New().String()[:8])
+}
+
+// extractSourceNameFromURL creates a human-readable source name from URL
+func extractSourceNameFromURL(urlStr string) string {
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		return urlStr
+	}
+
+	domain := parsedURL.Host
+	if strings.HasPrefix(domain, "www.") {
+		domain = domain[4:]
+	}
+
+	// Convert domain to title case
+	parts := strings.Split(domain, ".")
+	if len(parts) > 0 {
+		baseName := parts[0]
+		// Convert kebab-case or underscore to title case
+		baseName = strings.ReplaceAll(baseName, "-", " ")
+		baseName = strings.ReplaceAll(baseName, "_", " ")
+
+		// Title case each word
+		words := strings.Fields(baseName)
+		for i, word := range words {
+			if len(word) > 0 {
+				words[i] = strings.ToUpper(word[:1]) + word[1:]
+			}
+		}
+		return strings.Join(words, " ")
+	}
+
+	return domain
+}
+
 
 func main() {
 	lambda.Start(handleRequest)

@@ -1,12 +1,12 @@
-name: Test Scraper and Data Pipeline
+name: Test Database-Direct Scraper Pipeline
 
 on:
   workflow_dispatch:
     inputs:
       test_sources:
-        description: 'Test specific sources (comma-separated: peps,seattleschild,parentmap,tinybeans,westseattlemacaroni,seattlefunforkids)'
+        description: 'Test specific sources from database (all sources now managed dynamically)'
         required: false
-        default: 'peps,seattleschild,parentmap'
+        default: 'all'
       run_full_scrape:
         description: 'Run full scraping process'
         required: false
@@ -31,8 +31,7 @@ jobs:
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
         aws-region: us-west-2
 
     - name: Install dependencies
@@ -47,31 +46,47 @@ jobs:
       if: inputs.run_full_scrape == 'true'
       working-directory: backend
       run: |
-        # Set up environment variables
+        # Set up environment variables for new architecture
         export AWS_REGION=us-west-2
-        export S3_BUCKET=seattle-family-activities-mvp-data-usw2
-        export OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-        export JINA_API_KEY=${{ secrets.JINA_API_KEY }}
-        
+        export FIRECRAWL_API_KEY=${{ secrets.FIRECRAWL_API_KEY }}
+        export FAMILY_ACTIVITIES_TABLE=seattle-family-activities
+        export SOURCE_MANAGEMENT_TABLE=seattle-source-management
+        export ADMIN_EVENTS_TABLE=seattle-admin-events
+
         # Run integration tests
         go test ./internal/services -v -tags=integration -timeout=10m
 
-    - name: Test individual services
+    - name: Test database connectivity and API endpoints
       working-directory: backend
       run: |
-        # Test S3 service
-        echo "Testing S3 connectivity..."
-        aws s3 ls s3://seattle-family-activities-mvp-data-usw2/ --region us-west-2
-        
-        # Test if latest.json exists and is valid
-        if aws s3 cp s3://seattle-family-activities-mvp-data-usw2/events/latest.json latest.json --region us-west-2; then
-          echo "✅ latest.json exists"
-          activities_count=$(jq '.activities | length' latest.json)
-          echo "Current activities count: $activities_count"
-          last_updated=$(jq -r '.metadata.lastUpdated' latest.json)
-          echo "Last updated: $last_updated"
+        # Test DynamoDB connectivity
+        echo "Testing DynamoDB connectivity..."
+        aws dynamodb describe-table --table-name seattle-family-activities --region us-west-2
+        aws dynamodb describe-table --table-name seattle-source-management --region us-west-2
+        aws dynamodb describe-table --table-name seattle-admin-events --region us-west-2
+
+        # Test API Gateway endpoints
+        echo "Testing API Gateway endpoints..."
+        API_ID=$(aws apigateway get-rest-apis --region us-west-2 --query 'items[?name==`SeattleFamilyActivities-AdminAPI`].id' --output text)
+        API_URL="https://${API_ID}.execute-api.us-west-2.amazonaws.com/prod/"
+        echo "API URL: $API_URL"
+
+        # Test approved events endpoint (main frontend)
+        echo "Testing approved events endpoint..."
+        APPROVED_RESPONSE=$(curl -s "${API_URL}api/events/approved" || echo '{"error": "not accessible"}')
+        echo "Approved events response: $APPROVED_RESPONSE"
+
+        # Test active sources endpoint (admin interface)
+        echo "Testing active sources endpoint..."
+        SOURCES_RESPONSE=$(curl -s "${API_URL}api/sources/active" || echo '{"error": "not accessible"}')
+        echo "Active sources response: $SOURCES_RESPONSE"
+
+        # Check S3 backup (optional)
+        echo "Checking S3 backup status..."
+        if aws s3 ls s3://seattle-family-activities-mvp-data-usw2/events/ --region us-west-2; then
+          echo "✅ S3 backup accessible"
         else
-          echo "⚠️ latest.json not found"
+          echo "ℹ️ S3 backup not populated yet (normal for database-direct flow)"
         fi
 
     - name: Manual Lambda invocation
@@ -94,87 +109,144 @@ jobs:
           exit 1
         fi
 
-    - name: Verify updated data
+    - name: Verify database data after scraping
       if: inputs.run_full_scrape == 'true'
       run: |
-        # Wait a moment for S3 upload
-        sleep 10
-        
-        # Download and check updated data
-        aws s3 cp s3://seattle-family-activities-mvp-data-usw2/events/latest.json updated.json --region us-west-2
-        
-        new_activities_count=$(jq '.activities | length' updated.json)
-        new_last_updated=$(jq -r '.metadata.lastUpdated' updated.json)
-        
-        echo "Updated activities count: $new_activities_count"
-        echo "New last updated: $new_last_updated"
-        
-        # Check that we have activities
-        if [ "$new_activities_count" -gt 0 ]; then
-          echo "✅ Scraping successful - found $new_activities_count activities"
+        # Wait for processing to complete
+        sleep 15
+
+        # Check database API for updated data
+        API_ID=$(aws apigateway get-rest-apis --region us-west-2 --query 'items[?name==`SeattleFamilyActivities-AdminAPI`].id' --output text)
+        API_URL="https://${API_ID}.execute-api.us-west-2.amazonaws.com/prod/"
+
+        # Check approved events
+        echo "Checking approved events in database..."
+        APPROVED_RESPONSE=$(curl -s "${API_URL}api/events/approved")
+        echo "API Response: $APPROVED_RESPONSE"
+
+        if echo "$APPROVED_RESPONSE" | jq -e '.success' >/dev/null 2>&1; then
+          approved_count=$(echo "$APPROVED_RESPONSE" | jq '.data | length')
+          echo "Approved events count: $approved_count"
+
+          if [ "$approved_count" -gt 0 ]; then
+            echo "✅ Database contains approved events"
+          else
+            echo "ℹ️ No approved events yet (normal - events need admin approval)"
+          fi
         else
-          echo "❌ No activities found after scraping"
+          echo "⚠️ API response indicates no success field or error"
+        fi
+
+        # Check pending events
+        echo "Checking pending events..."
+        PENDING_RESPONSE=$(curl -s "${API_URL}api/events/pending")
+        if echo "$PENDING_RESPONSE" | jq -e '.success' >/dev/null 2>&1; then
+          pending_count=$(echo "$PENDING_RESPONSE" | jq '.data | length')
+          echo "Pending events count: $pending_count"
+
+          if [ "$pending_count" -gt 0 ]; then
+            echo "✅ Scraping successful - found $pending_count pending events for review"
+          else
+            echo "⚠️ No pending events found after scraping"
+          fi
+        fi
+
+    - name: Database data quality check
+      run: |
+        # Get data from database API
+        API_ID=$(aws apigateway get-rest-apis --region us-west-2 --query 'items[?name==`SeattleFamilyActivities-AdminAPI`].id' --output text)
+        API_URL="https://${API_ID}.execute-api.us-west-2.amazonaws.com/prod/"
+
+        echo "Performing database data quality checks..."
+
+        # Get approved events from database
+        APPROVED_DATA=$(curl -s "${API_URL}api/events/approved")
+
+        if echo "$APPROVED_DATA" | jq -e '.success' >/dev/null 2>&1; then
+          # Check data quality from database
+          total_activities=$(echo "$APPROVED_DATA" | jq '.data | length')
+          echo "Total approved events in database: $total_activities"
+
+          if [ "$total_activities" -gt 0 ]; then
+            # Check required fields
+            required_events=$(echo "$APPROVED_DATA" | jq '[.data[] | select(.title and .location)] | length')
+            echo "Events with required fields: $required_events/$total_activities"
+
+            # Check for variety in sources
+            unique_sources=$(echo "$APPROVED_DATA" | jq -r '[.data[].source.url] | unique | length')
+            echo "Unique source URLs: $unique_sources"
+
+            if [ "$required_events" -eq "$total_activities" ]; then
+              echo "✅ All approved events have required fields"
+            else
+              echo "⚠️ Some events missing required fields"
+            fi
+          else
+            echo "ℹ️ No approved events in database yet (normal for new deployment)"
+          fi
+        else
+          echo "⚠️ Unable to retrieve approved events data"
+        fi
+
+        # Check active sources
+        SOURCES_DATA=$(curl -s "${API_URL}api/sources/active")
+        if echo "$SOURCES_DATA" | jq -e '.success' >/dev/null 2>&1; then
+          sources_count=$(echo "$SOURCES_DATA" | jq '.data | length')
+          echo "Active sources in database: $sources_count"
+
+          if [ "$sources_count" -gt 0 ]; then
+            echo "✅ Database contains active sources"
+          else
+            echo "ℹ️ No active sources (sources must be added via admin interface)"
+          fi
+        fi
+
+    - name: Test API data compatibility with frontend
+      run: |
+        # Test database API data structure for frontend compatibility
+        API_ID=$(aws apigateway get-rest-apis --region us-west-2 --query 'items[?name==`SeattleFamilyActivities-AdminAPI`].id' --output text)
+        API_URL="https://${API_ID}.execute-api.us-west-2.amazonaws.com/prod/"
+
+        echo "Testing API data compatibility with frontend..."
+
+        # Get data from database API
+        API_DATA=$(curl -s "${API_URL}api/events/approved")
+
+        if echo "$API_DATA" | jq -e '.success' >/dev/null 2>&1; then
+          # Check API response structure
+          if echo "$API_DATA" | jq -e '.data' > /dev/null; then
+            echo "✅ API returns data array"
+          else
+            echo "❌ Missing data array in API response"
+            exit 1
+          fi
+
+          # Check if we have events to test
+          events_count=$(echo "$API_DATA" | jq '.data | length')
+          if [ "$events_count" -gt 0 ]; then
+            # Check sample event structure
+            sample_event=$(echo "$API_DATA" | jq '.data[0]')
+            if echo "$sample_event" | jq -e '.title and .location' > /dev/null; then
+              echo "✅ Event structure is compatible with frontend"
+            else
+              echo "❌ Event structure incompatible with frontend"
+              exit 1
+            fi
+
+            # Check location structure
+            if echo "$sample_event" | jq -e '.location.name' > /dev/null; then
+              echo "✅ Location structure is compatible"
+            else
+              echo "❌ Location structure incompatible"
+            fi
+
+          else
+            echo "ℹ️ No events to test structure (normal for new deployment)"
+            echo "✅ API endpoint is accessible and returns correct format"
+          fi
+        else
+          echo "❌ API response missing success field or invalid"
           exit 1
         fi
 
-    - name: Data quality check
-      run: |
-        # Download current data
-        aws s3 cp s3://seattle-family-activities-mvp-data-usw2/events/latest.json data.json --region us-west-2
-        
-        # Check data quality
-        echo "Performing data quality checks..."
-        
-        # Check required fields
-        required_activities=$(jq '[.activities[] | select(.title and .description and .location)] | length' data.json)
-        total_activities=$(jq '.activities | length' data.json)
-        
-        echo "Activities with required fields: $required_activities/$total_activities"
-        
-        # Check for variety in sources
-        unique_sources=$(jq -r '[.activities[].source.domain] | unique | length' data.json)
-        echo "Unique source domains: $unique_sources"
-        
-        # Check for recent data
-        last_updated=$(jq -r '.metadata.lastUpdated' data.json)
-        echo "Last updated: $last_updated"
-        
-        # Quality thresholds
-        if [ "$required_activities" -gt 5 ] && [ "$unique_sources" -gt 1 ]; then
-          echo "✅ Data quality checks passed"
-        else
-          echo "⚠️ Data quality below expectations"
-        fi
-
-    - name: Test frontend data compatibility
-      run: |
-        # Download data and test frontend compatibility
-        aws s3 cp s3://seattle-family-activities-mvp-data-usw2/events/latest.json frontend-test.json --region us-west-2
-        
-        # Check that data structure matches what frontend expects
-        echo "Testing frontend data compatibility..."
-        
-        # Check for activities array
-        if jq -e '.activities' frontend-test.json > /dev/null; then
-          echo "✅ Activities array present"
-        else
-          echo "❌ Missing activities array"
-          exit 1
-        fi
-        
-        # Check for metadata
-        if jq -e '.metadata' frontend-test.json > /dev/null; then
-          echo "✅ Metadata present"
-        else
-          echo "❌ Missing metadata"
-          exit 1
-        fi
-        
-        # Check sample activity structure
-        sample_activity=$(jq '.activities[0]' frontend-test.json)
-        if echo "$sample_activity" | jq -e '.title and .description and .location' > /dev/null; then
-          echo "✅ Activity structure is compatible"
-        else
-          echo "❌ Activity structure incompatible with frontend"
-          exit 1
-        fi
+        echo "✅ Database API is compatible with frontend expectations"

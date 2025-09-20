@@ -3,9 +3,8 @@
 class SourceManagementAdmin {
     constructor() {
         this.apiBaseUrl = this.detectEnvironment();
-        this.currentTab = 'submit';
+        this.currentTab = 'sources';
         this.sources = {
-            pending: [],
             active: [],
             all: []
         };
@@ -30,7 +29,6 @@ class SourceManagementAdmin {
     init() {
         this.setupEventListeners();
         this.loadInitialData();
-        this.setupFormValidation();
     }
 
     setupEventListeners() {
@@ -41,14 +39,6 @@ class SourceManagementAdmin {
             });
         });
 
-        // Source submission form
-        const sourceForm = document.getElementById('source-submission-form');
-        if (sourceForm) {
-            sourceForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                this.submitSource();
-            });
-        }
 
         // Event crawling form
         const crawlingForm = document.getElementById('crawling-form');
@@ -67,100 +57,18 @@ class SourceManagementAdmin {
             });
         }
 
-        // Auto-refresh data every 30 seconds for pending sources and events
+        // Auto-refresh data every 30 seconds for events
         setInterval(() => {
-            if (this.currentTab === 'pending') {
-                this.loadPendingSources();
-            } else if (this.currentTab === 'crawling') {
+            if (this.currentTab === 'crawling') {
                 this.loadPendingEvents();
             }
         }, 30000);
     }
 
-    setupFormValidation() {
-        const form = document.getElementById('source-submission-form');
-        const inputs = form.querySelectorAll('input[required], select[required]');
-        
-        inputs.forEach(input => {
-            input.addEventListener('blur', () => this.validateField(input));
-            input.addEventListener('input', () => this.clearFieldError(input));
-        });
-    }
 
-    validateField(field) {
-        const value = field.value.trim();
-        let isValid = true;
-        let errorMessage = '';
 
-        // Remove existing error styling
-        field.classList.remove('error');
-        this.removeFieldError(field);
 
-        // Required field validation
-        if (field.hasAttribute('required') && !value) {
-            isValid = false;
-            errorMessage = 'This field is required';
-        }
 
-        // URL validation
-        if (field.type === 'url' && value) {
-            try {
-                new URL(value);
-            } catch {
-                isValid = false;
-                errorMessage = 'Please enter a valid URL';
-            }
-        }
-
-        // Email validation
-        if (field.type === 'email' && value) {
-            const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailPattern.test(value)) {
-                isValid = false;
-                errorMessage = 'Please enter a valid email address';
-            }
-        }
-
-        // Expected content validation (at least one checkbox must be checked)
-        if (field.name === 'expected_content') {
-            const checkedBoxes = document.querySelectorAll('input[name="expected_content"]:checked');
-            if (checkedBoxes.length === 0) {
-                isValid = false;
-                errorMessage = 'Please select at least one content type';
-            }
-        }
-
-        if (!isValid) {
-            this.showFieldError(field, errorMessage);
-        }
-
-        return isValid;
-    }
-
-    showFieldError(field, message) {
-        field.classList.add('error');
-        
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'field-error';
-        errorDiv.textContent = message;
-        errorDiv.style.color = 'var(--error-color)';
-        errorDiv.style.fontSize = '0.85rem';
-        errorDiv.style.marginTop = '0.25rem';
-        
-        field.parentNode.appendChild(errorDiv);
-    }
-
-    removeFieldError(field) {
-        const errorDiv = field.parentNode.querySelector('.field-error');
-        if (errorDiv) {
-            errorDiv.remove();
-        }
-    }
-
-    clearFieldError(field) {
-        field.classList.remove('error');
-        this.removeFieldError(field);
-    }
 
     switchTab(tabName) {
         // Update active tab button
@@ -179,9 +87,6 @@ class SourceManagementAdmin {
 
         // Load data for the active tab
         switch (tabName) {
-            case 'pending':
-                this.loadPendingSources();
-                break;
             case 'sources':
                 this.loadSourceManagement();
                 break;
@@ -193,141 +98,187 @@ class SourceManagementAdmin {
     }
 
     async loadInitialData() {
-        // Load sample data for demo purposes
-        this.sources.pending = [
-            {
-                source_id: 'seattle-childrens-theatre',
-                source_name: "Seattle Children's Theatre",
-                base_url: 'https://sct.org',
-                source_type: 'event-organizer',
-                status: 'pending_analysis',
-                submitted_at: '2025-08-20T10:00:00Z',
-                submitted_by: 'founder@seattlefamilyactivities.com',
-                expected_content: ['events', 'classes'],
-                hint_urls: ['https://sct.org/events', 'https://sct.org/classes']
-            },
-            {
-                source_id: 'pacific-science-center',
-                source_name: 'Pacific Science Center',
-                base_url: 'https://pacificsciencecenter.org',
-                source_type: 'venue',
-                status: 'analyzing',
-                submitted_at: '2025-08-20T09:30:00Z',
-                submitted_by: 'founder@seattlefamilyactivities.com',
-                expected_content: ['events', 'classes', 'attractions'],
-                hint_urls: ['https://pacificsciencecenter.org/events']
-            }
-        ];
-
-        this.sources.active = [
-            {
-                source_id: 'seattle-parks',
-                source_name: 'Seattle Parks and Recreation',
-                base_url: 'https://seattle.gov/parks',
-                source_type: 'program-provider',
-                status: 'active',
-                activated_at: '2025-08-15T14:00:00Z',
-                last_scraped: '2025-08-20T06:00:00Z',
-                scraping_frequency: 'daily',
-                activities_found: 127,
-                success_rate: 98.5
-            }
-        ];
+        // Load initial data on startup
+        await this.loadSourceManagement();
+        await this.loadSchemas();
     }
 
-    async submitSource() {
-        const form = document.getElementById('source-submission-form');
-        const submitBtn = document.getElementById('submit-btn');
-        
-        // Validate form
-        const isValid = this.validateForm();
-        if (!isValid) {
-            this.showAlert('error', 'Please fix the errors above before submitting.');
+    // Load real source management data from API
+    async loadSourceManagement() {
+        try {
+            const response = await this.makeApiCall('/sources/active');
+            if (response.success) {
+                this.sources.active = response.data?.sources || [];
+                this.displaySourceManagement();
+            } else {
+                console.warn('Failed to load sources:', response.error);
+                // Fallback to mock data for development
+                this.sources.active = [
+                    {
+                        source_id: 'demo-source',
+                        source_name: 'Demo Source',
+                        base_url: 'https://example.com',
+                        source_type: 'auto-discovered',
+                        status: 'active',
+                        submitted_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                        success_rate: 95.0,
+                        activities_found: 42
+                    }
+                ];
+                this.displaySourceManagement();
+            }
+        } catch (error) {
+            console.error('Error loading sources:', error);
+            this.sources.active = [];
+            this.displaySourceManagement();
+        }
+    }
+
+    // Load extraction schemas from API
+    async loadSchemas() {
+        try {
+            const response = await this.makeApiCall('/schemas');
+            if (response.success) {
+                this.schemas = response.data || {};
+            } else {
+                console.warn('Failed to load schemas:', response.error);
+            }
+        } catch (error) {
+            console.error('Error loading schemas:', error);
+            this.schemas = {};
+        }
+    }
+
+    // Load pending events for review
+    async loadPendingEvents() {
+        try {
+            const response = await this.makeApiCall('/events/pending');
+            if (response.success) {
+                this.pendingEvents = response.data || [];
+                this.displayPendingEvents();
+            } else {
+                console.warn('Failed to load pending events:', response.error);
+            }
+        } catch (error) {
+            console.error('Error loading pending events:', error);
+            this.pendingEvents = [];
+            this.displayPendingEvents();
+        }
+    }
+
+    // Display source management data in the admin interface
+    displaySourceManagement() {
+        const container = document.getElementById('active-sources');
+        if (!container) {
+            console.warn('Sources container not found');
             return;
         }
 
-        // Disable submit button
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Submitting...';
+        if (this.sources.active.length === 0) {
+            container.innerHTML = '<div class="alert alert-info">No active sources configured yet. Submit URLs for crawling to create sources automatically.</div>';
+            return;
+        }
+
+        const sourcesHtml = this.sources.active.map(source => `
+            <div class="source-card" style="position: relative;">
+                <div class="source-header">
+                    <div class="source-title">${source.source_name}</div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <span class="status-badge status-complete">Active</span>
+                        <button class="btn-small" onclick="adminApp.triggerReExtraction('${source.source_id}', '${source.base_url}')"
+                                style="background: var(--primary-color); color: white; border: none; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer;">
+                            Re-extract
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Performance Metrics Row -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.5rem; margin: 1rem 0; padding: 0.75rem; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Success Rate</div>
+                        <div style="font-weight: bold; color: #10b981;">${source.success_rate || 100}%</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Activities</div>
+                        <div style="font-weight: bold; color: var(--primary-color);">${source.activities_found || 0}</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Last Scraped</div>
+                        <div style="font-weight: bold; font-size: 0.85rem;">${this.formatDate(source.last_scraped) || 'Never'}</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Frequency</div>
+                        <div style="font-weight: bold; color: var(--text-secondary);">${source.scraping_frequency || 'Manual'}</div>
+                    </div>
+                </div>
+
+                <!-- Source Details -->
+                <div class="source-meta">
+                    <div class="meta-item">
+                        <div class="meta-label">Type:</div>
+                        ${this.formatSourceType(source.source_type)}
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Priority:</div>
+                        ${this.formatPriority(source.priority)}
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Base URL:</div>
+                        <a href="${source.base_url}" target="_blank">${source.base_url}</a>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Submitted by:</div>
+                        ${source.submitted_by}
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Expected Content:</div>
+                        ${source.expected_content ? source.expected_content.join(', ') : 'events'}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        container.innerHTML = sourcesHtml;
+    }
+
+    // Trigger re-extraction for an existing source
+    async triggerReExtraction(sourceId, sourceUrl) {
+        if (!confirm(`Re-extract events from ${sourceUrl}? This will create new pending events for review.`)) {
+            return;
+        }
 
         try {
-            const formData = this.getFormData();
-            
-            // Make real API call to submit the source
-            const response = await this.makeApiCall('/sources/submit', 'POST', formData);
-            
+            // Use the same crawl submission API but for re-extraction
+            const requestData = {
+                url: sourceUrl,
+                schema_type: 'events', // Default to events schema
+                extracted_by_user: 'admin-re-extraction',
+                admin_notes: `Re-extraction from existing source: ${sourceId}`
+            };
+
+            const response = await this.makeApiCall('/crawl/submit', 'POST', requestData);
+
             if (response.success) {
-                this.showAlert('success', 'Source submitted successfully! It will be analyzed automatically.');
-                form.reset();
-                
-                // Refresh pending sources to show the newly submitted source
-                if (this.currentTab === 'pending') {
-                    this.loadPendingSources();
+                this.showAlert(
+                    `Successfully re-extracted ${response.data.events_count} events! ` +
+                    `Check the pending events tab for review.`,
+                    'success'
+                );
+                // Refresh pending events if we're on that tab
+                if (this.currentTab === 'crawling') {
+                    this.loadPendingEvents();
                 }
             } else {
-                throw new Error(response.error || 'Failed to submit source');
+                this.showAlert(`Re-extraction failed: ${response.error}`, 'error');
             }
-            
         } catch (error) {
-            this.showAlert('error', `Failed to submit source: ${error.message}`);
-        } finally {
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Submit Source for Analysis';
+            this.showAlert(`Re-extraction failed: ${error.message}`, 'error');
         }
     }
 
-    validateForm() {
-        const form = document.getElementById('source-submission-form');
-        const requiredFields = form.querySelectorAll('input[required], select[required]');
-        let isValid = true;
 
-        // Clear previous alerts
-        this.clearAlerts();
 
-        // Validate each required field
-        requiredFields.forEach(field => {
-            if (!this.validateField(field)) {
-                isValid = false;
-            }
-        });
-
-        // Validate expected content checkboxes
-        const checkedBoxes = form.querySelectorAll('input[name="expected_content"]:checked');
-        if (checkedBoxes.length === 0) {
-            isValid = false;
-            this.showAlert('error', 'Please select at least one expected content type.');
-        }
-
-        return isValid;
-    }
-
-    getFormData() {
-        const form = document.getElementById('source-submission-form');
-        const formData = new FormData(form);
-        
-        const data = {
-            source_name: formData.get('source_name'),
-            base_url: formData.get('base_url'),
-            source_type: formData.get('source_type'),
-            priority: formData.get('priority') || 'medium',
-            submitted_by: formData.get('submitted_by'),
-            notes: formData.get('notes') || '',
-            expected_content: [],
-            hint_urls: []
-        };
-
-        // Get expected content checkboxes
-        const expectedContentBoxes = form.querySelectorAll('input[name="expected_content"]:checked');
-        data.expected_content = Array.from(expectedContentBoxes).map(box => box.value);
-
-        // Get hint URLs
-        const hintUrlInputs = form.querySelectorAll('input[name="hint_urls"]');
-        data.hint_urls = Array.from(hintUrlInputs)
-            .map(input => input.value.trim())
-            .filter(url => url !== '');
-
-        return data;
-    }
 
     async makeApiCall(endpoint, method = 'GET', body = null) {
         const url = `${this.apiBaseUrl}${endpoint}`;
@@ -365,68 +316,7 @@ class SourceManagementAdmin {
             .substring(0, 50);
     }
 
-    async loadPendingSources() {
-        const container = document.getElementById('pending-sources');
-        container.innerHTML = '<div class="alert alert-info">Loading pending sources...</div>';
-        
-        try {
-            const response = await this.makeApiCall('/sources/pending');
-            
-            if (response.success) {
-                this.sources.pending = response.data || [];
-                this.displayPendingSources();
-            } else {
-                throw new Error(response.error || 'Failed to load pending sources');
-            }
-            
-        } catch (error) {
-            container.innerHTML = `<div class="alert alert-error">Failed to load pending sources: ${error.message}</div>`;
-        }
-    }
 
-    displayPendingSources() {
-        const container = document.getElementById('pending-sources');
-        
-        if (this.sources.pending.length === 0) {
-            container.innerHTML = '<div class="alert alert-info">No sources pending analysis.</div>';
-            return;
-        }
-
-        const sourcesHtml = this.sources.pending.map(source => `
-            <div class="source-card">
-                <div class="source-header">
-                    <div class="source-title">${source.source_name}</div>
-                    <span class="status-badge status-${source.status.replace('_', '-')}">${this.formatStatus(source.status)}</span>
-                </div>
-                <div class="source-meta">
-                    <div class="meta-item">
-                        <div class="meta-label">Type:</div>
-                        ${this.formatSourceType(source.source_type)}
-                    </div>
-                    <div class="meta-item">
-                        <div class="meta-label">Submitted:</div>
-                        ${this.formatDate(source.submitted_at)}
-                    </div>
-                    <div class="meta-item">
-                        <div class="meta-label">Base URL:</div>
-                        <a href="${source.base_url}" target="_blank">${source.base_url}</a>
-                    </div>
-                    <div class="meta-item">
-                        <div class="meta-label">Expected Content:</div>
-                        ${source.expected_content.join(', ')}
-                    </div>
-                </div>
-                ${source.hint_urls && source.hint_urls.length > 0 ? `
-                    <div style="margin-top: 1rem;">
-                        <div class="meta-label">Hint URLs:</div>
-                        ${source.hint_urls.map(url => `<div><a href="${url}" target="_blank">${url}</a></div>`).join('')}
-                    </div>
-                ` : ''}
-            </div>
-        `).join('');
-
-        container.innerHTML = sourcesHtml;
-    }
 
     async loadActiveSources() {
         const container = document.getElementById('active-sources');
@@ -751,33 +641,7 @@ class SourceManagementAdmin {
         return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     }
 
-    showAlert(type, message) {
-        this.clearAlerts();
-        
-        const alert = document.createElement('div');
-        alert.className = `alert alert-${type}`;
-        alert.textContent = message;
-        
-        const form = document.getElementById('source-submission-form');
-        form.insertBefore(alert, form.firstChild);
-        
-        // Auto-remove success alerts after 5 seconds
-        if (type === 'success') {
-            setTimeout(() => {
-                if (alert.parentNode) {
-                    alert.remove();
-                }
-            }, 5000);
-        }
-    }
 
-    clearAlerts() {
-        document.querySelectorAll('.alert').forEach(alert => {
-            if (alert.parentNode && alert.parentNode.id === 'source-submission-form') {
-                alert.remove();
-            }
-        });
-    }
 
     // Event Crawling Methods
 
@@ -1228,24 +1092,6 @@ class SourceManagementAdmin {
     }
 }
 
-// Utility functions for managing hint URLs
-function addHintUrl() {
-    const container = document.getElementById('hint-urls-container');
-    const urlGroup = document.createElement('div');
-    urlGroup.className = 'url-input-group';
-    urlGroup.innerHTML = `
-        <input type="url" name="hint_urls" placeholder="https://example.com/page">
-        <button type="button" class="btn-remove" onclick="removeHintUrl(this)">Remove</button>
-    `;
-    container.appendChild(urlGroup);
-}
-
-function removeHintUrl(button) {
-    const container = document.getElementById('hint-urls-container');
-    if (container.children.length > 1) {
-        button.parentNode.remove();
-    }
-}
 
 // Global function for refreshing pending events (called from HTML)
 function loadPendingEvents() {

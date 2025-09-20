@@ -15,6 +15,25 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
+    /**
+     * ARCHITECTURE UPDATE: Database-Direct Flow
+     *
+     * NEW FLOW:
+     * 1. Admin submits URL + schema via frontend
+     * 2. API checks for duplicates in DynamoDB
+     * 3. FireCrawl extracts data, saves as pending events
+     * 4. Admin reviews/approves via admin interface
+     * 5. Main frontend loads approved events directly from database API
+     *
+     * CHANGES FROM PREVIOUS ARCHITECTURE:
+     * - Removed hardcoded sources from orchestrator
+     * - Main frontend uses GET /api/events/approved instead of S3
+     * - S3 kept only for backups, not main data flow
+     * - All sources now managed dynamically via admin interface
+     * - URL deduplication prevents duplicate crawling
+     * - Auto-source creation from successful extractions
+     */
+
     // S3 bucket for events data with public read access
     const eventsBucket = new s3.Bucket(this, 'EventsDataBucket', {
       bucketName: 'seattle-family-activities-mvp-data-usw2',
@@ -165,15 +184,13 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
         iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')
       ],
       inlinePolicies: {
-        S3Access: new iam.PolicyDocument({
+        S3BackupAccess: new iam.PolicyDocument({
           statements: [
             new iam.PolicyStatement({
               effect: iam.Effect.ALLOW,
               actions: [
                 's3:PutObject',
-                's3:PutObjectAcl',
-                's3:GetObject',
-                's3:ListBucket'
+                's3:PutObjectAcl'
               ],
               resources: [
                 eventsBucket.bucketArn,
@@ -258,14 +275,14 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       memorySize: 1024,
       role: scraperRole, // Reuse the same role since it has DynamoDB and S3 access
       environment: {
-        S3_BUCKET: eventsBucket.bucketName,
         FAMILY_ACTIVITIES_TABLE: familyActivitiesTable.tableName,
         SOURCE_MANAGEMENT_TABLE: sourceManagementTable.tableName,
         SCRAPING_OPERATIONS_TABLE: scrapingOperationsTable.tableName,
+        ADMIN_EVENTS_TABLE: adminEventsTable.tableName,
         FIRECRAWL_API_KEY: process.env.FIRECRAWL_API_KEY || '',
         LOG_LEVEL: 'INFO'
       },
-      description: 'Orchestrates scraping tasks from DynamoDB sources using FireCrawl, replacing hardcoded source list'
+      description: 'Orchestrates scraping tasks from DynamoDB sources using FireCrawl - fully database-driven, no S3 dependency for data flow'
     });
 
 
@@ -373,6 +390,11 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
     // API routes
     const apiResource = adminApi.root.addResource('api');
     const sourcesResource = apiResource.addResource('sources');
+
+    // Main Frontend API endpoints (database-direct)
+    const eventsResource = apiResource.addResource('events');
+    const approvedEventsResource = eventsResource.addResource('approved');
+    approvedEventsResource.addMethod('GET', adminApiIntegration); // GET /api/events/approved - for main frontend
     
     // Sources routes
     sourcesResource.addMethod('POST', adminApiIntegration); // POST /api/sources (with {action: 'submit'} in body)
@@ -405,12 +427,15 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
     pendingResource.addMethod('GET', adminApiIntegration); // GET /api/sources/pending
     activeResource.addMethod('GET', adminApiIntegration);  // GET /api/sources/active
 
+    // Re-extraction endpoint
+    const reExtractResource = sourceResource.addResource('re-extract');
+    reExtractResource.addMethod('POST', adminApiIntegration); // POST /api/sources/{id}/re-extract
+
     // Admin Crawling Routes
     const crawlResource = apiResource.addResource('crawl');
     const crawlSubmitResource = crawlResource.addResource('submit');
     crawlSubmitResource.addMethod('POST', adminApiIntegration); // POST /api/crawl/submit
 
-    const eventsResource = apiResource.addResource('events');
     const eventsPendingResource = eventsResource.addResource('pending');
     eventsPendingResource.addMethod('GET', adminApiIntegration); // GET /api/events/pending
 
@@ -449,9 +474,15 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       exportName: 'SeattleFamilyActivities-ScrapingOrchestratorFunctionName'
     });
 
+    new CfnOutput(this, 'EventsApiUrl', {
+      value: `${adminApi.url}api/events/approved`,
+      description: 'Database API URL for approved events (replaces S3)',
+      exportName: 'SeattleFamilyActivities-EventsApiUrl'
+    });
+
     new CfnOutput(this, 'EventsDataURL', {
       value: `https://${eventsBucket.bucketName}.s3.us-west-2.amazonaws.com/events/latest.json`,
-      description: 'Direct URL to latest events JSON file',
+      description: 'Legacy S3 URL - now used only for backups, main data served via API',
       exportName: 'SeattleFamilyActivities-EventsDataURL'
     });
 

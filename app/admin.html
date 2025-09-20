@@ -306,123 +306,12 @@
         </header>
 
         <div class="admin-tabs">
-            <button class="tab-button active" data-tab="submit">Submit New Source</button>
-            <button class="tab-button" data-tab="pending">Pending Analysis</button>
-            <button class="tab-button" data-tab="sources">Source Management</button>
+            <button class="tab-button active" data-tab="sources">Source Management</button>
             <button class="tab-button" data-tab="crawling">Event Crawling</button>
         </div>
 
-        <!-- Tab 1: Submit New Source -->
-        <div class="tab-content active" id="submit-tab">
-            <div class="form-section">
-                <h3>Submit New Source for Analysis</h3>
-                <p>Add a new Seattle family activity source that will be automatically analyzed and configured for scraping.</p>
-                
-                <form id="source-submission-form">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="source-name">Source Name *</label>
-                            <input type="text" id="source-name" name="source_name" required 
-                                   placeholder="e.g., Seattle Children's Theatre">
-                        </div>
-                        <div class="form-group">
-                            <label for="source-type">Source Type *</label>
-                            <select id="source-type" name="source_type" required>
-                                <option value="">Select source type...</option>
-                                <option value="venue">Venue</option>
-                                <option value="event-organizer">Event Organizer</option>
-                                <option value="program-provider">Program Provider</option>
-                                <option value="community-calendar">Community Calendar</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="base-url">Base Website URL *</label>
-                            <input type="url" id="base-url" name="base_url" required 
-                                   placeholder="https://example.com">
-                        </div>
-                        <div class="form-group">
-                            <label for="priority">Priority Level</label>
-                            <select id="priority" name="priority">
-                                <option value="medium">Medium</option>
-                                <option value="high">High</option>
-                                <option value="low">Low</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="expected-content">Expected Content Types *</label>
-                        <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.5rem;">
-                            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal;">
-                                <input type="checkbox" name="expected_content" value="events"> Events
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal;">
-                                <input type="checkbox" name="expected_content" value="classes"> Classes
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal;">
-                                <input type="checkbox" name="expected_content" value="camps"> Camps
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal;">
-                                <input type="checkbox" name="expected_content" value="venues"> Venues
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal;">
-                                <input type="checkbox" name="expected_content" value="programs"> Programs
-                            </label>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="hint-urls">Hint URLs</label>
-                        <p style="margin-bottom: 0.5rem; color: var(--text-secondary); font-size: 0.9rem;">
-                            Provide specific URLs where family activities are listed (e.g., events page, classes page)
-                        </p>
-                        <div class="hint-urls" id="hint-urls-container">
-                            <div class="url-input-group">
-                                <input type="url" name="hint_urls" placeholder="https://example.com/events">
-                                <button type="button" class="btn-remove" onclick="removeHintUrl(this)">Remove</button>
-                            </div>
-                        </div>
-                        <button type="button" class="btn-add" onclick="addHintUrl()">Add Another URL</button>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="notes">Additional Notes</label>
-                        <textarea id="notes" name="notes" 
-                                  placeholder="Any specific information about this source, special requirements, or notes for analysis..."></textarea>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="submitted-by">Your Email *</label>
-                        <input type="email" id="submitted-by" name="submitted_by" required 
-                               placeholder="founder@seattlefamilyactivities.com">
-                    </div>
-
-                    <button type="submit" class="btn-primary" id="submit-btn">
-                        Submit Source for Analysis
-                    </button>
-                </form>
-            </div>
-        </div>
-
-        <!-- Tab 2: Pending Analysis -->
-        <div class="tab-content" id="pending-tab">
-            <div class="form-section">
-                <h3>Sources Pending Analysis</h3>
-                <p>Sources that have been submitted and are waiting for or undergoing automated analysis.</p>
-                
-                <div id="pending-sources" class="sources-grid">
-                    <div class="alert alert-info">
-                        Loading pending sources...
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Tab 3: Source Management -->
-        <div class="tab-content" id="sources-tab">
+        <!-- Tab 1: Source Management -->
+        <div class="tab-content active" id="sources-tab">
             <div class="form-section">
                 <h3>Source Management & Analytics</h3>
                 <p>Monitor and manage active sources with real-time performance metrics.</p>
@@ -443,7 +332,7 @@
             </div>
         </div>
 
-        <!-- Tab 4: Event Crawling -->
+        <!-- Tab 2: Event Crawling -->
         <div class="tab-content" id="crawling-tab">
             <div class="form-section">
                 <h3>Extract Events from Websites</h3>

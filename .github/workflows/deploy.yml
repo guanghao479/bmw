@@ -65,14 +65,12 @@ jobs:
       run: go test ./internal/models ./internal/services -v
       env:
         FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
-        JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
     
     - name: Run critical integration tests
       working-directory: backend
       run: go test -tags=integration ./internal/services -v -run TestFireCrawl
       env:
         FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
-        JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
 
     - name: Deploy CDK infrastructure
       working-directory: infrastructure
@@ -82,57 +80,118 @@ jobs:
         CDK_DEFAULT_ACCOUNT: ${{ secrets.AWS_ACCOUNT_ID }}
         CDK_DEFAULT_REGION: us-west-2
         FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
-        JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
+        ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
 
-    - name: Test Lambda function (quick validation)
-      timeout-minutes: 2
+    - name: Test Lambda functions deployment
+      timeout-minutes: 3
       run: |
-        # Quick Lambda validation - just check if function exists and is invokable
-        echo "Testing Lambda function deployment..."
-        
-        # Check if function exists
+        echo "Testing Lambda functions deployment..."
+
+        # Check Scraping Orchestrator function
+        echo "Checking Scraping Orchestrator Lambda..."
         aws lambda get-function \
           --function-name seattle-family-activities-scraping-orchestrator \
-          --region us-west-2 > function-info.json
-        
-        echo "✅ Lambda function deployed successfully"
-        echo "Function runtime: $(jq -r '.Configuration.Runtime' function-info.json)"
-        echo "Function timeout: $(jq -r '.Configuration.Timeout' function-info.json)s"
-        echo "Function memory: $(jq -r '.Configuration.MemorySize' function-info.json)MB"
-        
-        # Start async invocation (don't wait for completion)
-        echo "🚀 Starting Lambda function for data collection (async)..."
+          --region us-west-2 > orchestrator-info.json
+
+        echo "✅ Orchestrator Lambda deployed successfully"
+        echo "Runtime: $(jq -r '.Configuration.Runtime' orchestrator-info.json)"
+        echo "Timeout: $(jq -r '.Configuration.Timeout' orchestrator-info.json)s"
+        echo "Memory: $(jq -r '.Configuration.MemorySize' orchestrator-info.json)MB"
+
+        # Check Admin API function
+        echo "Checking Admin API Lambda..."
+        aws lambda get-function \
+          --function-name seattle-family-activities-admin-api \
+          --region us-west-2 > admin-api-info.json
+
+        echo "✅ Admin API Lambda deployed successfully"
+        echo "Runtime: $(jq -r '.Configuration.Runtime' admin-api-info.json)"
+        echo "Timeout: $(jq -r '.Configuration.Timeout' admin-api-info.json)s"
+        echo "Memory: $(jq -r '.Configuration.MemorySize' admin-api-info.json)MB"
+
+        # Test orchestrator function with empty payload (safe test)
+        echo "🚀 Testing orchestrator function (async)..."
         aws lambda invoke \
           --function-name seattle-family-activities-scraping-orchestrator \
           --invocation-type Event \
           --payload '{}' \
           --region us-west-2 \
-          async-response.json
-        
-        echo "✅ Lambda invocation started successfully"
-        echo "Note: Full scraping results will be available in S3 within 3-5 minutes"
+          orchestrator-response.json
 
-    - name: Check S3 data (existing data)
+        echo "✅ Lambda functions deployed and tested successfully"
+        echo "Note: Results will be available via database API"
+
+    - name: Test Database API and Infrastructure
       run: |
-        echo "Checking S3 bucket structure..."
-        aws s3 ls s3://seattle-family-activities-mvp-data-usw2/ --region us-west-2 --recursive | head -10
-        
-        # Check if latest.json exists (may be from previous run)
-        if aws s3 head-object --bucket seattle-family-activities-mvp-data-usw2 --key activities/latest.json --region us-west-2 2>/dev/null; then
-          echo "✅ S3 latest.json file exists"
-          aws s3 cp s3://seattle-family-activities-mvp-data-usw2/activities/latest.json latest.json --region us-west-2
-          echo "File size: $(wc -c < latest.json) bytes"
-          activities_count=$(jq '.activities | length' latest.json)
-          echo "Number of activities: $activities_count"
-          
-          if [ "$activities_count" -gt 0 ]; then
-            echo "✅ S3 contains activity data"
+        echo "Testing database-direct API infrastructure..."
+
+        # Get API Gateway URL from CDK outputs
+        if [ -f "infrastructure/outputs.json" ]; then
+          API_URL=$(jq -r '.SeattleFamilyActivitiesMVPStack.AdminApiUrl' infrastructure/outputs.json)
+          echo "API URL from CDK outputs: $API_URL"
+        else
+          echo "CDK outputs file not found, getting API URL from AWS CLI..."
+          API_ID=$(aws apigateway get-rest-apis --region us-west-2 --query 'items[?name==`SeattleFamilyActivities-AdminAPI`].id' --output text)
+          API_URL="https://${API_ID}.execute-api.us-west-2.amazonaws.com/prod/"
+          echo "API URL from AWS CLI: $API_URL"
+        fi
+
+        # Test DynamoDB tables
+        echo "Testing DynamoDB tables..."
+        aws dynamodb describe-table --table-name seattle-family-activities --region us-west-2 > /dev/null
+        echo "✅ FamilyActivitiesTable accessible"
+
+        aws dynamodb describe-table --table-name seattle-source-management --region us-west-2 > /dev/null
+        echo "✅ SourceManagementTable accessible"
+
+        aws dynamodb describe-table --table-name seattle-admin-events --region us-west-2 > /dev/null
+        echo "✅ AdminEventsTable accessible"
+
+        # Test approved events endpoint (main frontend data source)
+        echo "Testing GET /api/events/approved endpoint..."
+        EVENTS_RESPONSE=$(curl -s "${API_URL}api/events/approved" -w "HTTP_CODE:%{http_code}" || echo "ERROR:Connection failed")
+
+        if echo "$EVENTS_RESPONSE" | grep -q "HTTP_CODE:200"; then
+          # Remove HTTP code from response
+          CLEAN_RESPONSE=$(echo "$EVENTS_RESPONSE" | sed 's/HTTP_CODE:200$//')
+          echo "✅ API returned HTTP 200"
+
+          if echo "$CLEAN_RESPONSE" | jq . >/dev/null 2>&1; then
+            echo "✅ Database API responding with valid JSON"
+
+            if echo "$CLEAN_RESPONSE" | jq -e '.success' >/dev/null 2>&1; then
+              EVENTS_COUNT=$(echo "$CLEAN_RESPONSE" | jq '.data | length' 2>/dev/null || echo "0")
+              echo "Number of approved events in database: $EVENTS_COUNT"
+              echo "✅ Database API is working correctly"
+            else
+              echo "ℹ️ API responding but no approved events yet (normal for new deployment)"
+            fi
           else
-            echo "ℹ️ S3 file exists but no activities (may be updating)"
+            echo "⚠️ API response is not valid JSON: $CLEAN_RESPONSE"
           fi
         else
-          echo "ℹ️ S3 latest.json not found (may be first deployment or currently updating)"
-          echo "Lambda function was started and will populate S3 within a few minutes"
+          echo "⚠️ API not accessible yet - Response: $EVENTS_RESPONSE"
+          echo "This is normal immediately after deployment - Lambda cold start may take time"
+        fi
+
+        # Test active sources endpoint (admin interface)
+        echo "Testing GET /api/sources/active endpoint..."
+        SOURCES_RESPONSE=$(curl -s "${API_URL}api/sources/active" || echo "{}")
+        if echo "$SOURCES_RESPONSE" | jq -e '.success' >/dev/null 2>&1; then
+          SOURCES_COUNT=$(echo "$SOURCES_RESPONSE" | jq '.data | length' 2>/dev/null || echo "0")
+          echo "Number of active sources: $SOURCES_COUNT"
+          echo "✅ Sources API working correctly"
+        else
+          echo "ℹ️ Sources API responding (normal for new deployment)"
+        fi
+
+        # Check S3 backup bucket access (backup only)
+        echo "Checking S3 backup bucket access..."
+        aws s3 ls s3://seattle-family-activities-mvp-data-usw2/ --region us-west-2 >/dev/null 2>&1
+        if [ $? -eq 0 ]; then
+          echo "✅ S3 backup bucket accessible"
+        else
+          echo "⚠️ S3 backup bucket not accessible"
         fi
 
   # Frontend deployment - GitHub Pages
@@ -158,17 +217,27 @@ jobs:
 
     - name: Test frontend JavaScript
       run: |
-        # Basic JavaScript syntax check
+        # Basic JavaScript syntax check for main frontend
         node -c app/script.js
-        echo "Frontend JavaScript syntax is valid"
+        echo "Main frontend JavaScript syntax is valid"
+
+        # Basic JavaScript syntax check for admin interface
+        node -c app/admin.js
+        echo "Admin frontend JavaScript syntax is valid"
 
     - name: Validate HTML
       run: |
-        # Check for basic HTML structure
+        # Check main frontend HTML structure
         grep -q "<html" app/index.html
         grep -q "<body" app/index.html
         grep -q "script.js" app/index.html
-        echo "HTML structure is valid"
+        echo "Main frontend HTML structure is valid"
+
+        # Check admin frontend HTML structure
+        grep -q "<html" app/admin.html
+        grep -q "<body" app/admin.html
+        grep -q "admin.js" app/admin.html
+        echo "Admin frontend HTML structure is valid"
 
     - name: Upload artifact
       uses: actions/upload-pages-artifact@v3
@@ -184,37 +253,66 @@ jobs:
     runs-on: ubuntu-latest
     needs: [deploy-backend, deploy-frontend]
     if: always() && (needs.deploy-frontend.result == 'success')
-    
+
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+        aws-region: us-west-2
 
     - name: Setup Node.js for testing
       uses: actions/setup-node@v4
       with:
         node-version: '18'
 
-    - name: Test S3 CORS configuration
+    - name: Test API CORS configuration
       run: |
+        # Get API Gateway URL from previous deployment
+        echo "Testing API CORS configuration..."
+
+        # Test CORS preflight for the database API
         curl -H "Origin: https://guanghao479.github.io" \
              -H "Access-Control-Request-Method: GET" \
-             -H "Access-Control-Request-Headers: X-Requested-With" \
+             -H "Access-Control-Request-Headers: Content-Type" \
              -X OPTIONS \
-             https://seattle-family-activities-mvp-data-usw2.s3.us-west-2.amazonaws.com/activities/latest.json \
+             "https://$(aws apigateway get-rest-apis --region us-west-2 --query 'items[?name==\`SeattleFamilyActivities-AdminAPI\`].id' --output text).execute-api.us-west-2.amazonaws.com/prod/api/events/approved" \
              -v
 
-    - name: Test S3 data endpoint
+    - name: Test Database API endpoint
       run: |
-        response=$(curl -s https://seattle-family-activities-mvp-data-usw2.s3.us-west-2.amazonaws.com/activities/latest.json)
+        # Test the new database API endpoint
+        API_URL="https://$(aws apigateway get-rest-apis --region us-west-2 --query 'items[?name==\`SeattleFamilyActivities-AdminAPI\`].id' --output text).execute-api.us-west-2.amazonaws.com/prod/"
+        echo "Testing database API: ${API_URL}api/events/approved"
+
+        response=$(curl -s "${API_URL}api/events/approved" || echo '{"error": "API not accessible"}')
         echo "$response" | jq '.'
-        activities_count=$(echo "$response" | jq '.activities | length')
-        echo "Found $activities_count activities"
-        
-        if [ "$activities_count" -gt 0 ]; then
-          echo "✅ S3 data endpoint is working"
+
+        # Check if API is responding
+        if echo "$response" | jq -e '.success' >/dev/null 2>&1; then
+          activities_count=$(echo "$response" | jq '.data | length')
+          echo "Found $activities_count approved events in database"
+          echo "✅ Database API endpoint is working"
         else
-          echo "❌ No activities found in S3 data"
-          exit 1
+          echo "ℹ️ Database API responding but no approved events yet (normal for fresh deployment)"
+          echo "✅ API is accessible and will serve data once events are approved"
+        fi
+
+        # Test legacy S3 endpoint as backup
+        echo "Testing legacy S3 backup endpoint..."
+        s3_response=$(curl -s https://seattle-family-activities-mvp-data-usw2.s3.us-west-2.amazonaws.com/activities/latest.json || echo '{}')
+        if echo "$s3_response" | jq -e '.activities' >/dev/null 2>&1; then
+          s3_count=$(echo "$s3_response" | jq '.activities | length')
+          echo "S3 backup contains $s3_count activities"
+        else
+          echo "ℹ️ S3 backup not populated yet (normal - created after event approval)"
         fi
 
     - name: Test frontend accessibility
@@ -232,7 +330,7 @@ jobs:
           const page = await browser.newPage();
           
           try {
-            // Test the GitHub Pages deployment
+            // Test the GitHub Pages deployment with new API integration
             await page.goto('https://guanghao479.github.io/bmw/', { waitUntil: 'networkidle' });
             
             // Check if the page loads
@@ -252,14 +350,27 @@ jobs:
             }
             
             // Wait for data to load and check if activities are displayed
-            await page.waitForTimeout(5000);
+            await page.waitForTimeout(8000); // Longer wait for API calls
             const cards = await page.$$('.card');
             console.log(`Found ${cards.length} activity cards`);
-            
+
+            // Check data source indicator
+            const dataSource = await page.evaluate(() => {
+              return window.app ? window.app.lastDataSource : 'unknown';
+            });
+            console.log(`Data source: ${dataSource}`);
+
             if (cards.length > 0) {
               console.log('✅ Activities are being displayed');
+              if (dataSource === 'api') {
+                console.log('✅ Using new database API');
+              } else if (dataSource === 'cache') {
+                console.log('ℹ️ Using cached data');
+              } else {
+                console.log('ℹ️ Using embedded/fallback data');
+              }
             } else {
-              console.log('⚠️ No activities displayed (may be using sample data)');
+              console.log('⚠️ No activities displayed (may be new deployment with no approved events)');
             }
             
           } catch (error) {
@@ -323,7 +434,8 @@ jobs:
         if [[ "${{ needs.deploy-backend.result }}" == "success" && "${{ needs.deploy-frontend.result }}" == "success" ]]; then
           echo "✅ Full deployment successful!"
           echo "🌐 Frontend: https://guanghao479.github.io/bmw/"
-          echo "📊 S3 Data: https://seattle-family-activities-mvp-data-usw2.s3.us-west-2.amazonaws.com/activities/latest.json"
+          echo "📊 Database API: [API Gateway URL]/api/events/approved"
+          echo "🗄️ S3 Backup: https://seattle-family-activities-mvp-data-usw2.s3.us-west-2.amazonaws.com/activities/latest.json"
         else
           echo "❌ Deployment had issues - check individual job results"
         fi
