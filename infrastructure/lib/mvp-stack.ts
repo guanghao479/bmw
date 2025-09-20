@@ -261,6 +261,7 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
         iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonEventBridgeFullAccess'),
         iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSNSFullAccess'),
         iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMFullAccess'),
+        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonAPIGatewayAdministrator'),
         // CDK deployment policies
         iam.ManagedPolicy.fromAwsManagedPolicyName('IAMFullAccess'),
         iam.ManagedPolicy.fromAwsManagedPolicyName('AWSCloudFormationFullAccess')
