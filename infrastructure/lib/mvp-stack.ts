@@ -363,7 +363,7 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
         SOURCE_MANAGEMENT_TABLE: sourceManagementTable.tableName,
         SCRAPING_OPERATIONS_TABLE: scrapingOperationsTable.tableName,
         ADMIN_EVENTS_TABLE: adminEventsTable.tableName,
-        ORCHESTRATOR_FUNCTION_NAME: scrapingOrchestratorFunction.functionName,
+        SOURCE_ANALYZER_FUNCTION_NAME: scrapingOrchestratorFunction.functionName,
         FIRECRAWL_API_KEY: process.env.FIRECRAWL_API_KEY || '',
       }
     });
