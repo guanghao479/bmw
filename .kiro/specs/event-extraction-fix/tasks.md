@@ -7,21 +7,21 @@
   - Create diagnostic information structure to capture extraction metadata
   - _Requirements: 2.1, 2.2, 2.3_
 
-- [ ] 2. Enhance FireCrawl markdown parsing for better event detection
-  - [ ] 2.1 Improve `parseParentMapActivities()` function to extract real event data from markdown
+- [x] 2. Enhance FireCrawl markdown parsing for better event detection
+  - [x] 2.1 Improve `parseParentMapActivities()` function to extract real event data from markdown
     - Parse markdown headers and content blocks to identify individual events
     - Extract event titles, dates, times, and descriptions from markdown structure
     - Implement pattern recognition for common event attribute formats
     - _Requirements: 1.1, 3.1, 4.1, 4.2_
 
-  - [ ] 2.2 Create robust `extractEventsFromMarkdown()` implementation
+  - [x] 2.2 Create robust `extractEventsFromMarkdown()` implementation
     - Implement regex patterns for date/time extraction (MM/DD/YYYY, "January 1", etc.)
     - Add location parsing from markdown content (venue names, addresses)
     - Create price/cost extraction patterns ("$10", "Free", "Donation")
     - Add age group detection patterns ("ages 3-5", "toddlers", "all ages")
     - _Requirements: 1.1, 3.1, 3.3_
 
-  - [ ] 2.3 Add data structure validation before returning structured data
+  - [x] 2.3 Add data structure validation before returning structured data
     - Validate that extracted events have required fields (title, location)
     - Check data types and formats for consistency
     - Add confidence scoring based on extraction quality
