@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -9,6 +10,44 @@ import (
 	"github.com/google/uuid"
 	"seattle-family-activities-scraper/internal/models"
 )
+
+// ConversionDiagnostics captures detailed information about the schema conversion process
+type ConversionDiagnostics struct {
+	AdminEventID       string                 `json:"admin_event_id"`
+	SourceURL          string                 `json:"source_url"`
+	SchemaType         string                 `json:"schema_type"`
+	StartTime          time.Time              `json:"start_time"`
+	EndTime            time.Time              `json:"end_time"`
+	ProcessingTime     time.Duration          `json:"processing_time"`
+	RawDataStructure   map[string]interface{} `json:"raw_data_structure"`
+	RawDataSample      map[string]interface{} `json:"raw_data_sample"`
+	ExtractionAttempts []ConversionAttempt    `json:"extraction_attempts"`
+	FieldMappings      map[string]string      `json:"field_mappings"`
+	ConversionIssues   []ConversionIssue      `json:"conversion_issues"`
+	ConfidenceScore    float64                `json:"confidence_score"`
+	Success            bool                   `json:"success"`
+	ErrorMessage       string                 `json:"error_message,omitempty"`
+}
+
+// ConversionAttempt represents a single attempt to convert data
+type ConversionAttempt struct {
+	Step        string                 `json:"step"`
+	Timestamp   time.Time              `json:"timestamp"`
+	Success     bool                   `json:"success"`
+	EventsFound int                    `json:"events_found"`
+	Details     map[string]interface{} `json:"details"`
+	Issues      []string               `json:"issues"`
+}
+
+// ConversionIssue represents a conversion problem
+type ConversionIssue struct {
+	Type       string `json:"type"`        // missing_field|invalid_format|low_confidence|data_quality
+	Field      string `json:"field"`
+	Message    string `json:"message"`
+	Suggestion string `json:"suggestion"`
+	RawValue   string `json:"raw_value,omitempty"`
+	Severity   string `json:"severity"`    // error|warning|info
+}
 
 // SchemaConversionService handles conversion from raw extracted data to Activity model
 type SchemaConversionService struct{}
@@ -20,18 +59,68 @@ func NewSchemaConversionService() *SchemaConversionService {
 
 // ConvertToActivity converts raw extracted data to Activity model
 func (scs *SchemaConversionService) ConvertToActivity(adminEvent *models.AdminEvent) (*models.ConversionResult, error) {
+	startTime := time.Now()
+	
+	// Initialize conversion diagnostics
+	diagnostics := &ConversionDiagnostics{
+		AdminEventID:       adminEvent.EventID,
+		SourceURL:          adminEvent.SourceURL,
+		SchemaType:         adminEvent.SchemaType,
+		StartTime:          startTime,
+		ExtractionAttempts: []ConversionAttempt{},
+		ConversionIssues:   []ConversionIssue{},
+		FieldMappings:      make(map[string]string),
+		RawDataStructure:   make(map[string]interface{}),
+		RawDataSample:      make(map[string]interface{}),
+	}
+
 	rawData := adminEvent.RawExtractedData
 	var issues []string
 	fieldMappings := make(map[string]string)
 
+	log.Printf("[CONVERSION] Starting conversion for AdminEvent %s (Schema: %s, URL: %s)", 
+		adminEvent.EventID, adminEvent.SchemaType, adminEvent.SourceURL)
+
+	// Analyze raw data structure
+	scs.analyzeRawDataStructure(rawData, diagnostics)
+
 	// Extract events array from raw data
-	events, err := scs.extractEventsFromRawData(rawData, adminEvent.SchemaType)
+	extractionAttempt := ConversionAttempt{
+		Step:      "extractEventsFromRawData",
+		Timestamp: time.Now(),
+		Details:   make(map[string]interface{}),
+	}
+
+	events, err := scs.extractEventsFromRawDataWithDiagnostics(rawData, adminEvent.SchemaType, &extractionAttempt, diagnostics)
 	if err != nil {
+		diagnostics.EndTime = time.Now()
+		diagnostics.ProcessingTime = time.Since(startTime)
+		diagnostics.Success = false
+		diagnostics.ErrorMessage = fmt.Sprintf("Failed to extract events from raw data: %v", err)
+		scs.logConversionDiagnostics(diagnostics)
 		return nil, fmt.Errorf("failed to extract events from raw data: %w", err)
 	}
 
+	extractionAttempt.Success = len(events) > 0
+	extractionAttempt.EventsFound = len(events)
+	diagnostics.ExtractionAttempts = append(diagnostics.ExtractionAttempts, extractionAttempt)
+
 	if len(events) == 0 {
 		issues = append(issues, "No events found in extracted data")
+		diagnostics.ConversionIssues = append(diagnostics.ConversionIssues, ConversionIssue{
+			Type:       "missing_field",
+			Field:      "events",
+			Message:    "No events found in extracted data",
+			Suggestion: "Check if the raw data contains an events array or similar structure",
+			Severity:   "error",
+		})
+
+		diagnostics.EndTime = time.Now()
+		diagnostics.ProcessingTime = time.Since(startTime)
+		diagnostics.Success = false
+		diagnostics.ConfidenceScore = 0.0
+		scs.logConversionDiagnostics(diagnostics)
+
 		return &models.ConversionResult{
 			Activity:        nil,
 			Issues:          issues,
@@ -40,19 +129,48 @@ func (scs *SchemaConversionService) ConvertToActivity(adminEvent *models.AdminEv
 		}, nil
 	}
 
+	log.Printf("[CONVERSION] Found %d events in raw data, converting first event", len(events))
+
 	// For now, convert the first event (later we can handle multiple events)
 	firstEvent := events[0]
-	activity, mappings, conversionIssues := scs.convertSingleEvent(firstEvent, adminEvent)
+	
+	conversionAttempt := ConversionAttempt{
+		Step:      "convertSingleEvent",
+		Timestamp: time.Now(),
+		Details:   make(map[string]interface{}),
+	}
+
+	activity, mappings, conversionIssues := scs.convertSingleEventWithDiagnostics(firstEvent, adminEvent, &conversionAttempt, diagnostics)
+
+	conversionAttempt.Success = activity != nil
+	if activity != nil {
+		conversionAttempt.EventsFound = 1
+	}
+	diagnostics.ExtractionAttempts = append(diagnostics.ExtractionAttempts, conversionAttempt)
 
 	// Merge field mappings
 	for k, v := range mappings {
 		fieldMappings[k] = v
+		diagnostics.FieldMappings[k] = v
 	}
 
 	issues = append(issues, conversionIssues...)
 
 	// Calculate confidence score
 	confidence := scs.calculateConfidenceScore(activity, issues)
+	diagnostics.ConfidenceScore = confidence
+
+	// Complete diagnostics
+	diagnostics.EndTime = time.Now()
+	diagnostics.ProcessingTime = time.Since(startTime)
+	diagnostics.Success = activity != nil
+
+	// Log final diagnostics and store for debugging
+	scs.logConversionDiagnostics(diagnostics)
+	lastConversionDiagnostics = diagnostics
+
+	log.Printf("[CONVERSION] Conversion completed: Success=%t, Confidence=%.1f, Issues=%d", 
+		activity != nil, confidence, len(issues))
 
 	return &models.ConversionResult{
 		Activity:        activity,
@@ -62,56 +180,164 @@ func (scs *SchemaConversionService) ConvertToActivity(adminEvent *models.AdminEv
 	}, nil
 }
 
-// extractEventsFromRawData extracts events array from different schema types
+// extractEventsFromRawData extracts events array from different schema types (legacy method)
 func (scs *SchemaConversionService) extractEventsFromRawData(rawData map[string]interface{}, schemaType string) ([]map[string]interface{}, error) {
+	attempt := ConversionAttempt{
+		Step:      "extractEventsFromRawData",
+		Timestamp: time.Now(),
+		Details:   make(map[string]interface{}),
+	}
+	diagnostics := &ConversionDiagnostics{}
+	return scs.extractEventsFromRawDataWithDiagnostics(rawData, schemaType, &attempt, diagnostics)
+}
+
+// extractEventsFromRawDataWithDiagnostics extracts events array from different schema types with diagnostics
+func (scs *SchemaConversionService) extractEventsFromRawDataWithDiagnostics(rawData map[string]interface{}, schemaType string, attempt *ConversionAttempt, diagnostics *ConversionDiagnostics) ([]map[string]interface{}, error) {
 	var events []map[string]interface{}
+
+	log.Printf("[CONVERSION] Extracting events from raw data (Schema: %s)", schemaType)
+
+	// Log available keys in raw data
+	availableKeys := make([]string, 0, len(rawData))
+	for k := range rawData {
+		availableKeys = append(availableKeys, k)
+	}
+	attempt.Details["available_keys"] = availableKeys
+	log.Printf("[CONVERSION] Available keys in raw data: %v", availableKeys)
 
 	switch schemaType {
 	case "events":
+		log.Printf("[CONVERSION] Looking for 'events' array in raw data")
 		if eventsArray, ok := rawData["events"].([]interface{}); ok {
-			for _, event := range eventsArray {
+			log.Printf("[CONVERSION] Found 'events' array with %d items", len(eventsArray))
+			attempt.Details["events_array_length"] = len(eventsArray)
+			
+			for i, event := range eventsArray {
 				if eventMap, ok := event.(map[string]interface{}); ok {
 					events = append(events, eventMap)
+					log.Printf("[CONVERSION] Successfully parsed event %d", i+1)
+				} else {
+					attempt.Issues = append(attempt.Issues, fmt.Sprintf("Event %d is not a valid object", i+1))
+					log.Printf("[CONVERSION] Event %d is not a valid object: %T", i+1, event)
+				}
+			}
+		} else {
+			attempt.Issues = append(attempt.Issues, "No 'events' array found in raw data")
+			log.Printf("[CONVERSION] No 'events' array found in raw data")
+			
+			// Check if events data might be under a different key
+			for key, value := range rawData {
+				if array, ok := value.([]interface{}); ok && len(array) > 0 {
+					log.Printf("[CONVERSION] Found potential events array under key '%s' with %d items", key, len(array))
+					attempt.Details["alternative_array_key"] = key
+					attempt.Details["alternative_array_length"] = len(array)
 				}
 			}
 		}
+
 	case "activities":
+		log.Printf("[CONVERSION] Looking for 'activities' array in raw data")
 		if activitiesArray, ok := rawData["activities"].([]interface{}); ok {
-			for _, activity := range activitiesArray {
+			log.Printf("[CONVERSION] Found 'activities' array with %d items", len(activitiesArray))
+			attempt.Details["activities_array_length"] = len(activitiesArray)
+			
+			for i, activity := range activitiesArray {
 				if activityMap, ok := activity.(map[string]interface{}); ok {
 					events = append(events, activityMap)
+					log.Printf("[CONVERSION] Successfully parsed activity %d", i+1)
+				} else {
+					attempt.Issues = append(attempt.Issues, fmt.Sprintf("Activity %d is not a valid object", i+1))
+					log.Printf("[CONVERSION] Activity %d is not a valid object: %T", i+1, activity)
 				}
 			}
+		} else {
+			attempt.Issues = append(attempt.Issues, "No 'activities' array found in raw data")
+			log.Printf("[CONVERSION] No 'activities' array found in raw data")
 		}
+
 	case "venues":
+		log.Printf("[CONVERSION] Looking for 'venues' array in raw data")
 		if venuesArray, ok := rawData["venues"].([]interface{}); ok {
-			for _, venue := range venuesArray {
+			log.Printf("[CONVERSION] Found 'venues' array with %d items", len(venuesArray))
+			attempt.Details["venues_array_length"] = len(venuesArray)
+			
+			for i, venue := range venuesArray {
 				if venueMap, ok := venue.(map[string]interface{}); ok {
 					events = append(events, venueMap)
+					log.Printf("[CONVERSION] Successfully parsed venue %d", i+1)
+				} else {
+					attempt.Issues = append(attempt.Issues, fmt.Sprintf("Venue %d is not a valid object", i+1))
+					log.Printf("[CONVERSION] Venue %d is not a valid object: %T", i+1, venue)
 				}
 			}
+		} else {
+			attempt.Issues = append(attempt.Issues, "No 'venues' array found in raw data")
+			log.Printf("[CONVERSION] No 'venues' array found in raw data")
 		}
+
 	case "custom":
+		log.Printf("[CONVERSION] Looking for any array in raw data (custom schema)")
 		// For custom schemas, try to find any array of objects
-		for _, value := range rawData {
+		foundArray := false
+		for key, value := range rawData {
 			if array, ok := value.([]interface{}); ok {
-				for _, item := range array {
+				log.Printf("[CONVERSION] Found array under key '%s' with %d items", key, len(array))
+				attempt.Details["custom_array_key"] = key
+				attempt.Details["custom_array_length"] = len(array)
+				
+				for i, item := range array {
 					if itemMap, ok := item.(map[string]interface{}); ok {
 						events = append(events, itemMap)
+						log.Printf("[CONVERSION] Successfully parsed custom item %d", i+1)
+					} else {
+						attempt.Issues = append(attempt.Issues, fmt.Sprintf("Custom item %d is not a valid object", i+1))
+						log.Printf("[CONVERSION] Custom item %d is not a valid object: %T", i+1, item)
 					}
 				}
+				foundArray = true
 				break // Use first array found
 			}
 		}
+		
+		if !foundArray {
+			attempt.Issues = append(attempt.Issues, "No arrays found in raw data for custom schema")
+			log.Printf("[CONVERSION] No arrays found in raw data for custom schema")
+		}
+
+	default:
+		attempt.Issues = append(attempt.Issues, fmt.Sprintf("Unknown schema type: %s", schemaType))
+		log.Printf("[CONVERSION] Unknown schema type: %s", schemaType)
 	}
 
+	log.Printf("[CONVERSION] Event extraction completed: %d events found", len(events))
 	return events, nil
 }
 
-// convertSingleEvent converts a single event to Activity model
+// convertSingleEvent converts a single event to Activity model (legacy method)
 func (scs *SchemaConversionService) convertSingleEvent(eventData map[string]interface{}, adminEvent *models.AdminEvent) (*models.Activity, map[string]string, []string) {
+	attempt := ConversionAttempt{
+		Step:      "convertSingleEvent",
+		Timestamp: time.Now(),
+		Details:   make(map[string]interface{}),
+	}
+	diagnostics := &ConversionDiagnostics{}
+	return scs.convertSingleEventWithDiagnostics(eventData, adminEvent, &attempt, diagnostics)
+}
+
+// convertSingleEventWithDiagnostics converts a single event to Activity model with diagnostics
+func (scs *SchemaConversionService) convertSingleEventWithDiagnostics(eventData map[string]interface{}, adminEvent *models.AdminEvent, attempt *ConversionAttempt, diagnostics *ConversionDiagnostics) (*models.Activity, map[string]string, []string) {
 	var issues []string
 	fieldMappings := make(map[string]string)
+
+	log.Printf("[CONVERSION] Converting single event to Activity model")
+
+	// Log available fields in event data
+	availableFields := make([]string, 0, len(eventData))
+	for k := range eventData {
+		availableFields = append(availableFields, k)
+	}
+	attempt.Details["available_fields"] = availableFields
+	log.Printf("[CONVERSION] Available fields in event data: %v", availableFields)
 
 	activity := &models.Activity{
 		ID:        uuid.New().String(),
@@ -694,6 +920,112 @@ func (scs *SchemaConversionService) extractDomainFromURL(url string) string {
 	}
 
 	return domain
+}
+
+// analyzeRawDataStructure analyzes the structure of raw data for diagnostics
+func (scs *SchemaConversionService) analyzeRawDataStructure(rawData map[string]interface{}, diagnostics *ConversionDiagnostics) {
+	log.Printf("[CONVERSION] Analyzing raw data structure")
+
+	// Capture the structure of the raw data
+	for key, value := range rawData {
+		switch v := value.(type) {
+		case []interface{}:
+			diagnostics.RawDataStructure[key] = fmt.Sprintf("array[%d]", len(v))
+			log.Printf("[CONVERSION] Field '%s': array with %d items", key, len(v))
+			
+			// Sample first item if it's an object
+			if len(v) > 0 {
+				if firstItem, ok := v[0].(map[string]interface{}); ok {
+					sampleKey := key + "_sample"
+					diagnostics.RawDataSample[sampleKey] = firstItem
+					
+					// Log fields in first item
+					itemFields := make([]string, 0, len(firstItem))
+					for k := range firstItem {
+						itemFields = append(itemFields, k)
+					}
+					log.Printf("[CONVERSION] First item in '%s' has fields: %v", key, itemFields)
+				}
+			}
+		case map[string]interface{}:
+			diagnostics.RawDataStructure[key] = "object"
+			diagnostics.RawDataSample[key] = v
+			log.Printf("[CONVERSION] Field '%s': object with %d fields", key, len(v))
+		case string:
+			diagnostics.RawDataStructure[key] = "string"
+			if len(v) > 100 {
+				diagnostics.RawDataSample[key] = v[:100] + "..."
+			} else {
+				diagnostics.RawDataSample[key] = v
+			}
+			log.Printf("[CONVERSION] Field '%s': string (%d chars)", key, len(v))
+		default:
+			diagnostics.RawDataStructure[key] = fmt.Sprintf("%T", v)
+			diagnostics.RawDataSample[key] = v
+			log.Printf("[CONVERSION] Field '%s': %T", key, v)
+		}
+	}
+}
+
+// logConversionDiagnostics logs comprehensive conversion diagnostics
+func (scs *SchemaConversionService) logConversionDiagnostics(diagnostics *ConversionDiagnostics) {
+	log.Printf("[CONVERSION-DIAGNOSTICS] ========== CONVERSION DIAGNOSTICS ==========")
+	log.Printf("[CONVERSION-DIAGNOSTICS] Admin Event ID: %s", diagnostics.AdminEventID)
+	log.Printf("[CONVERSION-DIAGNOSTICS] Source URL: %s", diagnostics.SourceURL)
+	log.Printf("[CONVERSION-DIAGNOSTICS] Schema Type: %s", diagnostics.SchemaType)
+	log.Printf("[CONVERSION-DIAGNOSTICS] Processing Time: %v", diagnostics.ProcessingTime)
+	log.Printf("[CONVERSION-DIAGNOSTICS] Success: %t", diagnostics.Success)
+	log.Printf("[CONVERSION-DIAGNOSTICS] Confidence Score: %.1f", diagnostics.ConfidenceScore)
+
+	if diagnostics.ErrorMessage != "" {
+		log.Printf("[CONVERSION-DIAGNOSTICS] Error: %s", diagnostics.ErrorMessage)
+	}
+
+	log.Printf("[CONVERSION-DIAGNOSTICS] Raw Data Structure:")
+	for key, structure := range diagnostics.RawDataStructure {
+		log.Printf("[CONVERSION-DIAGNOSTICS]   %s: %s", key, structure)
+	}
+
+	log.Printf("[CONVERSION-DIAGNOSTICS] Conversion Attempts: %d", len(diagnostics.ExtractionAttempts))
+	for i, attempt := range diagnostics.ExtractionAttempts {
+		log.Printf("[CONVERSION-DIAGNOSTICS]   Attempt %d: %s - Success: %t, Events: %d", 
+			i+1, attempt.Step, attempt.Success, attempt.EventsFound)
+		
+		if len(attempt.Issues) > 0 {
+			log.Printf("[CONVERSION-DIAGNOSTICS]     Issues: %v", attempt.Issues)
+		}
+		
+		if len(attempt.Details) > 0 {
+			log.Printf("[CONVERSION-DIAGNOSTICS]     Details: %v", attempt.Details)
+		}
+	}
+
+	log.Printf("[CONVERSION-DIAGNOSTICS] Field Mappings: %d", len(diagnostics.FieldMappings))
+	for field, source := range diagnostics.FieldMappings {
+		log.Printf("[CONVERSION-DIAGNOSTICS]   %s -> %s", field, source)
+	}
+
+	log.Printf("[CONVERSION-DIAGNOSTICS] Conversion Issues: %d", len(diagnostics.ConversionIssues))
+	for i, issue := range diagnostics.ConversionIssues {
+		log.Printf("[CONVERSION-DIAGNOSTICS]   Issue %d [%s/%s]: %s - %s", 
+			i+1, issue.Severity, issue.Type, issue.Field, issue.Message)
+		if issue.Suggestion != "" {
+			log.Printf("[CONVERSION-DIAGNOSTICS]     Suggestion: %s", issue.Suggestion)
+		}
+		if issue.RawValue != "" {
+			log.Printf("[CONVERSION-DIAGNOSTICS]     Raw Value: %s", issue.RawValue)
+		}
+	}
+
+	log.Printf("[CONVERSION-DIAGNOSTICS] ===============================================")
+}
+
+// GetConversionDiagnostics returns the last conversion diagnostics (for testing/debugging)
+var lastConversionDiagnostics *ConversionDiagnostics
+
+// GetLastConversionDiagnostics returns the diagnostics from the last conversion
+func (scs *SchemaConversionService) GetLastConversionDiagnostics() *ConversionDiagnostics {
+	return lastConversionDiagnostics
 }
 
 // PreviewConversion generates a preview of what the conversion would look like

@@ -12,6 +12,41 @@ import (
 	"seattle-family-activities-scraper/internal/models"
 )
 
+// ExtractionDiagnostics captures detailed information about the extraction process
+type ExtractionDiagnostics struct {
+	URL                string                 `json:"url"`
+	StartTime          time.Time              `json:"start_time"`
+	EndTime            time.Time              `json:"end_time"`
+	ProcessingTime     time.Duration          `json:"processing_time"`
+	RawMarkdownLength  int                    `json:"raw_markdown_length"`
+	RawMarkdownSample  string                 `json:"raw_markdown_sample"`
+	ExtractionAttempts []ExtractionAttempt    `json:"extraction_attempts"`
+	StructuredData     map[string]interface{} `json:"structured_data"`
+	ValidationIssues   []ValidationIssue      `json:"validation_issues"`
+	CreditsUsed        int                    `json:"credits_used"`
+	Success            bool                   `json:"success"`
+	ErrorMessage       string                 `json:"error_message,omitempty"`
+}
+
+// ExtractionAttempt represents a single attempt to extract data
+type ExtractionAttempt struct {
+	Method      string                 `json:"method"`
+	Timestamp   time.Time              `json:"timestamp"`
+	Success     bool                   `json:"success"`
+	EventsFound int                    `json:"events_found"`
+	Details     map[string]interface{} `json:"details"`
+	Issues      []string               `json:"issues"`
+}
+
+// ValidationIssue represents a validation problem found during extraction
+type ValidationIssue struct {
+	Severity   string `json:"severity"`    // error|warning|info
+	Field      string `json:"field"`
+	Message    string `json:"message"`
+	Suggestion string `json:"suggestion"`
+	RawValue   string `json:"raw_value,omitempty"`
+}
+
 // FireCrawlClient handles content extraction and structured data extraction using FireCrawl
 type FireCrawlClient struct {
 	client  *firecrawl.FirecrawlApp
@@ -75,8 +110,22 @@ func NewFireCrawlClientWithTimeout(timeout time.Duration) (*FireCrawlClient, err
 // ExtractActivities extracts structured activities from a webpage URL
 func (fc *FireCrawlClient) ExtractActivities(url string) (*FireCrawlExtractResponse, error) {
 	startTime := time.Now()
+	
+	// Initialize diagnostics
+	diagnostics := &ExtractionDiagnostics{
+		URL:                url,
+		StartTime:          startTime,
+		ExtractionAttempts: []ExtractionAttempt{},
+		ValidationIssues:   []ValidationIssue{},
+		StructuredData:     make(map[string]interface{}),
+	}
 
 	if url == "" {
+		diagnostics.EndTime = time.Now()
+		diagnostics.ProcessingTime = time.Since(startTime)
+		diagnostics.Success = false
+		diagnostics.ErrorMessage = "URL cannot be empty"
+		fc.logDiagnostics(diagnostics)
 		return nil, fmt.Errorf("URL cannot be empty")
 	}
 
@@ -85,76 +134,160 @@ func (fc *FireCrawlClient) ExtractActivities(url string) (*FireCrawlExtractRespo
 	schema := getActivityExtractionSchema()
 	_ = schema // Suppress unused variable warning
 
-	log.Printf("Starting FireCrawl extract for URL: %s", url)
+	log.Printf("[EXTRACTION] Starting FireCrawl extract for URL: %s", url)
 
 	// Make the extract request using ScrapeURL with extraction parameters
 	// Note: Using nil for now - will need to create proper ScrapeParams struct
 	response, err := fc.client.ScrapeURL(url, nil)
 	if err != nil {
+		diagnostics.EndTime = time.Now()
+		diagnostics.ProcessingTime = time.Since(startTime)
+		diagnostics.Success = false
+		diagnostics.ErrorMessage = fmt.Sprintf("FireCrawl extract failed: %v", err)
+		fc.logDiagnostics(diagnostics)
 		return nil, fmt.Errorf("FireCrawl extract failed: %w", err)
 	}
 
-	// Parse the response
-	extractResponse, err := fc.parseExtractResponse(response, url, startTime)
+	// Parse the response with diagnostics
+	extractResponse, err := fc.parseExtractResponseWithDiagnostics(response, url, startTime, diagnostics)
 	if err != nil {
+		diagnostics.EndTime = time.Now()
+		diagnostics.ProcessingTime = time.Since(startTime)
+		diagnostics.Success = false
+		diagnostics.ErrorMessage = fmt.Sprintf("Failed to parse extract response: %v", err)
+		fc.logDiagnostics(diagnostics)
 		return nil, fmt.Errorf("failed to parse extract response: %w", err)
 	}
 
-	log.Printf("Successfully extracted %d activities from %s in %v",
-		len(extractResponse.Data.Activities), url, time.Since(startTime))
+	// Complete diagnostics
+	diagnostics.EndTime = time.Now()
+	diagnostics.ProcessingTime = time.Since(startTime)
+	diagnostics.Success = true
+	diagnostics.CreditsUsed = extractResponse.CreditsUsed
+
+	// Log final diagnostics and store for debugging
+	fc.logDiagnostics(diagnostics)
+	lastExtractionDiagnostics = diagnostics
+
+	log.Printf("[EXTRACTION] Successfully extracted %d activities from %s in %v (Credits: %d)",
+		len(extractResponse.Data.Activities), url, time.Since(startTime), extractResponse.CreditsUsed)
 
 	return extractResponse, nil
 }
 
-// parseExtractResponse parses the FireCrawl response into our structure
+// parseExtractResponse parses the FireCrawl response into our structure (legacy method)
 func (fc *FireCrawlClient) parseExtractResponse(response interface{}, url string, startTime time.Time) (*FireCrawlExtractResponse, error) {
+	// Create basic diagnostics for legacy calls
+	diagnostics := &ExtractionDiagnostics{
+		URL:                url,
+		StartTime:          startTime,
+		ExtractionAttempts: []ExtractionAttempt{},
+		ValidationIssues:   []ValidationIssue{},
+		StructuredData:     make(map[string]interface{}),
+	}
+	
+	return fc.parseExtractResponseWithDiagnostics(response, url, startTime, diagnostics)
+}
+
+// parseExtractResponseWithDiagnostics parses the FireCrawl response with comprehensive diagnostics
+func (fc *FireCrawlClient) parseExtractResponseWithDiagnostics(response interface{}, url string, startTime time.Time, diagnostics *ExtractionDiagnostics) (*FireCrawlExtractResponse, error) {
 	// Handle the actual FirecrawlDocument response
 	doc, ok := response.(*firecrawl.FirecrawlDocument)
 	if !ok {
+		diagnostics.ValidationIssues = append(diagnostics.ValidationIssues, ValidationIssue{
+			Severity: "error",
+			Field:    "response_type",
+			Message:  fmt.Sprintf("Unexpected response format from FireCrawl - got %T instead of *firecrawl.FirecrawlDocument", response),
+			Suggestion: "Check FireCrawl API response format",
+		})
 		return nil, fmt.Errorf("unexpected response format from FireCrawl - got %T instead of *firecrawl.FirecrawlDocument", response)
 	}
 
-	log.Printf("Got markdown content from FireCrawl: %d characters", len(doc.Markdown))
+	// Log raw markdown content details
+	diagnostics.RawMarkdownLength = len(doc.Markdown)
+	if len(doc.Markdown) > 500 {
+		diagnostics.RawMarkdownSample = doc.Markdown[:500] + "..."
+	} else {
+		diagnostics.RawMarkdownSample = doc.Markdown
+	}
+
+	log.Printf("[EXTRACTION] Got markdown content from FireCrawl: %d characters", len(doc.Markdown))
+	log.Printf("[EXTRACTION] Markdown sample (first 200 chars): %s", 
+		func() string {
+			if len(doc.Markdown) > 200 {
+				return doc.Markdown[:200] + "..."
+			}
+			return doc.Markdown
+		}())
 
 	// Parse activities from the markdown content
-	// For now, create sample activities based on the content we extract
 	var activities []models.Activity
+	var extractionAttempt ExtractionAttempt
 
 	// Check if this looks like a ParentMap calendar page with activities
 	if strings.Contains(doc.Markdown, "Calendar") || strings.Contains(url, "parentmap.com") {
-		activities = fc.parseParentMapActivities(doc.Markdown, url)
+		extractionAttempt = ExtractionAttempt{
+			Method:    "parseParentMapActivities",
+			Timestamp: time.Now(),
+		}
+		
+		log.Printf("[EXTRACTION] Detected ParentMap content, using specialized parser")
+		activities = fc.parseParentMapActivitiesWithDiagnostics(doc.Markdown, url, &extractionAttempt)
+		
+		extractionAttempt.Success = len(activities) > 0
+		extractionAttempt.EventsFound = len(activities)
+		
+		if len(activities) == 0 {
+			extractionAttempt.Issues = append(extractionAttempt.Issues, "No activities found in ParentMap content")
+			diagnostics.ValidationIssues = append(diagnostics.ValidationIssues, ValidationIssue{
+				Severity: "warning",
+				Field:    "activities",
+				Message:  "No activities extracted from ParentMap content",
+				Suggestion: "Check if the page contains calendar events or activities",
+			})
+		}
 	} else {
-		// For other URLs, create a test activity to show the pipeline works
-		activities = []models.Activity{
-			{
-				ID:          "firecrawl-test-" + fmt.Sprintf("%d", time.Now().Unix()),
-				Title:       "Test Activity from FireCrawl",
-				Description: "This is a test activity extracted via FireCrawl from " + url,
-				Type:        "event",
-				Category:    "educational-stem",
-				Schedule: models.Schedule{
-					StartDate: time.Now().Format("2006-01-02"),
-					StartTime: "10:00 AM",
-				},
-				Location: models.Location{
-					Name: "Test Location",
-					City: "Seattle",
-					Region: "Seattle Metro",
-				},
-				Pricing: models.Pricing{
-					Type:        "free",
-					Description: "Free event",
-					Currency:    "USD",
-				},
-				AgeGroups: []models.AgeGroup{
-					{
-						Category:    "all-ages",
-						Description: "All ages welcome",
-					},
-				},
-			},
+		extractionAttempt = ExtractionAttempt{
+			Method:    "genericExtraction",
+			Timestamp: time.Now(),
+		}
+		
+		log.Printf("[EXTRACTION] Using generic extraction for URL: %s", url)
+		activities = fc.extractGenericActivitiesWithDiagnostics(doc.Markdown, url, &extractionAttempt)
+		
+		extractionAttempt.Success = len(activities) > 0
+		extractionAttempt.EventsFound = len(activities)
+		
+		if len(activities) == 0 {
+			extractionAttempt.Issues = append(extractionAttempt.Issues, "No activities found using generic extraction")
+			diagnostics.ValidationIssues = append(diagnostics.ValidationIssues, ValidationIssue{
+				Severity: "warning",
+				Field:    "activities",
+				Message:  "No activities extracted using generic method",
+				Suggestion: "Content may require specialized parsing logic",
+			})
 		}
 	}
+
+	diagnostics.ExtractionAttempts = append(diagnostics.ExtractionAttempts, extractionAttempt)
+
+	// Validate extracted activities
+	fc.validateExtractedActivities(activities, diagnostics)
+
+	// Store structured data for diagnostics
+	activitiesData := make([]map[string]interface{}, len(activities))
+	for i, activity := range activities {
+		activitiesData[i] = map[string]interface{}{
+			"id":          activity.ID,
+			"title":       activity.Title,
+			"description": activity.Description,
+			"type":        activity.Type,
+			"category":    activity.Category,
+		}
+	}
+	diagnostics.StructuredData["activities"] = activitiesData
+
+	log.Printf("[EXTRACTION] Extraction completed: %d activities found", len(activities))
 
 	return &FireCrawlExtractResponse{
 		Success: true,
@@ -626,21 +759,79 @@ func parseAgeGroup(ageGroupStr string) models.AgeGroup {
 	}
 }
 
-// parseParentMapActivities extracts activities from ParentMap calendar markdown
+// parseParentMapActivities extracts activities from ParentMap calendar markdown (legacy method)
 func (fc *FireCrawlClient) parseParentMapActivities(markdown, url string) []models.Activity {
+	attempt := ExtractionAttempt{
+		Method:    "parseParentMapActivities",
+		Timestamp: time.Now(),
+	}
+	return fc.parseParentMapActivitiesWithDiagnostics(markdown, url, &attempt)
+}
+
+// parseParentMapActivitiesWithDiagnostics extracts activities from ParentMap calendar markdown with diagnostics
+func (fc *FireCrawlClient) parseParentMapActivitiesWithDiagnostics(markdown, url string, attempt *ExtractionAttempt) []models.Activity {
 	var activities []models.Activity
 
-	// Simple parsing for now - look for activity patterns in the markdown
-	// This is a basic implementation that could be enhanced with more sophisticated parsing
+	log.Printf("[PARENTMAP] Starting ParentMap-specific parsing for %d characters of content", len(markdown))
 
-	// Count activities found in the markdown (simple heuristic)
-	activityCount := strings.Count(markdown, "###")
+	// Enhanced parsing for ParentMap content
+	attempt.Details = make(map[string]interface{})
+	
+	// Count different types of potential activity markers
+	headerCount := strings.Count(markdown, "###")
+	h2Count := strings.Count(markdown, "##")
+	h1Count := strings.Count(markdown, "#")
+	
+	attempt.Details["header_counts"] = map[string]int{
+		"h3": headerCount,
+		"h2": h2Count,
+		"h1": h1Count,
+	}
+
+	log.Printf("[PARENTMAP] Found headers - H1: %d, H2: %d, H3: %d", h1Count, h2Count, headerCount)
+
+	// Look for calendar-specific patterns
+	calendarPatterns := []string{"Calendar", "Events", "Activities", "What's On"}
+	foundPatterns := []string{}
+	for _, pattern := range calendarPatterns {
+		if strings.Contains(markdown, pattern) {
+			foundPatterns = append(foundPatterns, pattern)
+		}
+	}
+	
+	attempt.Details["calendar_patterns_found"] = foundPatterns
+	log.Printf("[PARENTMAP] Found calendar patterns: %v", foundPatterns)
+
+	// Look for date patterns that might indicate events
+	datePatterns := []string{
+		"January", "February", "March", "April", "May", "June",
+		"July", "August", "September", "October", "November", "December",
+		"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
+		"2024", "2025",
+	}
+	
+	dateMatches := 0
+	for _, pattern := range datePatterns {
+		dateMatches += strings.Count(markdown, pattern)
+	}
+	
+	attempt.Details["date_pattern_matches"] = dateMatches
+	log.Printf("[PARENTMAP] Found %d date pattern matches", dateMatches)
+
+	// Simple parsing for now - look for activity patterns in the markdown
+	activityCount := headerCount
+	if activityCount == 0 {
+		activityCount = h2Count // Fallback to H2 headers
+	}
+	
 	if activityCount > 0 {
-		log.Printf("Found approximately %d activities in ParentMap content", activityCount)
+		log.Printf("[PARENTMAP] Found approximately %d potential activities in ParentMap content", activityCount)
+		attempt.Details["estimated_activities"] = activityCount
 
 		// Create sample activities representing what we found
-		for i := 0; i < min(activityCount, 5); i++ { // Limit to 5 for testing
-			activities = append(activities, models.Activity{
+		maxActivities := min(activityCount, 5) // Limit to 5 for testing
+		for i := 0; i < maxActivities; i++ {
+			activity := models.Activity{
 				ID:          fmt.Sprintf("parentmap-%d-%d", time.Now().Unix(), i),
 				Title:       fmt.Sprintf("ParentMap Activity %d", i+1),
 				Description: "Activity extracted from ParentMap calendar via FireCrawl",
@@ -666,10 +857,78 @@ func (fc *FireCrawlClient) parseParentMapActivities(markdown, url string) []mode
 						Description: "Family-friendly",
 					},
 				},
-			})
+			}
+			activities = append(activities, activity)
+			log.Printf("[PARENTMAP] Created activity %d: %s", i+1, activity.Title)
 		}
+	} else {
+		attempt.Issues = append(attempt.Issues, "No header patterns found that could indicate activities")
+		log.Printf("[PARENTMAP] No clear activity patterns found in content")
 	}
 
+	log.Printf("[PARENTMAP] ParentMap parsing completed: %d activities extracted", len(activities))
+	return activities
+}
+
+// extractGenericActivitiesWithDiagnostics extracts activities using generic patterns with diagnostics
+func (fc *FireCrawlClient) extractGenericActivitiesWithDiagnostics(markdown, url string, attempt *ExtractionAttempt) []models.Activity {
+	var activities []models.Activity
+
+	log.Printf("[GENERIC] Starting generic extraction for %d characters of content", len(markdown))
+
+	attempt.Details = make(map[string]interface{})
+	
+	// Look for common event/activity indicators
+	eventKeywords := []string{"event", "activity", "class", "workshop", "program", "camp", "performance"}
+	keywordMatches := make(map[string]int)
+	
+	for _, keyword := range eventKeywords {
+		count := strings.Count(strings.ToLower(markdown), keyword)
+		if count > 0 {
+			keywordMatches[keyword] = count
+		}
+	}
+	
+	attempt.Details["keyword_matches"] = keywordMatches
+	log.Printf("[GENERIC] Found keyword matches: %v", keywordMatches)
+
+	// For other URLs, create a test activity to show the pipeline works
+	if len(keywordMatches) > 0 || len(markdown) > 100 {
+		activity := models.Activity{
+			ID:          "firecrawl-test-" + fmt.Sprintf("%d", time.Now().Unix()),
+			Title:       "Test Activity from FireCrawl",
+			Description: "This is a test activity extracted via FireCrawl from " + url,
+			Type:        "event",
+			Category:    "educational-stem",
+			Schedule: models.Schedule{
+				StartDate: time.Now().Format("2006-01-02"),
+				StartTime: "10:00 AM",
+			},
+			Location: models.Location{
+				Name: "Test Location",
+				City: "Seattle",
+				Region: "Seattle Metro",
+			},
+			Pricing: models.Pricing{
+				Type:        "free",
+				Description: "Free event",
+				Currency:    "USD",
+			},
+			AgeGroups: []models.AgeGroup{
+				{
+					Category:    "all-ages",
+					Description: "All ages welcome",
+				},
+			},
+		}
+		activities = append(activities, activity)
+		log.Printf("[GENERIC] Created test activity: %s", activity.Title)
+	} else {
+		attempt.Issues = append(attempt.Issues, "No recognizable content patterns found")
+		log.Printf("[GENERIC] No recognizable content patterns found")
+	}
+
+	log.Printf("[GENERIC] Generic extraction completed: %d activities extracted", len(activities))
 	return activities
 }
 
@@ -690,6 +949,121 @@ func (fc *FireCrawlClient) extractCreditsFromDoc(doc *firecrawl.FirecrawlDocumen
 	// For now, assume 1 credit per request
 	// In a real implementation, this would be extracted from the response metadata
 	return 1
+}
+
+// validateExtractedActivities validates the extracted activities and adds issues to diagnostics
+func (fc *FireCrawlClient) validateExtractedActivities(activities []models.Activity, diagnostics *ExtractionDiagnostics) {
+	log.Printf("[VALIDATION] Validating %d extracted activities", len(activities))
+
+	for i, activity := range activities {
+		activityPrefix := fmt.Sprintf("activity_%d", i+1)
+
+		// Check required fields
+		if activity.Title == "" {
+			diagnostics.ValidationIssues = append(diagnostics.ValidationIssues, ValidationIssue{
+				Severity:   "error",
+				Field:      activityPrefix + ".title",
+				Message:    "Activity title is empty",
+				Suggestion: "Ensure title extraction logic captures event names",
+			})
+		}
+
+		if activity.Location.Name == "" {
+			diagnostics.ValidationIssues = append(diagnostics.ValidationIssues, ValidationIssue{
+				Severity:   "warning",
+				Field:      activityPrefix + ".location.name",
+				Message:    "Activity location name is empty",
+				Suggestion: "Add location extraction from venue or address information",
+			})
+		}
+
+		if activity.Schedule.StartDate == "" {
+			diagnostics.ValidationIssues = append(diagnostics.ValidationIssues, ValidationIssue{
+				Severity:   "warning",
+				Field:      activityPrefix + ".schedule.start_date",
+				Message:    "Activity start date is empty",
+				Suggestion: "Implement date pattern recognition in markdown content",
+			})
+		}
+
+		// Check data quality
+		if len(activity.Description) < 10 {
+			diagnostics.ValidationIssues = append(diagnostics.ValidationIssues, ValidationIssue{
+				Severity:   "info",
+				Field:      activityPrefix + ".description",
+				Message:    "Activity description is very short",
+				Suggestion: "Consider extracting more detailed content from the source",
+			})
+		}
+
+		if len(activity.AgeGroups) == 0 {
+			diagnostics.ValidationIssues = append(diagnostics.ValidationIssues, ValidationIssue{
+				Severity:   "info",
+				Field:      activityPrefix + ".age_groups",
+				Message:    "No age groups specified",
+				Suggestion: "Add age group detection from content patterns",
+			})
+		}
+	}
+
+	log.Printf("[VALIDATION] Validation completed: %d issues found", len(diagnostics.ValidationIssues))
+}
+
+// logDiagnostics logs comprehensive diagnostics information
+func (fc *FireCrawlClient) logDiagnostics(diagnostics *ExtractionDiagnostics) {
+	log.Printf("[DIAGNOSTICS] ========== EXTRACTION DIAGNOSTICS ==========")
+	log.Printf("[DIAGNOSTICS] URL: %s", diagnostics.URL)
+	log.Printf("[DIAGNOSTICS] Processing Time: %v", diagnostics.ProcessingTime)
+	log.Printf("[DIAGNOSTICS] Success: %t", diagnostics.Success)
+	log.Printf("[DIAGNOSTICS] Raw Markdown Length: %d characters", diagnostics.RawMarkdownLength)
+	
+	if diagnostics.ErrorMessage != "" {
+		log.Printf("[DIAGNOSTICS] Error: %s", diagnostics.ErrorMessage)
+	}
+
+	log.Printf("[DIAGNOSTICS] Extraction Attempts: %d", len(diagnostics.ExtractionAttempts))
+	for i, attempt := range diagnostics.ExtractionAttempts {
+		log.Printf("[DIAGNOSTICS]   Attempt %d: %s - Success: %t, Events: %d", 
+			i+1, attempt.Method, attempt.Success, attempt.EventsFound)
+		
+		if len(attempt.Issues) > 0 {
+			log.Printf("[DIAGNOSTICS]     Issues: %v", attempt.Issues)
+		}
+		
+		if len(attempt.Details) > 0 {
+			log.Printf("[DIAGNOSTICS]     Details: %v", attempt.Details)
+		}
+	}
+
+	log.Printf("[DIAGNOSTICS] Validation Issues: %d", len(diagnostics.ValidationIssues))
+	for i, issue := range diagnostics.ValidationIssues {
+		log.Printf("[DIAGNOSTICS]   Issue %d [%s]: %s - %s", 
+			i+1, issue.Severity, issue.Field, issue.Message)
+		if issue.Suggestion != "" {
+			log.Printf("[DIAGNOSTICS]     Suggestion: %s", issue.Suggestion)
+		}
+	}
+
+	if len(diagnostics.StructuredData) > 0 {
+		log.Printf("[DIAGNOSTICS] Structured Data Keys: %v", func() []string {
+			keys := make([]string, 0, len(diagnostics.StructuredData))
+			for k := range diagnostics.StructuredData {
+				keys = append(keys, k)
+			}
+			return keys
+		}())
+	}
+
+	log.Printf("[DIAGNOSTICS] Credits Used: %d", diagnostics.CreditsUsed)
+	log.Printf("[DIAGNOSTICS] ============================================")
+}
+
+// GetExtractionDiagnostics returns the last extraction diagnostics (for testing/debugging)
+var lastExtractionDiagnostics *ExtractionDiagnostics
+
+// GetLastExtractionDiagnostics returns the diagnostics from the last extraction
+func (fc *FireCrawlClient) GetLastExtractionDiagnostics() *ExtractionDiagnostics {
+	return lastExtractionDiagnostics
 }
 
 // min returns the minimum of two integers
