@@ -79,6 +79,8 @@ type ConversionResult struct {
 	Issues           []string  `json:"issues"`
 	FieldMappings    map[string]string `json:"field_mappings"`
 	ConfidenceScore  float64   `json:"confidence_score"`
+	DetailedMappings map[string]interface{} `json:"detailed_mappings,omitempty"` // Enhanced field mapping details
+	ValidationResults map[string]interface{} `json:"validation_results,omitempty"` // Field validation results
 }
 
 // DynamoDB Key Generation Functions

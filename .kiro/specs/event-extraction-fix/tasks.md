@@ -27,20 +27,20 @@
     - Add confidence scoring based on extraction quality
     - _Requirements: 1.2, 3.2_
 
-- [ ] 3. Improve schema conversion service error handling and validation
-  - [ ] 3.1 Enhance `extractEventsFromRawData()` with better error reporting
+- [-] 3. Improve schema conversion service error handling and validation
+  - [x] 3.1 Enhance `extractEventsFromRawData()` with better error reporting
     - Add detailed logging when events array is empty or malformed
     - Log the actual data structure received vs expected structure
     - Provide specific error messages about missing or invalid data fields
     - _Requirements: 2.1, 2.2, 2.4_
 
-  - [ ] 3.2 Add fallback strategies for malformed data in `convertSingleEvent()`
+  - [x] 3.2 Add fallback strategies for malformed data in `convertSingleEvent()`
     - Implement multiple field name attempts for each required field
     - Add data type conversion and sanitization for extracted values
     - Create default value strategies when required fields are missing
     - _Requirements: 1.1, 3.2, 3.3_
 
-  - [ ] 3.3 Implement comprehensive field mapping and validation
+  - [x] 3.3 Implement comprehensive field mapping and validation
     - Track which source fields were used for each Activity field
     - Add validation for extracted dates, times, and other structured data
     - Create detailed conversion issue reporting with suggestions
