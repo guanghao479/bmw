@@ -209,6 +209,16 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	case method == "GET" && path == "/api/sources/active":
 		responseBody, statusCode = handleGetActiveSources(ctx, request.QueryStringParameters)
 
+	// Metrics and Monitoring API
+	case method == "GET" && path == "/api/metrics/dashboard":
+		responseBody, statusCode = handleGetMetricsDashboard(ctx)
+
+	case method == "GET" && path == "/api/metrics/alerts":
+		responseBody, statusCode = handleGetMetricsAlerts(ctx)
+
+	case method == "POST" && path == "/api/metrics/reset":
+		responseBody, statusCode = handleResetMetrics(ctx)
+
 	default:
 		responseBody = ResponseBody{
 			Success: false,
@@ -2439,6 +2449,44 @@ func extractSourceNameFromURL(urlStr string) string {
 	return domain
 }
 
+
+// handleGetMetricsDashboard handles GET /api/metrics/dashboard
+func handleGetMetricsDashboard(ctx context.Context) (ResponseBody, int) {
+	metrics := services.GetExtractionMetrics()
+	dashboardData := metrics.GetDashboardMetrics()
+
+	return ResponseBody{
+		Success: true,
+		Message: "Metrics dashboard data retrieved successfully",
+		Data:    dashboardData,
+	}, 200
+}
+
+// handleGetMetricsAlerts handles GET /api/metrics/alerts
+func handleGetMetricsAlerts(ctx context.Context) (ResponseBody, int) {
+	metrics := services.GetExtractionMetrics()
+	alerts := metrics.CheckAlerts()
+
+	return ResponseBody{
+		Success: true,
+		Message: "Metrics alerts retrieved successfully",
+		Data: map[string]interface{}{
+			"alerts": alerts,
+			"count":  len(alerts),
+		},
+	}, 200
+}
+
+// handleResetMetrics handles POST /api/metrics/reset
+func handleResetMetrics(ctx context.Context) (ResponseBody, int) {
+	metrics := services.GetExtractionMetrics()
+	metrics.ResetMetrics()
+
+	return ResponseBody{
+		Success: true,
+		Message: "Metrics have been reset successfully",
+	}, 200
+}
 
 func main() {
 	lambda.Start(handleRequest)

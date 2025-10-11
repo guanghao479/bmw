@@ -187,6 +187,11 @@ func (scs *SchemaConversionService) ConvertToActivity(adminEvent *models.AdminEv
 	scs.logConversionDiagnostics(diagnostics)
 	lastConversionDiagnostics = diagnostics
 
+	// Record conversion metrics
+	qualityMetrics := scs.calculateConversionQualityMetrics(activity, issues)
+	metrics := GetExtractionMetrics()
+	metrics.RecordConversionAttempt(activity != nil, qualityMetrics)
+
 	log.Printf("[CONVERSION] Conversion completed: Success=%t, Confidence=%.1f, Issues=%d", 
 		activity != nil, confidence, len(issues))
 
@@ -1160,9 +1165,20 @@ func (scs *SchemaConversionService) extractEventsArrayWithValidation(rawData map
 		return nil, fmt.Errorf("no '%s' array found in raw data", arrayKey)
 	}
 	
-	// Validate that the value is actually an array
-	arrayValue, ok := rawData[arrayKey].([]interface{})
-	if !ok {
+	// Validate that the value is actually an array - handle both []interface{} and []map[string]interface{}
+	var arrayValue []interface{}
+	
+	// Try []interface{} first
+	if arr, ok := rawData[arrayKey].([]interface{}); ok {
+		arrayValue = arr
+	} else if arr, ok := rawData[arrayKey].([]map[string]interface{}); ok {
+		// Convert []map[string]interface{} to []interface{}
+		arrayValue = make([]interface{}, len(arr))
+		for i, item := range arr {
+			arrayValue[i] = item
+		}
+		log.Printf("[CONVERSION] Converted []map[string]interface{} to []interface{} for key '%s'", arrayKey)
+	} else {
 		actualType := fmt.Sprintf("%T", rawData[arrayKey])
 		err := fmt.Sprintf("Key '%s' is not an array (actual type: %s)", arrayKey, actualType)
 		attempt.Issues = append(attempt.Issues, err)

@@ -84,14 +84,14 @@
     - Add fallback to generic parsing when source-specific parsing fails
     - _Requirements: 3.1, 3.3_
 
-- [ ] 6. Validate and test the complete extraction pipeline
-  - [ ] 6.1 Test end-to-end extraction with problematic sources
+- [x] 6. Validate and test the complete extraction pipeline
+  - [x] 6.1 Test end-to-end extraction with problematic sources
     - Run extraction tests against ParentMap and Remlinger Farms URLs
     - Verify that events are successfully found AND converted to Activity models
     - Validate that converted activities appear correctly in the admin interface
     - _Requirements: 1.1, 1.3, 4.1, 4.2_
 
-  - [ ] 6.2 Implement monitoring and quality metrics
+  - [x] 6.2 Implement monitoring and quality metrics
     - Add success rate tracking for extraction and conversion processes
     - Create alerts for conversion failure patterns
     - Add dashboard metrics for extraction quality and performance

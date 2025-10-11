@@ -146,6 +146,11 @@ func (fc *FireCrawlClient) ExtractActivities(url string) (*FireCrawlExtractRespo
 		diagnostics.Success = false
 		diagnostics.ErrorMessage = fmt.Sprintf("FireCrawl extract failed: %v", err)
 		fc.logDiagnostics(diagnostics)
+		
+		// Record failed extraction
+		metrics := GetExtractionMetrics()
+		metrics.RecordExtractionAttempt(url, false, 0, time.Since(startTime), 0.0)
+		
 		return nil, fmt.Errorf("FireCrawl extract failed: %w", err)
 	}
 
@@ -169,6 +174,11 @@ func (fc *FireCrawlClient) ExtractActivities(url string) (*FireCrawlExtractRespo
 	// Log final diagnostics and store for debugging
 	fc.logDiagnostics(diagnostics)
 	lastExtractionDiagnostics = diagnostics
+
+	// Record metrics
+	qualityScore := fc.calculateExtractionQualityScore(extractResponse.Data.Activities, diagnostics)
+	metrics := GetExtractionMetrics()
+	metrics.RecordExtractionAttempt(url, true, len(extractResponse.Data.Activities), time.Since(startTime), qualityScore)
 
 	log.Printf("[EXTRACTION] Successfully extracted %d activities from %s in %v (Credits: %d)",
 		len(extractResponse.Data.Activities), url, time.Since(startTime), extractResponse.CreditsUsed)
