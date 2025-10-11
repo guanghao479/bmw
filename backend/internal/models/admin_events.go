@@ -65,6 +65,13 @@ type CrawlSubmissionRequest struct {
 	AdminNotes       string                 `json:"admin_notes,omitempty"`
 }
 
+// DebugExtractionRequest represents a request for debug extraction
+type DebugExtractionRequest struct {
+	URL          string                 `json:"url"`
+	SchemaType   string                 `json:"schema_type"`         // "events"|"activities"|"venues"|"custom"
+	CustomSchema map[string]interface{} `json:"custom_schema,omitempty"` // Only used if schema_type = "custom"
+}
+
 // AdminEventReview represents a review action on an admin event
 type AdminEventReview struct {
 	Action     string                 `json:"action"`      // "approve"|"reject"|"edit"

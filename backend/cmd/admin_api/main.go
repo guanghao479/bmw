@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"net/url"
 	"os"
 	"strings"
@@ -173,6 +174,10 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	// Admin Crawling Endpoints
 	case method == "POST" && path == "/api/crawl/submit":
 		responseBody, statusCode = handleCrawlSubmission(ctx, request.Body)
+
+	// Debug Endpoints
+	case method == "POST" && path == "/api/debug/extract":
+		responseBody, statusCode = handleDebugExtraction(ctx, request.Body)
 
 	case method == "GET" && path == "/api/events/pending":
 		responseBody, statusCode = handleGetPendingEvents(ctx, request.QueryStringParameters)
@@ -1246,6 +1251,452 @@ func handleCrawlSubmission(ctx context.Context, body string) (ResponseBody, int)
 	}, 201
 }
 
+// handleDebugExtraction handles POST /api/debug/extract
+func handleDebugExtraction(ctx context.Context, body string) (ResponseBody, int) {
+	if firecrawlService == nil {
+		return ResponseBody{
+			Success: false,
+			Error:   "Firecrawl service not available",
+		}, 500
+	}
+
+	var req models.DebugExtractionRequest
+	if err := json.Unmarshal([]byte(body), &req); err != nil {
+		return ResponseBody{
+			Success: false,
+			Error:   "Invalid request body: " + err.Error(),
+		}, 400
+	}
+
+	// Validate the request
+	if req.URL == "" {
+		return ResponseBody{
+			Success: false,
+			Error:   "URL is required",
+		}, 400
+	}
+
+	if req.SchemaType == "" {
+		req.SchemaType = "events" // Default schema type
+	}
+
+	// Create firecrawl extract request
+	extractRequest := services.AdminExtractRequest{
+		URL:          req.URL,
+		SchemaType:   req.SchemaType,
+		CustomSchema: req.CustomSchema,
+	}
+
+	// Perform extraction with detailed diagnostics
+	extractResponse, err := firecrawlService.ExtractWithSchema(extractRequest)
+	if err != nil {
+		log.Printf("Error extracting with Firecrawl: %v", err)
+		return ResponseBody{
+			Success: false,
+			Error:   "Failed to extract data from URL: " + err.Error(),
+		}, 500
+	}
+
+	// Create a temporary admin event for conversion testing
+	tempEventID := "debug-" + uuid.New().String()
+	tempAdminEvent := &models.AdminEvent{
+		EventID:          tempEventID,
+		SourceURL:        req.URL,
+		SchemaType:       req.SchemaType,
+		SchemaUsed:       extractResponse.SchemaUsed,
+		RawExtractedData: extractResponse.RawData,
+		Status:           models.AdminEventStatusPending,
+		ExtractedByUser:  "debug-user",
+		SubmissionID:     tempEventID,
+		AdminNotes:       "Debug extraction - not stored",
+		ExtractedAt:      time.Now(),
+	}
+
+	// Perform conversion with detailed diagnostics
+	conversionResult, conversionErr := conversionService.ConvertToActivity(tempAdminEvent)
+
+	// Get detailed diagnostics from the services
+	extractionDiagnostics := firecrawlService.GetLastExtractionDiagnostics()
+	conversionDiagnostics := conversionService.GetLastConversionDiagnostics()
+
+	// Build comprehensive debug response
+	debugResponse := map[string]interface{}{
+		"extraction": map[string]interface{}{
+			"url":             req.URL,
+			"schema_type":     req.SchemaType,
+			"success":         extractResponse.Success,
+			"events_count":    extractResponse.EventsCount,
+			"credits_used":    extractResponse.CreditsUsed,
+			"processing_time": extractResponse.Metadata.ProcessingTime.String(),
+			"schema_used":     extractResponse.SchemaUsed,
+		},
+		"raw_data": map[string]interface{}{
+			"structured_data": extractResponse.RawData,
+		},
+		"conversion": map[string]interface{}{
+			"success": conversionErr == nil,
+		},
+	}
+
+	// Add extraction diagnostics if available
+	if extractionDiagnostics != nil {
+		debugResponse["raw_data"].(map[string]interface{})["markdown_length"] = extractionDiagnostics.RawMarkdownLength
+		debugResponse["raw_data"].(map[string]interface{})["markdown_sample"] = extractionDiagnostics.RawMarkdownSample
+		debugResponse["extraction_diagnostics"] = extractionDiagnostics
+		
+		// Add validation issues from extraction
+		if len(extractionDiagnostics.ValidationIssues) > 0 {
+			debugResponse["extraction_validation"] = map[string]interface{}{
+				"issues": extractionDiagnostics.ValidationIssues,
+			}
+		}
+	}
+
+	// Add conversion details if successful
+	if conversionErr == nil && conversionResult != nil {
+		debugResponse["conversion"].(map[string]interface{})["activity"] = conversionResult.Activity
+		debugResponse["conversion"].(map[string]interface{})["issues"] = conversionResult.Issues
+		debugResponse["conversion"].(map[string]interface{})["field_mappings"] = conversionResult.FieldMappings
+		debugResponse["conversion"].(map[string]interface{})["confidence_score"] = conversionResult.ConfidenceScore
+		
+		// Add detailed mappings and validation results if available
+		if conversionResult.DetailedMappings != nil {
+			debugResponse["conversion"].(map[string]interface{})["detailed_mappings"] = conversionResult.DetailedMappings
+		}
+		if conversionResult.ValidationResults != nil {
+			debugResponse["conversion"].(map[string]interface{})["validation_results"] = conversionResult.ValidationResults
+		}
+	} else if conversionErr != nil {
+		debugResponse["conversion"].(map[string]interface{})["error"] = conversionErr.Error()
+	}
+
+	// Add conversion diagnostics if available
+	if conversionDiagnostics != nil {
+		debugResponse["conversion_diagnostics"] = conversionDiagnostics
+	}
+
+	// Add suggestions for improvement
+	suggestions := generateExtractionSuggestions(extractResponse, conversionResult, conversionErr)
+	if len(suggestions) > 0 {
+		debugResponse["suggestions"] = suggestions
+	}
+
+	return ResponseBody{
+		Success: true,
+		Message: "Debug extraction completed",
+		Data:    debugResponse,
+	}, 200
+}
+
+// generateExtractionSuggestions provides actionable suggestions based on extraction and conversion results
+func generateExtractionSuggestions(extractResponse *services.AdminExtractResponse, conversionResult *models.ConversionResult, conversionErr error) []string {
+	var suggestions []string
+
+	// Extraction-level suggestions
+	if !extractResponse.Success {
+		suggestions = append(suggestions, "Extraction failed - check if the URL is accessible and contains structured content")
+	}
+
+	if extractResponse.EventsCount == 0 {
+		suggestions = append(suggestions, "No events found - try a different schema type or check if the page contains event information")
+	}
+
+	// Conversion-level suggestions
+	if conversionErr != nil {
+		suggestions = append(suggestions, fmt.Sprintf("Conversion failed: %s", conversionErr.Error()))
+	}
+
+	if conversionResult != nil {
+		if conversionResult.ConfidenceScore < 50 {
+			suggestions = append(suggestions, "Low confidence score - extracted data may be incomplete or malformed")
+		}
+
+		if len(conversionResult.Issues) > 3 {
+			suggestions = append(suggestions, "Multiple conversion issues detected - consider using a different schema type or improving source data quality")
+		}
+
+		// Check for specific field mapping issues
+		if conversionResult.FieldMappings != nil {
+			missingFields := []string{}
+			for field, source := range conversionResult.FieldMappings {
+				if source == "not_found" || source == "generated" {
+					missingFields = append(missingFields, field)
+				}
+			}
+			if len(missingFields) > 0 {
+				suggestions = append(suggestions, fmt.Sprintf("Missing or generated fields: %s - check if source contains this information", strings.Join(missingFields, ", ")))
+			}
+		}
+	}
+
+	// Schema-specific suggestions
+	if extractResponse.SchemaUsed != nil && extractResponse.EventsCount > 0 {
+		suggestions = append(suggestions, "Successfully extracted events - consider this schema configuration for production")
+	}
+
+	return suggestions
+}
+
+// truncateString truncates a string to maxLength characters
+func truncateString(s string, maxLength int) string {
+	if len(s) <= maxLength {
+		return s
+	}
+	return s[:maxLength] + "..."
+}
+
+// generateConversionDetails creates detailed conversion information for an admin event
+func generateConversionDetails(ctx context.Context, event *models.AdminEvent) map[string]interface{} {
+	details := map[string]interface{}{
+		"has_conversion_preview": event.ConvertedData != nil,
+		"conversion_issues_count": len(event.ConversionIssues),
+		"conversion_status": "unknown",
+	}
+
+	// Attempt to regenerate conversion to get latest diagnostics
+	if conversionService != nil {
+		conversionResult, err := conversionService.ConvertToActivity(event)
+		if err != nil {
+			details["conversion_status"] = "failed"
+			details["conversion_error"] = err.Error()
+		} else if conversionResult != nil {
+			details["conversion_status"] = "success"
+			details["confidence_score"] = conversionResult.ConfidenceScore
+			details["field_mappings"] = conversionResult.FieldMappings
+			details["issues_count"] = len(conversionResult.Issues)
+			
+			// Add detailed mappings if available
+			if conversionResult.DetailedMappings != nil {
+				details["detailed_mappings"] = conversionResult.DetailedMappings
+			}
+			
+			// Add validation results if available
+			if conversionResult.ValidationResults != nil {
+				details["validation_results"] = conversionResult.ValidationResults
+			}
+
+			// Categorize issues by severity
+			issuesByType := make(map[string][]string)
+			for _, issue := range conversionResult.Issues {
+				// Simple categorization based on keywords
+				if strings.Contains(strings.ToLower(issue), "missing") {
+					issuesByType["missing_data"] = append(issuesByType["missing_data"], issue)
+				} else if strings.Contains(strings.ToLower(issue), "invalid") || strings.Contains(strings.ToLower(issue), "format") {
+					issuesByType["format_issues"] = append(issuesByType["format_issues"], issue)
+				} else {
+					issuesByType["other"] = append(issuesByType["other"], issue)
+				}
+			}
+			details["issues_by_type"] = issuesByType
+		}
+	}
+
+	return details
+}
+
+// generateRawDataSample creates a sample of the raw extracted data for debugging
+func generateRawDataSample(rawData map[string]interface{}) map[string]interface{} {
+	sample := map[string]interface{}{
+		"structure": analyzeDataStructure(rawData),
+		"sample_fields": make(map[string]interface{}),
+		"total_fields": len(rawData),
+	}
+
+	// Add samples of each top-level field
+	fieldCount := 0
+	for key, value := range rawData {
+		if fieldCount >= 5 { // Limit to first 5 fields
+			break
+		}
+
+		switch v := value.(type) {
+		case string:
+			sample["sample_fields"].(map[string]interface{})[key] = map[string]interface{}{
+				"type": "string",
+				"length": len(v),
+				"sample": truncateString(v, 100),
+			}
+		case []interface{}:
+			sample["sample_fields"].(map[string]interface{})[key] = map[string]interface{}{
+				"type": "array",
+				"length": len(v),
+				"sample": truncateArray(v, 2),
+			}
+		case map[string]interface{}:
+			sample["sample_fields"].(map[string]interface{})[key] = map[string]interface{}{
+				"type": "object",
+				"fields": len(v),
+				"sample": truncateObject(v, 3),
+			}
+		default:
+			sample["sample_fields"].(map[string]interface{})[key] = map[string]interface{}{
+				"type": fmt.Sprintf("%T", v),
+				"value": v,
+			}
+		}
+		fieldCount++
+	}
+
+	return sample
+}
+
+// assessDataQuality provides a quality assessment of the extracted data
+func assessDataQuality(event *models.AdminEvent) map[string]interface{} {
+	assessment := map[string]interface{}{
+		"overall_score": 0.0,
+		"factors": make(map[string]interface{}),
+		"recommendations": []string{},
+	}
+
+	score := 100.0
+	factors := make(map[string]interface{})
+
+	// Check if we have extracted data
+	if event.RawExtractedData == nil || len(event.RawExtractedData) == 0 {
+		score -= 50
+		factors["data_availability"] = map[string]interface{}{
+			"score": 0,
+			"message": "No extracted data available",
+		}
+		assessment["recommendations"] = append(assessment["recommendations"].([]string), "Re-run extraction with different schema or check source URL")
+	} else {
+		factors["data_availability"] = map[string]interface{}{
+			"score": 100,
+			"message": "Data successfully extracted",
+		}
+	}
+
+	// Check conversion success
+	if event.ConvertedData != nil {
+		factors["conversion_success"] = map[string]interface{}{
+			"score": 100,
+			"message": "Successfully converted to Activity model",
+		}
+	} else {
+		score -= 30
+		factors["conversion_success"] = map[string]interface{}{
+			"score": 0,
+			"message": "Failed to convert to Activity model",
+		}
+		assessment["recommendations"] = append(assessment["recommendations"].([]string), "Check conversion issues and consider different schema type")
+	}
+
+	// Check conversion issues
+	issueCount := len(event.ConversionIssues)
+	if issueCount == 0 {
+		factors["conversion_issues"] = map[string]interface{}{
+			"score": 100,
+			"message": "No conversion issues",
+		}
+	} else if issueCount <= 2 {
+		score -= 10
+		factors["conversion_issues"] = map[string]interface{}{
+			"score": 80,
+			"message": fmt.Sprintf("%d minor conversion issues", issueCount),
+		}
+	} else {
+		score -= 20
+		factors["conversion_issues"] = map[string]interface{}{
+			"score": 60,
+			"message": fmt.Sprintf("%d conversion issues detected", issueCount),
+		}
+		assessment["recommendations"] = append(assessment["recommendations"].([]string), "Review conversion issues and improve source data quality")
+	}
+
+	// Check events count
+	eventsCount := event.GetExtractedEventsCount()
+	if eventsCount == 0 {
+		score -= 40
+		factors["events_count"] = map[string]interface{}{
+			"score": 0,
+			"message": "No events found in extracted data",
+		}
+		assessment["recommendations"] = append(assessment["recommendations"].([]string), "Try different schema type or check if URL contains event information")
+	} else if eventsCount >= 1 && eventsCount <= 50 {
+		factors["events_count"] = map[string]interface{}{
+			"score": 100,
+			"message": fmt.Sprintf("%d events found", eventsCount),
+		}
+	} else {
+		score -= 10
+		factors["events_count"] = map[string]interface{}{
+			"score": 90,
+			"message": fmt.Sprintf("%d events found (unusually high)", eventsCount),
+		}
+		assessment["recommendations"] = append(assessment["recommendations"].([]string), "Verify extraction accuracy - high event count may indicate over-extraction")
+	}
+
+	assessment["overall_score"] = math.Max(0, score)
+	assessment["factors"] = factors
+
+	return assessment
+}
+
+// Helper functions for data sampling
+func truncateArray(arr []interface{}, maxItems int) []interface{} {
+	if len(arr) <= maxItems {
+		return arr
+	}
+	return arr[:maxItems]
+}
+
+func truncateObject(obj map[string]interface{}, maxFields int) map[string]interface{} {
+	if len(obj) <= maxFields {
+		return obj
+	}
+	
+	result := make(map[string]interface{})
+	count := 0
+	for k, v := range obj {
+		if count >= maxFields {
+			break
+		}
+		result[k] = v
+		count++
+	}
+	return result
+}
+
+func analyzeDataStructure(data map[string]interface{}) map[string]interface{} {
+	structure := map[string]interface{}{
+		"total_fields": len(data),
+		"field_types": make(map[string]int),
+		"array_fields": []string{},
+		"object_fields": []string{},
+		"string_fields": []string{},
+	}
+
+	fieldTypes := make(map[string]int)
+	var arrayFields, objectFields, stringFields []string
+
+	for key, value := range data {
+		switch value.(type) {
+		case string:
+			fieldTypes["string"]++
+			stringFields = append(stringFields, key)
+		case []interface{}:
+			fieldTypes["array"]++
+			arrayFields = append(arrayFields, key)
+		case map[string]interface{}:
+			fieldTypes["object"]++
+			objectFields = append(objectFields, key)
+		case int, int64, float64:
+			fieldTypes["number"]++
+		case bool:
+			fieldTypes["boolean"]++
+		default:
+			fieldTypes["other"]++
+		}
+	}
+
+	structure["field_types"] = fieldTypes
+	structure["array_fields"] = arrayFields
+	structure["object_fields"] = objectFields
+	structure["string_fields"] = stringFields
+
+	return structure
+}
+
 // handleGetPendingEvents handles GET /api/events/pending
 func handleGetPendingEvents(ctx context.Context, queryParams map[string]string) (ResponseBody, int) {
 	limit := int32(50)
@@ -1265,7 +1716,7 @@ func handleGetPendingEvents(ctx context.Context, queryParams map[string]string) 
 		}, 500
 	}
 
-	// Enhance each event with conversion preview
+	// Enhance each event with detailed conversion and diagnostic information
 	var enhancedEvents []map[string]interface{}
 	for _, event := range pendingEvents {
 		enhanced := map[string]interface{}{
@@ -1285,6 +1736,18 @@ func handleGetPendingEvents(ctx context.Context, queryParams map[string]string) 
 		if event.ConvertedData != nil {
 			enhanced["conversion_preview"] = event.ConvertedData
 		}
+
+		// Generate detailed conversion information
+		conversionDetails := generateConversionDetails(ctx, &event)
+		enhanced["conversion_details"] = conversionDetails
+
+		// Add raw data sample for debugging
+		rawDataSample := generateRawDataSample(event.RawExtractedData)
+		enhanced["raw_data_sample"] = rawDataSample
+
+		// Add data quality assessment
+		qualityAssessment := assessDataQuality(&event)
+		enhanced["quality_assessment"] = qualityAssessment
 
 		enhancedEvents = append(enhancedEvents, enhanced)
 	}
@@ -1381,19 +1844,61 @@ func handleApproveEvent(ctx context.Context, eventID string, body string) (Respo
 		}, 400
 	}
 
-	// Convert to Activity model
+	// Convert to Activity model with detailed diagnostics
 	conversionResult, err := conversionService.ConvertToActivity(adminEvent)
 	if err != nil {
+		// Get detailed conversion diagnostics for better error reporting
+		conversionDiagnostics := conversionService.GetLastConversionDiagnostics()
+		
+		errorDetails := map[string]interface{}{
+			"conversion_error": err.Error(),
+			"event_id": eventID,
+			"source_url": adminEvent.SourceURL,
+			"schema_type": adminEvent.SchemaType,
+		}
+		
+		if conversionDiagnostics != nil {
+			errorDetails["diagnostics"] = map[string]interface{}{
+				"processing_time": conversionDiagnostics.ProcessingTime.String(),
+				"conversion_issues": conversionDiagnostics.ConversionIssues,
+				"field_mappings": conversionDiagnostics.FieldMappings,
+				"confidence_score": conversionDiagnostics.ConfidenceScore,
+			}
+		}
+		
 		return ResponseBody{
 			Success: false,
-			Error:   "Failed to convert event to activity: " + err.Error(),
+			Error:   "Failed to convert event to activity - see details for more information",
+			Data:    errorDetails,
 		}, 500
 	}
 
 	if conversionResult.Activity == nil {
+		errorDetails := map[string]interface{}{
+			"conversion_issues": conversionResult.Issues,
+			"field_mappings": conversionResult.FieldMappings,
+			"confidence_score": conversionResult.ConfidenceScore,
+			"event_id": eventID,
+			"source_url": adminEvent.SourceURL,
+			"suggestions": []string{
+				"Check if the extracted data contains valid event information",
+				"Try using a different schema type for extraction",
+				"Review the conversion issues for specific problems",
+			},
+		}
+		
+		if conversionResult.DetailedMappings != nil {
+			errorDetails["detailed_mappings"] = conversionResult.DetailedMappings
+		}
+		
+		if conversionResult.ValidationResults != nil {
+			errorDetails["validation_results"] = conversionResult.ValidationResults
+		}
+		
 		return ResponseBody{
 			Success: false,
-			Error:   "Could not generate valid activity from event data",
+			Error:   "Could not generate valid activity from event data - see details for diagnostic information",
+			Data:    errorDetails,
 		}, 400
 	}
 
@@ -1419,14 +1924,38 @@ func handleApproveEvent(ctx context.Context, eventID string, body string) (Respo
 		// Event was published but status update failed - log but don't fail
 	}
 
+	// Get final conversion diagnostics for success response
+	conversionDiagnostics := conversionService.GetLastConversionDiagnostics()
+	
+	successData := map[string]interface{}{
+		"event_id":    eventID,
+		"activity_id": conversionResult.Activity.ID,
+		"status":      "approved",
+		"conversion_summary": map[string]interface{}{
+			"confidence_score": conversionResult.ConfidenceScore,
+			"issues_count": len(conversionResult.Issues),
+			"field_mappings_count": len(conversionResult.FieldMappings),
+		},
+	}
+	
+	// Add detailed conversion information if available
+	if conversionDiagnostics != nil {
+		successData["conversion_details"] = map[string]interface{}{
+			"processing_time": conversionDiagnostics.ProcessingTime.String(),
+			"success": conversionDiagnostics.Success,
+			"field_mappings": conversionDiagnostics.FieldMappings,
+		}
+	}
+	
+	// Include any conversion issues as warnings
+	if len(conversionResult.Issues) > 0 {
+		successData["warnings"] = conversionResult.Issues
+	}
+
 	return ResponseBody{
 		Success: true,
 		Message: "Event approved and published successfully",
-		Data: map[string]interface{}{
-			"event_id":    eventID,
-			"activity_id": conversionResult.Activity.ID,
-			"status":      "approved",
-		},
+		Data:    successData,
 	}, 200
 }
 
@@ -1471,13 +2000,46 @@ func handleRejectEvent(ctx context.Context, eventID string, body string) (Respon
 		}, 500
 	}
 
+	// Generate diagnostic information for the rejection
+	rejectionData := map[string]interface{}{
+		"event_id": eventID,
+		"status":   "rejected",
+		"rejection_details": map[string]interface{}{
+			"rejected_by": req.ReviewedBy,
+			"rejected_at": now,
+			"admin_notes": req.AdminNotes,
+			"source_url": adminEvent.SourceURL,
+			"schema_type": adminEvent.SchemaType,
+		},
+	}
+	
+	// Add conversion analysis to help understand why it was rejected
+	if conversionService != nil {
+		conversionResult, err := conversionService.ConvertToActivity(adminEvent)
+		if err != nil {
+			rejectionData["conversion_analysis"] = map[string]interface{}{
+				"conversion_failed": true,
+				"error": err.Error(),
+			}
+		} else if conversionResult != nil {
+			rejectionData["conversion_analysis"] = map[string]interface{}{
+				"conversion_succeeded": true,
+				"confidence_score": conversionResult.ConfidenceScore,
+				"issues_count": len(conversionResult.Issues),
+				"issues": conversionResult.Issues,
+				"field_mappings": conversionResult.FieldMappings,
+			}
+		}
+	}
+	
+	// Add data quality assessment
+	qualityAssessment := assessDataQuality(adminEvent)
+	rejectionData["quality_assessment"] = qualityAssessment
+
 	return ResponseBody{
 		Success: true,
 		Message: "Event rejected successfully",
-		Data: map[string]interface{}{
-			"event_id": eventID,
-			"status":   "rejected",
-		},
+		Data:    rejectionData,
 	}, 200
 }
 

@@ -47,38 +47,38 @@
     - _Requirements: 2.3, 2.4_
 
 - [ ] 4. Create diagnostic and debugging tools for troubleshooting
-  - [ ] 4.1 Add admin API endpoint for extraction debugging
+  - [x] 4.1 Add admin API endpoint for extraction debugging
     - Create `/api/debug/extract` endpoint that shows detailed extraction process
     - Return raw markdown, parsed events, and conversion results side-by-side
     - Include validation issues and suggestions for improvement
     - _Requirements: 2.1, 2.2_
 
-  - [ ] 4.2 Enhance existing admin endpoints with better error information
+  - [x] 4.2 Enhance existing admin endpoints with better error information
     - Update `/api/events/pending` to show conversion issues and raw data samples
     - Add detailed error messages to event approval/rejection responses
     - Include extraction confidence scores and field mapping information
     - _Requirements: 2.3, 2.4_
 
-- [ ] 4.3 Write focused unit tests for core extraction functionality
+- [x] 4.3 Write focused unit tests for core extraction functionality
   - Test markdown parsing with real ParentMap and Remlinger Farms content samples
   - Test schema conversion with key malformed data scenarios
   - Test basic error handling for missing events and conversion failures
   - _Requirements: 1.1, 1.2, 3.1, 3.2_
 
-- [ ] 5. Fix specific issues with ParentMap and Remlinger Farms extraction
-  - [ ] 5.1 Analyze and fix ParentMap calendar parsing
+- [x] 5. Fix specific issues with ParentMap and Remlinger Farms extraction
+  - [x] 5.1 Analyze and fix ParentMap calendar parsing
     - Examine actual ParentMap markdown structure and identify event patterns
     - Implement specific parsing logic for ParentMap event format
     - Test extraction with real ParentMap URLs and validate results
     - _Requirements: 4.1, 4.4_
 
-  - [ ] 5.2 Analyze and fix Remlinger Farms event parsing
+  - [x] 5.2 Analyze and fix Remlinger Farms event parsing
     - Examine actual Remlinger Farms markdown structure and identify event patterns
     - Implement specific parsing logic for Remlinger Farms event format
     - Test extraction with real Remlinger Farms URLs and validate results
     - _Requirements: 4.2, 4.4_
 
-  - [ ] 5.3 Implement source-specific parsing strategies
+  - [x] 5.3 Implement source-specific parsing strategies
     - Add domain-based parsing strategy selection in FireCrawl service
     - Create configurable parsing rules for different website structures
     - Add fallback to generic parsing when source-specific parsing fails

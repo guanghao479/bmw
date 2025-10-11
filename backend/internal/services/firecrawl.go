@@ -221,54 +221,12 @@ func (fc *FireCrawlClient) parseExtractResponseWithDiagnostics(response interfac
 			return doc.Markdown
 		}())
 
-	// Parse activities from the markdown content
+	// Parse activities from the markdown content using source-specific strategies
 	var activities []models.Activity
 	var extractionAttempt ExtractionAttempt
 
-	// Check if this looks like a ParentMap calendar page with activities
-	if strings.Contains(doc.Markdown, "Calendar") || strings.Contains(url, "parentmap.com") {
-		extractionAttempt = ExtractionAttempt{
-			Method:    "parseParentMapActivities",
-			Timestamp: time.Now(),
-		}
-		
-		log.Printf("[EXTRACTION] Detected ParentMap content, using specialized parser")
-		activities = fc.parseParentMapActivitiesWithDiagnostics(doc.Markdown, url, &extractionAttempt)
-		
-		extractionAttempt.Success = len(activities) > 0
-		extractionAttempt.EventsFound = len(activities)
-		
-		if len(activities) == 0 {
-			extractionAttempt.Issues = append(extractionAttempt.Issues, "No activities found in ParentMap content")
-			diagnostics.ValidationIssues = append(diagnostics.ValidationIssues, ValidationIssue{
-				Severity: "warning",
-				Field:    "activities",
-				Message:  "No activities extracted from ParentMap content",
-				Suggestion: "Check if the page contains calendar events or activities",
-			})
-		}
-	} else {
-		extractionAttempt = ExtractionAttempt{
-			Method:    "genericExtraction",
-			Timestamp: time.Now(),
-		}
-		
-		log.Printf("[EXTRACTION] Using generic extraction for URL: %s", url)
-		activities = fc.extractGenericActivitiesWithDiagnostics(doc.Markdown, url, &extractionAttempt)
-		
-		extractionAttempt.Success = len(activities) > 0
-		extractionAttempt.EventsFound = len(activities)
-		
-		if len(activities) == 0 {
-			extractionAttempt.Issues = append(extractionAttempt.Issues, "No activities found using generic extraction")
-			diagnostics.ValidationIssues = append(diagnostics.ValidationIssues, ValidationIssue{
-				Severity: "warning",
-				Field:    "activities",
-				Message:  "No activities extracted using generic method",
-				Suggestion: "Content may require specialized parsing logic",
-			})
-		}
-	}
+	// Use domain-based parsing strategy selection with fallback
+	activities, extractionAttempt = fc.extractActivitiesWithSourceStrategy(doc.Markdown, url, diagnostics)
 
 	diagnostics.ExtractionAttempts = append(diagnostics.ExtractionAttempts, extractionAttempt)
 
@@ -778,16 +736,16 @@ func (fc *FireCrawlClient) parseParentMapActivitiesWithDiagnostics(markdown, url
 	// Enhanced parsing for ParentMap content
 	attempt.Details = make(map[string]interface{})
 	
-	// Parse markdown into structured events
-	events := fc.parseMarkdownEvents(markdown, attempt)
+	// Use ParentMap-specific parsing
+	events := fc.parseParentMapEvents(markdown, attempt)
 	
-	log.Printf("[PARENTMAP] Parsed %d potential events from markdown structure", len(events))
+	log.Printf("[PARENTMAP] Parsed %d potential events from ParentMap structure", len(events))
 	attempt.Details["parsed_events_count"] = len(events)
 
 	// Convert parsed events to Activity models with validation
 	for i, event := range events {
-		if i >= 10 { // Limit to 10 events for performance
-			log.Printf("[PARENTMAP] Limiting to first 10 events (found %d total)", len(events))
+		if i >= 15 { // Limit to 15 events for ParentMap
+			log.Printf("[PARENTMAP] Limiting to first 15 events (found %d total)", len(events))
 			break
 		}
 
@@ -956,6 +914,816 @@ func (fc *FireCrawlClient) parseMarkdownEvents(markdown string, attempt *Extract
 		headerCount, eventBlockCount, dateLineCount)
 	
 	return events
+}
+
+// parseParentMapEvents parses ParentMap-specific markdown structure to extract events
+func (fc *FireCrawlClient) parseParentMapEvents(markdown string, attempt *ExtractionAttempt) []EventData {
+	var events []EventData
+	
+	lines := strings.Split(markdown, "\n")
+	
+	log.Printf("[PARENTMAP] Starting ParentMap-specific parsing for %d lines", len(lines))
+	
+	// Track parsing statistics
+	titleCount := 0
+	dateTimeCount := 0
+	locationCount := 0
+	pricingCount := 0
+	
+	var currentEvent *EventData
+	inEventBlock := false
+	
+	for i, line := range lines {
+		line = strings.TrimSpace(line)
+		
+		// Look for ParentMap event title pattern: ### [Title](link)
+		if strings.HasPrefix(line, "### [") && strings.Contains(line, "](") {
+			// Save previous event if we have one
+			if currentEvent != nil && currentEvent.Title != "" {
+				events = append(events, *currentEvent)
+			}
+			
+			// Extract title from ### [Title](link) format
+			titleMatch := regexp.MustCompile(`### \[([^\]]+)\]`).FindStringSubmatch(line)
+			if len(titleMatch) > 1 {
+				currentEvent = &EventData{
+					Title: titleMatch[1],
+				}
+				titleCount++
+				inEventBlock = true
+				
+				// Extract URL from the link
+				urlMatch := regexp.MustCompile(`\]\(([^)]+)\)`).FindStringSubmatch(line)
+				if len(urlMatch) > 1 {
+					currentEvent.URL = urlMatch[1]
+				}
+				
+				log.Printf("[PARENTMAP] Found event title: %s", currentEvent.Title)
+				continue
+			}
+		}
+		
+		// Look for date/time pattern: #### Wednesday, Jan. 15 7:00 a.m. - 11:30 a.m.
+		if inEventBlock && currentEvent != nil && strings.HasPrefix(line, "#### ") {
+			dateTimeStr := strings.TrimPrefix(line, "#### ")
+			
+			// Check if this is a date/time line (not pricing)
+			if fc.containsDateTimePattern(dateTimeStr) {
+				currentEvent.Date, currentEvent.Time = fc.parseParentMapDateTime(dateTimeStr)
+				dateTimeCount++
+				log.Printf("[PARENTMAP] Extracted date/time for '%s': %s | %s", currentEvent.Title, currentEvent.Date, currentEvent.Time)
+				continue
+			}
+			
+			// Check if this is pricing information
+			if fc.containsPricePattern(dateTimeStr) {
+				currentEvent.Price = dateTimeStr
+				pricingCount++
+				log.Printf("[PARENTMAP] Extracted pricing for '%s': %s", currentEvent.Title, currentEvent.Price)
+				continue
+			}
+		}
+		
+		// Look for location pattern: ##### Location Name, City
+		if inEventBlock && currentEvent != nil && strings.HasPrefix(line, "##### ") {
+			location := strings.TrimPrefix(line, "##### ")
+			currentEvent.Location = location
+			locationCount++
+			log.Printf("[PARENTMAP] Extracted location for '%s': %s", currentEvent.Title, location)
+			continue
+		}
+		
+		// Extract age groups from title or content
+		if inEventBlock && currentEvent != nil {
+			if ageGroups := fc.extractAgeGroupsFromLine(line); len(ageGroups) > 0 {
+				currentEvent.AgeGroups = append(currentEvent.AgeGroups, ageGroups...)
+				log.Printf("[PARENTMAP] Extracted age groups for '%s': %v", currentEvent.Title, ageGroups)
+			}
+			
+			// Build description from non-header content
+			if !strings.HasPrefix(line, "#") && !strings.HasPrefix(line, "[![") && 
+			   len(line) > 20 && currentEvent.Description == "" && 
+			   !strings.Contains(line, "Editor's Choice") && !strings.Contains(line, "SPONSORED") {
+				currentEvent.Description = line
+			}
+		}
+		
+		// Check if we should end the current event block
+		if inEventBlock && (strings.HasPrefix(line, "### [") || 
+		    strings.HasPrefix(line, "## ") || 
+		    (i > 0 && strings.TrimSpace(lines[i-1]) == "" && line == "")) {
+			inEventBlock = false
+		}
+	}
+	
+	// Don't forget the last event
+	if currentEvent != nil && currentEvent.Title != "" {
+		events = append(events, *currentEvent)
+	}
+	
+	// Update attempt details
+	attempt.Details["parentmap_title_count"] = titleCount
+	attempt.Details["parentmap_datetime_count"] = dateTimeCount
+	attempt.Details["parentmap_location_count"] = locationCount
+	attempt.Details["parentmap_pricing_count"] = pricingCount
+	
+	log.Printf("[PARENTMAP] ParentMap parsing stats - Titles: %d, DateTime: %d, Locations: %d, Pricing: %d", 
+		titleCount, dateTimeCount, locationCount, pricingCount)
+	
+	return events
+}
+
+// containsDateTimePattern checks if a line contains ParentMap date/time patterns
+func (fc *FireCrawlClient) containsDateTimePattern(line string) bool {
+	// Look for patterns like "Wednesday, Jan. 15" and time patterns
+	datePattern := regexp.MustCompile(`(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+\d+`)
+	timePattern := regexp.MustCompile(`\d+:\d+\s+(a\.m\.|p\.m\.)`)
+	
+	return datePattern.MatchString(line) || timePattern.MatchString(line)
+}
+
+// parseParentMapDateTime extracts date and time from ParentMap format
+func (fc *FireCrawlClient) parseParentMapDateTime(dateTimeStr string) (date, time string) {
+	// Example: "Wednesday, Jan. 15       7:00 a.m.   \-    11:30 a.m."
+	
+	// Extract date part
+	datePattern := regexp.MustCompile(`(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+(\d+)`)
+	if dateMatch := datePattern.FindStringSubmatch(dateTimeStr); len(dateMatch) > 3 {
+		monthMap := map[string]string{
+			"Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04",
+			"May": "05", "Jun": "06", "Jul": "07", "Aug": "08",
+			"Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12",
+		}
+		
+		month := monthMap[strings.TrimSuffix(dateMatch[2], ".")]
+		day := dateMatch[3]
+		if len(day) == 1 {
+			day = "0" + day
+		}
+		
+		// Assume current year for now (could be improved)
+		year := "2025"
+		date = fmt.Sprintf("%s-%s-%s", year, month, day)
+	}
+	
+	// Extract time part
+	timePattern := regexp.MustCompile(`(\d+:\d+\s+(?:a\.m\.|p\.m\.))(?:\s*[-–]\s*(\d+:\d+\s+(?:a\.m\.|p\.m\.)))?`)
+	if timeMatch := timePattern.FindStringSubmatch(dateTimeStr); len(timeMatch) > 1 {
+		startTime := timeMatch[1]
+		endTime := ""
+		if len(timeMatch) > 2 && timeMatch[2] != "" {
+			endTime = timeMatch[2]
+		}
+		
+		// Convert to standard format
+		time = fc.convertParentMapTime(startTime)
+		if endTime != "" {
+			time += " - " + fc.convertParentMapTime(endTime)
+		}
+	}
+	
+	return date, time
+}
+
+// convertParentMapTime converts ParentMap time format to standard format
+func (fc *FireCrawlClient) convertParentMapTime(timeStr string) string {
+	// Convert "7:00 a.m." to "7:00 AM"
+	timeStr = strings.ReplaceAll(timeStr, "a.m.", "AM")
+	timeStr = strings.ReplaceAll(timeStr, "p.m.", "PM")
+	return strings.TrimSpace(timeStr)
+}
+
+// containsPricePattern checks if a line contains pricing information
+func (fc *FireCrawlClient) containsPricePattern(line string) bool {
+	line = strings.ToLower(line)
+	
+	// Check for explicit price indicators
+	if strings.Contains(line, "free") || strings.Contains(line, "$") {
+		return true
+	}
+	
+	// Check for price-related keywords
+	priceKeywords := []string{"cost", "price", "fee", "admission", "ticket", "donation"}
+	for _, keyword := range priceKeywords {
+		if strings.Contains(line, keyword) {
+			return true
+		}
+	}
+	
+	return false
+}
+
+// parseRemlingerActivitiesWithDiagnostics extracts activities from Remlinger Farms calendar markdown with diagnostics
+func (fc *FireCrawlClient) parseRemlingerActivitiesWithDiagnostics(markdown, url string, attempt *ExtractionAttempt) []models.Activity {
+	var activities []models.Activity
+
+	log.Printf("[REMLINGER] Starting enhanced Remlinger Farms-specific parsing for %d characters of content", len(markdown))
+
+	// Enhanced parsing for Remlinger Farms content
+	attempt.Details = make(map[string]interface{})
+	
+	// Use Remlinger-specific parsing
+	events := fc.parseRemlingerEvents(markdown, attempt)
+	
+	log.Printf("[REMLINGER] Parsed %d potential events from Remlinger structure", len(events))
+	attempt.Details["parsed_events_count"] = len(events)
+
+	// Convert parsed events to Activity models with validation
+	for i, event := range events {
+		if i >= 20 { // Limit to 20 events for Remlinger
+			log.Printf("[REMLINGER] Limiting to first 20 events (found %d total)", len(events))
+			break
+		}
+
+		// Validate event data before conversion
+		validationResult := fc.validateEventData(event)
+		if !validationResult.IsValid {
+			log.Printf("[REMLINGER] Event %d failed validation: %v", i+1, validationResult.Issues)
+			attempt.Issues = append(attempt.Issues, fmt.Sprintf("Event %d validation failed: %s", i+1, strings.Join(validationResult.Issues, ", ")))
+			continue
+		}
+
+		activity := fc.convertEventToActivity(event, url, fmt.Sprintf("remlinger-%d", i))
+		if activity != nil {
+			// Validate the converted activity
+			activityValidation := fc.validateActivityData(*activity)
+			if activityValidation.IsValid {
+				activities = append(activities, *activity)
+				log.Printf("[REMLINGER] Successfully converted and validated event %d: %s (confidence: %.1f)", 
+					i+1, activity.Title, activityValidation.ConfidenceScore)
+			} else {
+				log.Printf("[REMLINGER] Activity %d failed post-conversion validation: %v", i+1, activityValidation.Issues)
+				attempt.Issues = append(attempt.Issues, fmt.Sprintf("Activity %d validation failed: %s", i+1, strings.Join(activityValidation.Issues, ", ")))
+			}
+		} else {
+			log.Printf("[REMLINGER] Failed to convert event %d", i+1)
+			attempt.Issues = append(attempt.Issues, fmt.Sprintf("Failed to convert event %d", i+1))
+		}
+	}
+
+	// If no structured events found, try fallback parsing
+	if len(activities) == 0 {
+		log.Printf("[REMLINGER] No structured events found, trying fallback parsing")
+		activities = fc.parseRemlingerFallback(markdown, url, attempt)
+	}
+
+	attempt.Details["final_activities_count"] = len(activities)
+	log.Printf("[REMLINGER] Remlinger parsing completed: %d activities extracted", len(activities))
+	return activities
+}
+
+// parseRemlingerEvents parses Remlinger Farms-specific markdown structure to extract events
+func (fc *FireCrawlClient) parseRemlingerEvents(markdown string, attempt *ExtractionAttempt) []EventData {
+	var events []EventData
+	
+	lines := strings.Split(markdown, "\n")
+	
+	log.Printf("[REMLINGER] Starting Remlinger-specific parsing for %d lines", len(lines))
+	
+	// Track parsing statistics
+	eventLinkCount := 0
+	validEventCount := 0
+	
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		
+		// Look for Remlinger event link pattern: [_10_ _oct_ _10:00 am__7:00 pm_Event Title...](link)
+		if fc.isRemlingerEventLink(line) {
+			eventLinkCount++
+			
+			// Extract event data from the link format
+			event := fc.parseRemlingerEventLink(line)
+			if event != nil && event.Title != "" {
+				events = append(events, *event)
+				validEventCount++
+				log.Printf("[REMLINGER] Found event: %s on %s at %s", event.Title, event.Date, event.Time)
+			}
+		}
+	}
+	
+	// Update attempt details
+	attempt.Details["remlinger_event_links"] = eventLinkCount
+	attempt.Details["remlinger_valid_events"] = validEventCount
+	
+	log.Printf("[REMLINGER] Remlinger parsing stats - Event links: %d, Valid events: %d", 
+		eventLinkCount, validEventCount)
+	
+	return events
+}
+
+// isRemlingerEventLink checks if a line contains a Remlinger event link
+func (fc *FireCrawlClient) isRemlingerEventLink(line string) bool {
+	// Look for pattern: [_day_ _month_ _time__time_Title...](link)
+	remlingerPattern := regexp.MustCompile(`\[_\d+_\s+_\w+_\s+_\d+:\d+\s+\w+_`)
+	return remlingerPattern.MatchString(line)
+}
+
+// parseRemlingerEventLink extracts event data from Remlinger link format
+func (fc *FireCrawlClient) parseRemlingerEventLink(line string) *EventData {
+	// Pattern: [_10_ _oct_ _10:00 am__7:00 pm_Event Title Description](link)
+	
+	// Extract the content between [ and ]
+	linkPattern := regexp.MustCompile(`\[([^\]]+)\]`)
+	matches := linkPattern.FindStringSubmatch(line)
+	if len(matches) < 2 {
+		return nil
+	}
+	
+	content := matches[1]
+	
+	// Parse the structured content: _day_ _month_ _starttime__endtime_title_description
+	parts := strings.Split(content, "_")
+	if len(parts) < 6 {
+		return nil
+	}
+	
+	event := &EventData{}
+	
+	// Extract day (parts[1])
+	day := strings.TrimSpace(parts[1])
+	
+	// Extract month (parts[2])  
+	month := strings.TrimSpace(parts[2])
+	
+	// Extract start time (parts[3])
+	startTime := strings.TrimSpace(parts[3])
+	
+	// Extract end time and title (parts[4] contains end time, parts[5+] contain title)
+	endTimePart := strings.TrimSpace(parts[4])
+	
+	// The title and description start from parts[5] onwards
+	titleParts := parts[5:]
+	titleAndDesc := strings.Join(titleParts, " ")
+	
+	// Parse end time from endTimePart (format like "7:00 pm")
+	endTimePattern := regexp.MustCompile(`(\d+:\d+\s+\w+)`)
+	if endTimeMatch := endTimePattern.FindStringSubmatch(endTimePart); len(endTimeMatch) > 1 {
+		event.Time = startTime + " - " + endTimeMatch[1]
+		// Remove the end time from the title
+		titleAndDesc = strings.Replace(titleAndDesc, endTimeMatch[1], "", 1)
+	} else {
+		event.Time = startTime
+	}
+	
+	// Clean up the title and description
+	titleAndDesc = strings.TrimSpace(titleAndDesc)
+	
+	// Split title and description (first sentence is usually the title)
+	sentences := strings.Split(titleAndDesc, ".")
+	if len(sentences) > 0 {
+		event.Title = strings.TrimSpace(sentences[0])
+		if len(sentences) > 1 {
+			event.Description = strings.TrimSpace(strings.Join(sentences[1:], "."))
+		}
+	}
+	
+	// If title is too long, try to extract a shorter title
+	if len(event.Title) > 80 {
+		words := strings.Fields(event.Title)
+		if len(words) > 8 {
+			event.Title = strings.Join(words[:8], " ") + "..."
+			event.Description = strings.Join(words[8:], " ") + " " + event.Description
+		}
+	}
+	
+	// Convert month abbreviation to number and create date
+	monthMap := map[string]string{
+		"jan": "01", "feb": "02", "mar": "03", "apr": "04",
+		"may": "05", "jun": "06", "jul": "07", "aug": "08",
+		"sep": "09", "oct": "10", "nov": "11", "dec": "12",
+	}
+	
+	monthNum := monthMap[strings.ToLower(month)]
+	if monthNum != "" {
+		// Pad day with zero if needed
+		if len(day) == 1 {
+			day = "0" + day
+		}
+		// Assume current year
+		year := "2025"
+		event.Date = fmt.Sprintf("%s-%s-%s", year, monthNum, day)
+	}
+	
+	// Set default location for Remlinger Farms
+	event.Location = "Remlinger Farms, Carnation, WA"
+	
+	// Extract URL if present
+	urlPattern := regexp.MustCompile(`\]\(([^)]+)\)`)
+	if urlMatch := urlPattern.FindStringSubmatch(line); len(urlMatch) > 1 {
+		event.URL = urlMatch[1]
+	}
+	
+	return event
+}
+
+// parseRemlingerFallback provides fallback extraction for Remlinger when structured parsing fails
+func (fc *FireCrawlClient) parseRemlingerFallback(markdown, url string, attempt *ExtractionAttempt) []models.Activity {
+	var activities []models.Activity
+	
+	log.Printf("[REMLINGER] Using fallback extraction method")
+	
+	// Look for Remlinger-specific keywords
+	remlingerKeywords := []string{"pumpkin", "farm", "harvest", "u-pick", "arcade", "brewery", "cafe"}
+	keywordMatches := make(map[string]int)
+	
+	for _, keyword := range remlingerKeywords {
+		count := strings.Count(strings.ToLower(markdown), keyword)
+		if count > 0 {
+			keywordMatches[keyword] = count
+		}
+	}
+	
+	attempt.Details["fallback_remlinger_keywords"] = keywordMatches
+	log.Printf("[REMLINGER] Fallback found keyword matches: %v", keywordMatches)
+
+	// Create activities based on keyword presence
+	if len(keywordMatches) > 0 {
+		// Create a general Remlinger Farms activity
+		activity := models.Activity{
+			ID:          fmt.Sprintf("remlinger-fallback-%d", time.Now().Unix()),
+			Title:       "Remlinger Farms Activities",
+			Description: "Visit Remlinger Farms for family fun including pumpkin picking, farm activities, and more.",
+			Type:        models.TypeEvent,
+			Category:    models.CategoryEntertainmentEvents,
+			Schedule: models.Schedule{
+				StartDate: time.Now().Format("2006-01-02"),
+				StartTime: "10:00 AM",
+				Type:      models.ScheduleTypeOneTime,
+				Timezone:  "America/Los_Angeles",
+			},
+			Location: models.Location{
+				Name:    "Remlinger Farms",
+				Address: "32610 N.E. 32nd St.",
+				City:    "Carnation",
+				State:   "WA",
+				Region:  "Seattle Metro",
+			},
+			Pricing: models.Pricing{
+				Type:        models.PricingTypeVariable,
+				Description: "See website for pricing",
+				Currency:    "USD",
+			},
+			AgeGroups: []models.AgeGroup{
+				{
+					Category:    models.AgeGroupAllAges,
+					Description: "All Ages",
+				},
+			},
+			Status:    models.ActivityStatusActive,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+			Source: models.Source{
+				URL:         url,
+				Domain:      extractDomain(url),
+				ScrapedAt:   time.Now(),
+				LastChecked: time.Now(),
+				Reliability: "medium",
+			},
+		}
+		
+		activities = append(activities, activity)
+	}
+	
+	return activities
+}
+
+// extractActivitiesWithSourceStrategy implements domain-based parsing strategy selection with fallback
+func (fc *FireCrawlClient) extractActivitiesWithSourceStrategy(markdown, url string, diagnostics *ExtractionDiagnostics) ([]models.Activity, ExtractionAttempt) {
+	var activities []models.Activity
+	var extractionAttempt ExtractionAttempt
+	
+	// Determine parsing strategy based on domain
+	strategy := fc.determineParsingStrategy(url)
+	
+	log.Printf("[EXTRACTION] Using parsing strategy: %s for URL: %s", strategy, url)
+	
+	// Try source-specific parsing first
+	switch strategy {
+	case "parentmap":
+		extractionAttempt = ExtractionAttempt{
+			Method:    "parseParentMapActivities",
+			Timestamp: time.Now(),
+		}
+		
+		log.Printf("[EXTRACTION] Detected ParentMap content, using specialized parser")
+		activities = fc.parseParentMapActivitiesWithDiagnostics(markdown, url, &extractionAttempt)
+		
+	case "remlinger":
+		extractionAttempt = ExtractionAttempt{
+			Method:    "parseRemlingerActivities",
+			Timestamp: time.Now(),
+		}
+		
+		log.Printf("[EXTRACTION] Detected Remlinger Farms content, using specialized parser")
+		activities = fc.parseRemlingerActivitiesWithDiagnostics(markdown, url, &extractionAttempt)
+		
+	default:
+		extractionAttempt = ExtractionAttempt{
+			Method:    "genericExtraction",
+			Timestamp: time.Now(),
+		}
+		
+		log.Printf("[EXTRACTION] Using generic extraction for URL: %s", url)
+		activities = fc.extractGenericActivitiesWithDiagnostics(markdown, url, &extractionAttempt)
+	}
+	
+	// Set initial success status
+	extractionAttempt.Success = len(activities) > 0
+	extractionAttempt.EventsFound = len(activities)
+	
+	// If source-specific parsing failed, try fallback strategies
+	if len(activities) == 0 && strategy != "generic" {
+		log.Printf("[EXTRACTION] Source-specific parsing failed, trying fallback strategies")
+		
+		// Try generic extraction as fallback
+		fallbackAttempt := ExtractionAttempt{
+			Method:    "genericFallback",
+			Timestamp: time.Now(),
+		}
+		
+		fallbackActivities := fc.extractGenericActivitiesWithDiagnostics(markdown, url, &fallbackAttempt)
+		
+		if len(fallbackActivities) > 0 {
+			activities = fallbackActivities
+			extractionAttempt.Success = true
+			extractionAttempt.EventsFound = len(fallbackActivities)
+			extractionAttempt.Issues = append(extractionAttempt.Issues, 
+				fmt.Sprintf("Source-specific parsing failed, used generic fallback and found %d activities", len(fallbackActivities)))
+			
+			log.Printf("[EXTRACTION] Fallback successful: found %d activities using generic extraction", len(fallbackActivities))
+		} else {
+			// Try content-based heuristics as last resort
+			heuristicActivities := fc.extractWithContentHeuristics(markdown, url)
+			if len(heuristicActivities) > 0 {
+				activities = heuristicActivities
+				extractionAttempt.Success = true
+				extractionAttempt.EventsFound = len(heuristicActivities)
+				extractionAttempt.Issues = append(extractionAttempt.Issues, 
+					fmt.Sprintf("Both source-specific and generic parsing failed, used content heuristics and found %d activities", len(heuristicActivities)))
+				
+				log.Printf("[EXTRACTION] Content heuristics successful: found %d activities", len(heuristicActivities))
+			}
+		}
+	}
+	
+	// Add appropriate validation issues based on results
+	if len(activities) == 0 {
+		extractionAttempt.Issues = append(extractionAttempt.Issues, "No activities found with any parsing strategy")
+		diagnostics.ValidationIssues = append(diagnostics.ValidationIssues, ValidationIssue{
+			Severity: "warning",
+			Field:    "activities",
+			Message:  fmt.Sprintf("No activities extracted using %s strategy", strategy),
+			Suggestion: "Content may require custom parsing logic or may not contain events",
+		})
+	} else {
+		log.Printf("[EXTRACTION] Successfully extracted %d activities using %s strategy", len(activities), strategy)
+	}
+	
+	return activities, extractionAttempt
+}
+
+// determineParsingStrategy determines the best parsing strategy based on URL domain
+func (fc *FireCrawlClient) determineParsingStrategy(url string) string {
+	// Domain-based strategy mapping
+	domainStrategies := map[string]string{
+		"parentmap.com":      "parentmap",
+		"remlingerfarms.com": "remlinger",
+		// Add more domain mappings here as needed
+		"seattlechildrens.org": "generic", // Example of explicit generic mapping
+		"zoo.org":              "generic",
+	}
+	
+	// Extract domain from URL
+	domain := extractDomain(url)
+	
+	// Check for exact domain matches
+	if strategy, exists := domainStrategies[domain]; exists {
+		return strategy
+	}
+	
+	// Check for partial domain matches
+	for domainPattern, strategy := range domainStrategies {
+		if strings.Contains(domain, domainPattern) {
+			return strategy
+		}
+	}
+	
+	// Default to generic strategy
+	return "generic"
+}
+
+// extractWithContentHeuristics provides last-resort extraction using content analysis
+func (fc *FireCrawlClient) extractWithContentHeuristics(markdown, url string) []models.Activity {
+	var activities []models.Activity
+	
+	log.Printf("[EXTRACTION] Using content heuristics for %d characters of content", len(markdown))
+	
+	// Analyze content for event-like patterns
+	eventIndicators := fc.analyzeContentForEvents(markdown)
+	
+	// If we find strong event indicators, create a generic activity
+	if eventIndicators.HasEventKeywords && (eventIndicators.HasDatePatterns || eventIndicators.HasTimePatterns) {
+		activity := models.Activity{
+			ID:          fmt.Sprintf("heuristic-%d", time.Now().Unix()),
+			Title:       fc.generateHeuristicTitle(markdown, url),
+			Description: fc.generateHeuristicDescription(markdown, eventIndicators),
+			Type:        models.TypeEvent,
+			Category:    fc.determineHeuristicCategory(eventIndicators),
+			Schedule: models.Schedule{
+				StartDate: time.Now().Format("2006-01-02"),
+				StartTime: "10:00 AM",
+				Type:      models.ScheduleTypeOneTime,
+				Timezone:  "America/Los_Angeles",
+			},
+			Location: models.Location{
+				Name:   fc.extractHeuristicLocation(markdown, url),
+				City:   "Seattle",
+				State:  "WA",
+				Region: "Seattle Metro",
+			},
+			Pricing: models.Pricing{
+				Type:        models.PricingTypeVariable,
+				Description: "See website for details",
+				Currency:    "USD",
+			},
+			AgeGroups: []models.AgeGroup{
+				{
+					Category:    models.AgeGroupAllAges,
+					Description: "All Ages",
+				},
+			},
+			Status:    models.ActivityStatusActive,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+			Source: models.Source{
+				URL:         url,
+				Domain:      extractDomain(url),
+				ScrapedAt:   time.Now(),
+				LastChecked: time.Now(),
+				Reliability: "low", // Heuristic extraction has lower reliability
+			},
+		}
+		
+		activities = append(activities, activity)
+		log.Printf("[EXTRACTION] Created heuristic activity: %s", activity.Title)
+	}
+	
+	return activities
+}
+
+// EventIndicators represents content analysis results
+type EventIndicators struct {
+	HasEventKeywords  bool
+	HasDatePatterns   bool
+	HasTimePatterns   bool
+	HasLocationHints  bool
+	HasPriceHints     bool
+	EventKeywordCount int
+	DatePatternCount  int
+	TimePatternCount  int
+}
+
+// analyzeContentForEvents analyzes markdown content for event-like patterns
+func (fc *FireCrawlClient) analyzeContentForEvents(markdown string) EventIndicators {
+	indicators := EventIndicators{}
+	
+	lowerContent := strings.ToLower(markdown)
+	
+	// Check for event-related keywords
+	eventKeywords := []string{
+		"event", "activity", "class", "workshop", "program", "camp", "festival",
+		"concert", "performance", "show", "exhibition", "tour", "meeting",
+		"conference", "seminar", "training", "course", "lesson", "session",
+	}
+	
+	for _, keyword := range eventKeywords {
+		count := strings.Count(lowerContent, keyword)
+		indicators.EventKeywordCount += count
+	}
+	indicators.HasEventKeywords = indicators.EventKeywordCount > 0
+	
+	// Check for date patterns
+	datePatterns := []string{
+		"january", "february", "march", "april", "may", "june",
+		"july", "august", "september", "october", "november", "december",
+		"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+	}
+	
+	for _, pattern := range datePatterns {
+		if strings.Contains(lowerContent, pattern) {
+			indicators.DatePatternCount++
+		}
+	}
+	indicators.HasDatePatterns = indicators.DatePatternCount > 0
+	
+	// Check for time patterns
+	timePatterns := []string{"am", "pm", "noon", "midnight", "morning", "afternoon", "evening"}
+	for _, pattern := range timePatterns {
+		if strings.Contains(lowerContent, pattern) {
+			indicators.TimePatternCount++
+		}
+	}
+	indicators.HasTimePatterns = indicators.TimePatternCount > 0
+	
+	// Check for location hints
+	locationKeywords := []string{"location", "venue", "address", "where", "at", "in"}
+	for _, keyword := range locationKeywords {
+		if strings.Contains(lowerContent, keyword) {
+			indicators.HasLocationHints = true
+			break
+		}
+	}
+	
+	// Check for price hints
+	priceKeywords := []string{"$", "free", "cost", "price", "fee", "admission", "ticket"}
+	for _, keyword := range priceKeywords {
+		if strings.Contains(lowerContent, keyword) {
+			indicators.HasPriceHints = true
+			break
+		}
+	}
+	
+	return indicators
+}
+
+// generateHeuristicTitle creates a title based on content analysis
+func (fc *FireCrawlClient) generateHeuristicTitle(markdown, url string) string {
+	domain := extractDomain(url)
+	
+	// Try to extract a title from headers
+	lines := strings.Split(markdown, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "#") && len(line) > 5 && len(line) < 100 {
+			title := strings.TrimLeft(line, "#")
+			title = strings.TrimSpace(title)
+			if !strings.Contains(strings.ToLower(title), "navigation") && 
+			   !strings.Contains(strings.ToLower(title), "menu") {
+				return title
+			}
+		}
+	}
+	
+	// Fallback to domain-based title
+	return fmt.Sprintf("Events from %s", domain)
+}
+
+// generateHeuristicDescription creates a description based on content indicators
+func (fc *FireCrawlClient) generateHeuristicDescription(markdown string, indicators EventIndicators) string {
+	description := "Event information extracted from website content. "
+	
+	if indicators.HasEventKeywords {
+		description += fmt.Sprintf("Found %d event-related keywords. ", indicators.EventKeywordCount)
+	}
+	if indicators.HasDatePatterns {
+		description += "Contains date information. "
+	}
+	if indicators.HasTimePatterns {
+		description += "Contains time information. "
+	}
+	
+	description += "Please visit the website for complete details."
+	
+	return description
+}
+
+// determineHeuristicCategory determines category based on content indicators
+func (fc *FireCrawlClient) determineHeuristicCategory(indicators EventIndicators) string {
+	// Simple heuristic category determination
+	if indicators.EventKeywordCount > 5 {
+		return models.CategoryEntertainmentEvents
+	}
+	return models.CategoryFreeCommunity
+}
+
+// extractHeuristicLocation extracts location information using heuristics
+func (fc *FireCrawlClient) extractHeuristicLocation(markdown, url string) string {
+	domain := extractDomain(url)
+	
+	// Look for location patterns in the content
+	lines := strings.Split(markdown, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		lowerLine := strings.ToLower(line)
+		
+		// Look for lines that might contain location information
+		if (strings.Contains(lowerLine, "address") || 
+		    strings.Contains(lowerLine, "location") || 
+		    strings.Contains(lowerLine, "venue")) && len(line) < 200 {
+			return line
+		}
+		
+		// Look for Seattle area locations
+		seattleKeywords := []string{"seattle", "bellevue", "redmond", "kirkland", "tacoma", "everett"}
+		for _, keyword := range seattleKeywords {
+			if strings.Contains(lowerLine, keyword) && len(line) < 100 {
+				return line
+			}
+		}
+	}
+	
+	// Fallback to domain-based location
+	return fmt.Sprintf("Location from %s", domain)
 }
 
 // isEventHeader determines if a line is likely an event title/header
@@ -2784,11 +3552,7 @@ func (fc *FireCrawlClient) containsLocationPattern(text string) bool {
 	return false
 }
 
-func (fc *FireCrawlClient) containsPricePattern(text string) bool {
-	text = strings.ToLower(text)
-	return strings.Contains(text, "$") || strings.Contains(text, "free") ||
-		   strings.Contains(text, "cost") || strings.Contains(text, "price")
-}
+
 
 func (fc *FireCrawlClient) containsAgePattern(text string) bool {
 	text = strings.ToLower(text)
