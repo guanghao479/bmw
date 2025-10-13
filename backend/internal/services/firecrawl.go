@@ -1795,6 +1795,125 @@ func (fc *FireCrawlClient) looksLikeTitle(line string) bool {
 	return float64(capitalWords)/float64(len(words)) >= 0.5
 }
 
+// isEventTitle determines if a line is likely a real event title (more restrictive than isEventHeader)
+func (fc *FireCrawlClient) isEventTitle(line string) bool {
+	line = strings.TrimSpace(line)
+	
+	// Remove markdown headers for analysis
+	cleanLine := strings.TrimLeft(line, "# ")
+	lowerLine := strings.ToLower(cleanLine)
+	
+	// Skip obvious non-event content (more specific patterns)
+	nonEventPatterns := []string{
+		"facility information", "staff directory", "contact information", "about us", "membership information",
+		"hours", "newsletter", "upcoming events", "more events", "events", "activities", "programs",
+		"- gymnasium", "- meeting", "- kitchen", "- playground", "- director:", "- program coordinator:", "- maintenance:",
+	}
+	
+	for _, pattern := range nonEventPatterns {
+		if strings.Contains(lowerLine, pattern) {
+			return false
+		}
+	}
+	
+	// Skip list items that are clearly facilities or staff
+	if strings.HasPrefix(cleanLine, "- ") {
+		listContent := strings.TrimPrefix(cleanLine, "- ")
+		listLower := strings.ToLower(listContent)
+		
+		// Skip facility lists
+		facilityWords := []string{"gymnasium", "meeting room", "kitchen", "playground", "office", "bathroom"}
+		for _, word := range facilityWords {
+			if strings.Contains(listLower, word) {
+				return false
+			}
+		}
+		
+		// Skip staff directory entries (contain email or job titles)
+		if strings.Contains(listContent, "@") || strings.Contains(listLower, "director") || 
+		   strings.Contains(listLower, "coordinator") || strings.Contains(listLower, "manager") {
+			return false
+		}
+	}
+	
+	// Check for event-related keywords (expanded list)
+	if len(cleanLine) > 3 && len(cleanLine) < 100 {
+		eventKeywords := []string{
+			"class", "workshop", "camp", "story time", "lesson", "party", "birthday",
+			"art", "music", "dance", "swim", "festival", "fair", "patch", "spectacular",
+			"tour", "walk", "hike", "performance", "show", "concert", "movie", "experience",
+			"train ride", "berry", "picking", "animal", "light", "holiday", "pumpkin",
+		}
+		
+		hasEventKeyword := false
+		for _, keyword := range eventKeywords {
+			if strings.Contains(lowerLine, keyword) {
+				hasEventKeyword = true
+				break
+			}
+		}
+		
+		// For lines with event keywords, check if they look like titles
+		if hasEventKeyword {
+			return fc.looksLikeTitle(cleanLine)
+		}
+		
+		// Also accept markdown headers that look like event titles (even without keywords)
+		if strings.HasPrefix(line, "#") && fc.looksLikeTitle(cleanLine) {
+			return true
+		}
+	}
+	
+	return false
+}
+
+// isMetadataLine determines if a line contains metadata (date, time, location, price, etc.)
+func (fc *FireCrawlClient) isMetadataLine(line string) bool {
+	line = strings.TrimSpace(line)
+	lowerLine := strings.ToLower(line)
+	
+	// Check for metadata patterns
+	metadataPatterns := []string{
+		"date:", "time:", "when:", "where:", "location:", "cost:", "price:", "ages:", "age:",
+		"**date:**", "**time:**", "**where:**", "**cost:**", "**ages:**",
+	}
+	
+	for _, pattern := range metadataPatterns {
+		if strings.HasPrefix(lowerLine, pattern) {
+			return true
+		}
+	}
+	
+	// Check for date patterns
+	datePatterns := []string{
+		`\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}`,
+		`\b(mon|tue|wed|thu|fri|sat|sun)\w*,?\s+(january|february|march|april|may|june|july|august|september|october|november|december)`,
+		`\d{1,2}/\d{1,2}/\d{4}`,
+		`\d{4}-\d{1,2}-\d{1,2}`,
+	}
+	
+	for _, pattern := range datePatterns {
+		if matched, _ := regexp.MatchString(pattern, lowerLine); matched {
+			return true
+		}
+	}
+	
+	// Check for time patterns
+	timePatterns := []string{
+		`\d{1,2}:\d{2}\s*(am|pm)`,
+		`\d{1,2}\s*(am|pm)`,
+		`\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}`,
+	}
+	
+	for _, pattern := range timePatterns {
+		if matched, _ := regexp.MatchString(pattern, lowerLine); matched {
+			return true
+		}
+	}
+	
+	return false
+}
+
 // cleanEventTitle cleans and normalizes an event title
 func (fc *FireCrawlClient) cleanEventTitle(line string) string {
 	// Remove markdown headers
@@ -1813,24 +1932,7 @@ func (fc *FireCrawlClient) cleanEventTitle(line string) string {
 	return title
 }
 
-// isMetadataLine checks if a line contains metadata rather than description content
-func (fc *FireCrawlClient) isMetadataLine(line string) bool {
-	lowerLine := strings.ToLower(line)
-	
-	metadataPatterns := []string{
-		"date:", "time:", "location:", "price:", "cost:", "age:", "ages:",
-		"when:", "where:", "contact:", "phone:", "email:", "website:",
-		"registration:", "signup:", "info:", "details:",
-	}
-	
-	for _, pattern := range metadataPatterns {
-		if strings.Contains(lowerLine, pattern) {
-			return true
-		}
-	}
-	
-	return false
-}
+
 
 // isBlockSeparator checks if a line indicates the end of an event block
 func (fc *FireCrawlClient) isBlockSeparator(line string) bool {
@@ -2637,6 +2739,8 @@ func (fc *FireCrawlClient) identifyEventBlocks(lines []string, stats map[string]
 	var blocks []EventBlock
 	var currentBlock *EventBlock
 	
+	var currentSectionType string // Track what type of section we're in
+	
 	for i, line := range lines {
 		line = strings.TrimSpace(line)
 		
@@ -2645,12 +2749,23 @@ func (fc *FireCrawlClient) identifyEventBlocks(lines []string, stats map[string]
 			continue
 		}
 		
+		// Check if this is a section header that affects how we parse content
+		if sectionType := fc.identifySectionType(line); sectionType != "" {
+			currentSectionType = sectionType
+			log.Printf("[EXTRACT] Entering section: %s", sectionType)
+		}
+		
+		// Skip content in non-event sections
+		if fc.shouldSkipInSection(line, currentSectionType) {
+			continue
+		}
+		
 		// Check if this line starts a new event block
 		if fc.isEventBlockStart(line) {
 			stats["header_lines"]++
 			
-			// Save previous block if it exists
-			if currentBlock != nil {
+			// Save previous block if it exists and it has substantial content
+			if currentBlock != nil && len(currentBlock.Content) > 0 {
 				currentBlock.EndLine = i - 1
 				blocks = append(blocks, *currentBlock)
 			}
@@ -2664,15 +2779,23 @@ func (fc *FireCrawlClient) identifyEventBlocks(lines []string, stats map[string]
 			
 			log.Printf("[EXTRACT] New event block started: %s (line %d)", currentBlock.Title, i)
 		} else if currentBlock != nil {
-			// Add line to current block
+			// Add line to current block (be more inclusive of related content)
 			currentBlock.Content = append(currentBlock.Content, line)
 			
-			// Check if this line ends the current block
-			if fc.isEventBlockEnd(line, i, lines) {
+			// Only end blocks at clear separators or when we're sure it's a new event
+			if fc.isDefinitiveBlockEnd(line, i, lines) {
 				currentBlock.EndLine = i
 				blocks = append(blocks, *currentBlock)
 				currentBlock = nil
 			}
+		} else if fc.isEventBlockStart(line) {
+			// Handle case where we don't have a current block but find an event start
+			currentBlock = &EventBlock{
+				Title:     fc.cleanEventTitle(line),
+				Content:   []string{line},
+				StartLine: i,
+			}
+			log.Printf("[EXTRACT] New event block started: %s (line %d)", currentBlock.Title, i)
 		}
 	}
 	
@@ -2687,14 +2810,19 @@ func (fc *FireCrawlClient) identifyEventBlocks(lines []string, stats map[string]
 
 // isEventBlockStart determines if a line starts a new event block
 func (fc *FireCrawlClient) isEventBlockStart(line string) bool {
-	// Check for markdown headers
+	// Check for markdown headers (but not all headers are events)
 	if strings.HasPrefix(line, "#") {
+		return fc.isEventTitle(line)
+	}
+	
+	// Check for lines that look like event titles (more restrictive)
+	if fc.isEventTitle(line) {
 		return true
 	}
 	
-	// Check for lines that look like event titles
-	if fc.isEventHeader(line) {
-		return true
+	// Don't treat metadata lines as new events
+	if fc.isMetadataLine(line) {
+		return false
 	}
 	
 	// Check for structured event indicators
@@ -2730,6 +2858,28 @@ func (fc *FireCrawlClient) isEventBlockEnd(line string, lineIndex int, allLines 
 	// End block after reasonable content length (prevent overly long blocks)
 	// This is a heuristic - blocks shouldn't be more than 20 lines typically
 	return false // Let blocks continue until explicit end or new start
+}
+
+// isDefinitiveBlockEnd determines if a line definitively ends the current event block (more conservative)
+func (fc *FireCrawlClient) isDefinitiveBlockEnd(line string, lineIndex int, allLines []string) bool {
+	// Check for explicit separators
+	if fc.isBlockSeparator(line) {
+		return true
+	}
+	
+	// Check if we've hit a clear section break (multiple empty lines or major headers)
+	if lineIndex+2 < len(allLines) {
+		nextLine := strings.TrimSpace(allLines[lineIndex+1])
+		lineAfterNext := strings.TrimSpace(allLines[lineIndex+2])
+		
+		// If next line is empty and line after that starts a new event, end here
+		if nextLine == "" && fc.isEventBlockStart(lineAfterNext) {
+			return true
+		}
+	}
+	
+	// Don't end blocks too aggressively - let related content stay together
+	return false
 }
 
 // extractEventFromBlock extracts structured event data from a text block
@@ -2785,6 +2935,23 @@ func (fc *FireCrawlClient) extractEventFromBlock(block EventBlock, stats map[str
 
 // extractDateWithPatterns extracts dates using comprehensive regex patterns
 func (fc *FireCrawlClient) extractDateWithPatterns(text string) string {
+	// First check for recurring schedule patterns
+	recurringPatterns := []string{
+		// "Mondays and Wednesdays" or "Monday and Wednesday"
+		`\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)s?\s+and\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)s?\b`,
+		// "Mon and Wed" or "Mondays & Wednesdays"
+		`\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)s?\s*[&/,]\s*(Mon|Tue|Wed|Thu|Fri|Sat|Sun|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)s?\b`,
+		// "Every Monday" or "Weekly on Tuesdays"
+		`\b(?:every|weekly on)\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)s?\b`,
+	}
+	
+	for _, pattern := range recurringPatterns {
+		if match := fc.findRegexMatch(text, pattern); match != "" {
+			return match // Return the recurring schedule as-is
+		}
+	}
+	
+	// Then check for specific date patterns
 	datePatterns := []string{
 		// MM/DD/YYYY or MM/DD/YY
 		`\b(\d{1,2})/(\d{1,2})/(\d{2,4})\b`,
@@ -2834,21 +3001,29 @@ func (fc *FireCrawlClient) extractTimeWithPatterns(text string) string {
 
 // extractLocationWithPatterns extracts locations using comprehensive patterns
 func (fc *FireCrawlClient) extractLocationWithPatterns(text string) string {
+	// Clean the text first - remove markdown formatting
+	cleanText := fc.cleanMarkdownText(text)
+	
 	// First try explicit location indicators
 	locationPatterns := []string{
-		`(?i)\b(?:location|venue|at|where|address|held at|takes place at|meet at):\s*([^.\n]+)`,
-		`(?i)\b(?:location|venue|at|where|address):\s*([^.\n]+)`,
+		`(?i)\*\*where:\*\*\s*([^*\n]+?)(?:\s*\*\*|$)`,  // **Where:** pattern
+		`(?i)\b(?:location|venue|at|where|address|held at|takes place at|meet at):\s*([^.\n,]+)`,
+		`(?i)\b(?:location|venue|at|where|address):\s*([^.\n,]+)`,
 	}
 	
 	for _, pattern := range locationPatterns {
-		if match := fc.findRegexMatch(text, pattern); match != "" {
-			// Extract just the location part (after the colon)
-			parts := strings.Split(match, ":")
-			if len(parts) > 1 {
-				location := strings.TrimSpace(parts[1])
-				if len(location) > 3 && len(location) < 100 {
-					return fc.capitalizeLocation(location)
-				}
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			continue
+		}
+		
+		matches := re.FindStringSubmatch(cleanText)
+		if len(matches) > 1 {
+			location := strings.TrimSpace(matches[1])
+			// Clean up the location text
+			location = fc.cleanLocationText(location)
+			if len(location) > 3 && len(location) < 100 {
+				return fc.capitalizeLocation(location)
 			}
 		}
 	}
@@ -2862,12 +3037,94 @@ func (fc *FireCrawlClient) extractLocationWithPatterns(text string) string {
 	}
 	
 	for _, pattern := range venuePatterns {
-		if match := fc.findRegexMatch(text, pattern); match != "" {
+		if match := fc.findRegexMatch(cleanText, pattern); match != "" {
 			return match
 		}
 	}
 	
 	return ""
+}
+
+// cleanMarkdownText removes markdown formatting from text
+func (fc *FireCrawlClient) cleanMarkdownText(text string) string {
+	// Remove markdown bold formatting
+	text = regexp.MustCompile(`\*\*([^*]+)\*\*`).ReplaceAllString(text, "$1")
+	// Remove markdown italic formatting
+	text = regexp.MustCompile(`\*([^*]+)\*`).ReplaceAllString(text, "$1")
+	// Remove extra whitespace
+	text = regexp.MustCompile(`\s+`).ReplaceAllString(text, " ")
+	return strings.TrimSpace(text)
+}
+
+// cleanLocationText cleans up extracted location text
+func (fc *FireCrawlClient) cleanLocationText(location string) string {
+	// Remove common suffixes that get picked up
+	suffixes := []string{"ages", "cost", "price", "time", "date", "when", "**ages", "**cost"}
+	for _, suffix := range suffixes {
+		if strings.HasSuffix(strings.ToLower(location), strings.ToLower(suffix)) {
+			location = strings.TrimSuffix(location, suffix)
+			location = strings.TrimSuffix(location, " ")
+		}
+	}
+	
+	// Remove markdown formatting remnants
+	location = strings.ReplaceAll(location, "**", "")
+	location = strings.ReplaceAll(location, "*", "")
+	
+	// Clean up extra whitespace and punctuation
+	location = regexp.MustCompile(`\s+`).ReplaceAllString(location, " ")
+	location = strings.TrimSpace(location)
+	location = strings.TrimSuffix(location, ",")
+	
+	return location
+}
+
+// identifySectionType determines what type of section a header represents
+func (fc *FireCrawlClient) identifySectionType(line string) string {
+	line = strings.TrimSpace(line)
+	lowerLine := strings.ToLower(strings.TrimLeft(line, "# "))
+	
+	// Non-event sections
+	nonEventSections := map[string]string{
+		"facility information": "facility",
+		"staff directory":      "staff", 
+		"contact information":  "contact",
+		"membership information": "membership",
+		"about us":            "about",
+		"hours":               "hours",
+	}
+	
+	for pattern, sectionType := range nonEventSections {
+		if strings.Contains(lowerLine, pattern) {
+			return sectionType
+		}
+	}
+	
+	// Event-related sections
+	eventSections := []string{
+		"upcoming events", "events", "more events", "activities", "programs",
+		"seasonal events", "ongoing programs", "special programs",
+	}
+	
+	for _, pattern := range eventSections {
+		if strings.Contains(lowerLine, pattern) {
+			return "events"
+		}
+	}
+	
+	return ""
+}
+
+// shouldSkipInSection determines if content should be skipped based on current section
+func (fc *FireCrawlClient) shouldSkipInSection(line string, sectionType string) bool {
+	// Skip list items in non-event sections
+	if sectionType == "facility" || sectionType == "staff" || sectionType == "contact" || sectionType == "membership" {
+		if strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") {
+			return true
+		}
+	}
+	
+	return false
 }
 
 // extractPriceWithPatterns extracts pricing using comprehensive patterns
