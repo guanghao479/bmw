@@ -733,6 +733,7 @@ func (fc *FireCrawlClient) parseParentMapActivities(markdown, url string) []mode
 	attempt := ExtractionAttempt{
 		Method:    "parseParentMapActivities",
 		Timestamp: time.Now(),
+		Details:   make(map[string]interface{}),
 	}
 	return fc.parseParentMapActivitiesWithDiagnostics(markdown, url, &attempt)
 }
@@ -1413,6 +1414,7 @@ func (fc *FireCrawlClient) extractActivitiesWithSourceStrategy(markdown, url str
 		extractionAttempt = ExtractionAttempt{
 			Method:    "parseParentMapActivities",
 			Timestamp: time.Now(),
+			Details:   make(map[string]interface{}),
 		}
 		
 		log.Printf("[EXTRACTION] Detected ParentMap content, using specialized parser")
@@ -1422,6 +1424,7 @@ func (fc *FireCrawlClient) extractActivitiesWithSourceStrategy(markdown, url str
 		extractionAttempt = ExtractionAttempt{
 			Method:    "parseRemlingerActivities",
 			Timestamp: time.Now(),
+			Details:   make(map[string]interface{}),
 		}
 		
 		log.Printf("[EXTRACTION] Detected Remlinger Farms content, using specialized parser")
@@ -1431,6 +1434,7 @@ func (fc *FireCrawlClient) extractActivitiesWithSourceStrategy(markdown, url str
 		extractionAttempt = ExtractionAttempt{
 			Method:    "genericExtraction",
 			Timestamp: time.Now(),
+			Details:   make(map[string]interface{}),
 		}
 		
 		log.Printf("[EXTRACTION] Using generic extraction for URL: %s", url)
@@ -1449,6 +1453,7 @@ func (fc *FireCrawlClient) extractActivitiesWithSourceStrategy(markdown, url str
 		fallbackAttempt := ExtractionAttempt{
 			Method:    "genericFallback",
 			Timestamp: time.Now(),
+			Details:   make(map[string]interface{}),
 		}
 		
 		fallbackActivities := fc.extractGenericActivitiesWithDiagnostics(markdown, url, &fallbackAttempt)
@@ -2213,6 +2218,15 @@ func (fc *FireCrawlClient) isValidDateFormat(dateStr string) bool {
 
 	for _, pattern := range datePatterns {
 		if matched, _ := regexp.MatchString(pattern, dateStr); matched {
+			// Check for ambiguous dates like 25/12/2024 (day > 12 in first position suggests DD/MM format which we don't support)
+			if strings.Contains(dateStr, "/") {
+				parts := strings.Split(dateStr, "/")
+				if len(parts) >= 2 {
+					if firstPart, err := strconv.Atoi(parts[0]); err == nil && firstPart > 12 {
+						return false // Ambiguous format - likely DD/MM/YYYY which we don't support
+					}
+				}
+			}
 			return true
 		}
 	}
@@ -2224,10 +2238,10 @@ func (fc *FireCrawlClient) isValidDateFormat(dateStr string) bool {
 func (fc *FireCrawlClient) isValidTimeFormat(timeStr string) bool {
 	// Basic time format validation
 	timePatterns := []string{
-		`^\d{1,2}:\d{2}\s*(AM|PM|am|pm)$`,     // 12-hour format
-		`^\d{1,2}\s*(AM|PM|am|pm)$`,           // Hour only with AM/PM
+		`^(1[0-2]|0?[1-9]):[0-5]\d\s*(AM|PM|am|pm)$`,     // 12-hour format with valid minutes
+		`^(1[0-2]|0?[1-9])\s*(AM|PM|am|pm)$`,           // Hour only with AM/PM
 		`^([01]?\d|2[0-3]):[0-5]\d$`,          // 24-hour format
-		`^\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2}\s*(AM|PM|am|pm)?$`, // Time range
+		`^(1[0-2]|0?[1-9]):[0-5]\d\s*[-–]\s*(1[0-2]|0?[1-9]):[0-5]\d\s*(AM|PM|am|pm)?$`, // Time range
 	}
 
 	for _, pattern := range timePatterns {

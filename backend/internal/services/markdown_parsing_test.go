@@ -63,6 +63,7 @@ Learn to swim in a fun, supportive environment. All skill levels welcome.
 		attempt := &ExtractionAttempt{
 			Method:    "test_parentmap_real",
 			Timestamp: time.Now(),
+			Details:   make(map[string]interface{}),
 		}
 		events := fc.extractEventsFromMarkdown(parentMapContent, attempt)
 
@@ -222,6 +223,7 @@ Educational and fun field trips designed for elementary school groups. Includes 
 		attempt := &ExtractionAttempt{
 			Method:    "test_remlinger_real",
 			Timestamp: time.Now(),
+			Details:   make(map[string]interface{}),
 		}
 		events := fc.extractEventsFromMarkdown(remlingerContent, attempt)
 
@@ -330,6 +332,7 @@ For more information about any of these activities, please contact us at info@ex
 		attempt := &ExtractionAttempt{
 			Method:    "test_poor_structure",
 			Timestamp: time.Now(),
+			Details:   make(map[string]interface{}),
 		}
 		events := fc.extractEventsFromMarkdown(poorContent, attempt)
 
@@ -400,6 +403,7 @@ Ring in the new year with games, dancing, and a balloon drop at 10 PM!
 		attempt := &ExtractionAttempt{
 			Method:    "test_mixed_content",
 			Timestamp: time.Now(),
+			Details:   make(map[string]interface{}),
 		}
 		events := fc.extractEventsFromMarkdown(mixedContent, attempt)
 
@@ -451,6 +455,7 @@ func TestMarkdownParsingEdgeCases(t *testing.T) {
 		attempt := &ExtractionAttempt{
 			Method:    "test_empty",
 			Timestamp: time.Now(),
+			Details:   make(map[string]interface{}),
 		}
 		events := fc.extractEventsFromMarkdown("", attempt)
 		
@@ -470,6 +475,7 @@ func TestMarkdownParsingEdgeCases(t *testing.T) {
 		attempt := &ExtractionAttempt{
 			Method:    "test_headers_only",
 			Timestamp: time.Now(),
+			Details:   make(map[string]interface{}),
 		}
 		events := fc.extractEventsFromMarkdown(headerOnlyContent, attempt)
 		
@@ -506,6 +512,7 @@ func TestMarkdownParsingEdgeCases(t *testing.T) {
 		attempt := &ExtractionAttempt{
 			Method:    "test_long_content",
 			Timestamp: time.Now(),
+			Details:   make(map[string]interface{}),
 		}
 		events := fc.extractEventsFromMarkdown(longContent.String(), attempt)
 
@@ -553,6 +560,7 @@ Cost: FREE! (donations welcome)
 		attempt := &ExtractionAttempt{
 			Method:    "test_special_chars",
 			Timestamp: time.Now(),
+			Details:   make(map[string]interface{}),
 		}
 		events := fc.extractEventsFromMarkdown(specialCharContent, attempt)
 

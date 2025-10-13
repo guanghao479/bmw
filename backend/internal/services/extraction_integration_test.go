@@ -44,6 +44,7 @@ Outdoor movie screening under the stars. Bring blankets and snacks!
 		attempt := &ExtractionAttempt{
 			Method:    "test_parentmap",
 			Timestamp: time.Now(),
+			Details:   make(map[string]interface{}),
 		}
 		events := fc.extractEventsFromMarkdown(parentMapMarkdown, attempt)
 
@@ -98,6 +99,7 @@ Feed our friendly goats, sheep, and chickens.
 		attempt := &ExtractionAttempt{
 			Method:    "test_remlinger",
 			Timestamp: time.Now(),
+			Details:   make(map[string]interface{}),
 		}
 		events := fc.extractEventsFromMarkdown(remlingerMarkdown, attempt)
 
@@ -153,6 +155,7 @@ Just some text about activities in general.
 		attempt := &ExtractionAttempt{
 			Method:    "test_malformed",
 			Timestamp: time.Now(),
+			Details:   make(map[string]interface{}),
 		}
 		events := fc.extractEventsFromMarkdown(malformedMarkdown, attempt)
 

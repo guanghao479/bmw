@@ -1595,6 +1595,7 @@ func (scs *SchemaConversionService) validateTimeField(timeStr string, fieldName 
 		"15:04",      // 24-hour format
 		"3:04 PM",    // 12-hour with AM/PM
 		"3:04PM",     // 12-hour without space
+		"3 PM",       // 12-hour without minutes
 		"15:04:05",   // with seconds
 	}
 
