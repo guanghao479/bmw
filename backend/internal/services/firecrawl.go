@@ -1780,19 +1780,25 @@ func (fc *FireCrawlClient) isEventHeader(line string) bool {
 // looksLikeTitle checks if a line has title-like characteristics
 func (fc *FireCrawlClient) looksLikeTitle(line string) bool {
 	words := strings.Fields(line)
-	if len(words) < 2 || len(words) > 15 {
+	if len(words) < 1 || len(words) > 15 {
 		return false
 	}
-	
+	// For single words, just check if it's capitalized
+	if len(words) == 1 {
+		return len(words[0]) > 0 && words[0][0] >= 'A' && words[0][0] <= 'Z'
+	}
 	capitalWords := 0
 	for _, word := range words {
 		if len(word) > 0 && word[0] >= 'A' && word[0] <= 'Z' {
 			capitalWords++
 		}
 	}
-	
-	// At least 50% of words should be capitalized for a title
-	return float64(capitalWords)/float64(len(words)) >= 0.5
+	// At least 50% of words should be capitalized for a title, but be more lenient for short titles
+	requiredRatio := 0.5
+	if len(words) <= 3 {
+		requiredRatio = 0.4 // More lenient for short titles
+	}
+	return float64(capitalWords)/float64(len(words)) >= requiredRatio
 }
 
 // isEventTitle determines if a line is likely a real event title (more restrictive than isEventHeader)
@@ -1808,10 +1814,24 @@ func (fc *FireCrawlClient) isEventTitle(line string) bool {
 		"facility information", "staff directory", "contact information", "about us", "membership information",
 		"hours", "newsletter", "upcoming events", "more events", "events", "activities", "programs",
 		"- gymnasium", "- meeting", "- kitchen", "- playground", "- director:", "- program coordinator:", "- maintenance:",
+		"main header", "sub header", "another header", "yet another header", // Skip generic headers
 	}
 	
 	for _, pattern := range nonEventPatterns {
 		if strings.Contains(lowerLine, pattern) {
+			return false
+		}
+	}
+	
+	// Skip generic structural headers (too generic to be events)
+	// Use word boundaries to avoid false matches like "party" matching "part"
+	genericHeaderPatterns := []string{
+		`\bheader\b`, `\bsection\b`, `\bchapter\b`, `\bpart\s+\d+\b`, `\bpart\s+[a-z]\b`, 
+		`\bdocument\b`, `\bcontent\b`, `\binformation\b`,
+	}
+	
+	for _, pattern := range genericHeaderPatterns {
+		if matched, _ := regexp.MatchString(pattern, lowerLine); matched && len(strings.Fields(cleanLine)) <= 3 {
 			return false
 		}
 	}
@@ -1842,7 +1862,8 @@ func (fc *FireCrawlClient) isEventTitle(line string) bool {
 			"class", "workshop", "camp", "story time", "lesson", "party", "birthday",
 			"art", "music", "dance", "swim", "festival", "fair", "patch", "spectacular",
 			"tour", "walk", "hike", "performance", "show", "concert", "movie", "experience",
-			"train ride", "berry", "picking", "animal", "light", "holiday", "pumpkin",
+			"train ride", "berry", "berries", "picking", "pick-your-own", "animal", "light", "holiday", "pumpkin",
+			"fun", "celebration", "new year", "eve",
 		}
 		
 		hasEventKeyword := false
@@ -1853,13 +1874,14 @@ func (fc *FireCrawlClient) isEventTitle(line string) bool {
 			}
 		}
 		
-		// For lines with event keywords, check if they look like titles
-		if hasEventKeyword {
-			return fc.looksLikeTitle(cleanLine)
+		// For lines with event keywords, they should be accepted if they look like titles
+		if hasEventKeyword && fc.looksLikeTitle(cleanLine) {
+			return true
 		}
 		
-		// Also accept markdown headers that look like event titles (even without keywords)
-		if strings.HasPrefix(line, "#") && fc.looksLikeTitle(cleanLine) {
+		// For markdown headers, be more permissive for short, title-like content
+		if strings.HasPrefix(line, "#") && fc.looksLikeTitle(cleanLine) && len(strings.Fields(cleanLine)) <= 5 {
+			// Accept short, well-formatted headers even without explicit event keywords
 			return true
 		}
 	}
@@ -2951,7 +2973,7 @@ func (fc *FireCrawlClient) extractDateWithPatterns(text string) string {
 		}
 	}
 	
-	// Then check for specific date patterns
+	// First check for specific date patterns (higher priority)
 	datePatterns := []string{
 		// MM/DD/YYYY or MM/DD/YY
 		`\b(\d{1,2})/(\d{1,2})/(\d{2,4})\b`,
@@ -2970,6 +2992,23 @@ func (fc *FireCrawlClient) extractDateWithPatterns(text string) string {
 	for _, pattern := range datePatterns {
 		if match := fc.findRegexMatch(text, pattern); match != "" {
 			return fc.normalizeDate(match)
+		}
+	}
+	
+	// Then check for seasonal and date range patterns (lower priority)
+	seasonalPatterns := []string{
+		// Month ranges like "June - September"
+		`\b(January|February|March|April|May|June|July|August|September|October|November|December)\s*[-–]\s*(January|February|March|April|May|June|July|August|September|October|November|December)\b`,
+		// Season indicators
+		`(?i)\b(?:season|available):\s*(January|February|March|April|May|June|July|August|September|October|November|December)\s*[-–]\s*(January|February|March|April|May|June|July|August|September|October|November|December)\b`,
+		// Year-round availability (only if no specific dates found)
+		`(?i)\bavailable:\s*(daily\s+year-round|year-round)\b`,
+		`(?i)\b(daily\s+year-round|year-round)\b`,
+	}
+	
+	for _, pattern := range seasonalPatterns {
+		if match := fc.findRegexMatch(text, pattern); match != "" {
+			return match // Return the seasonal range as-is
 		}
 	}
 	
@@ -3140,7 +3179,29 @@ func (fc *FireCrawlClient) extractPriceWithPatterns(text string) string {
 		}
 	}
 	
-	// Look for price patterns
+	// Look for price patterns with context (more descriptive)
+	contextualPricePatterns := []string{
+		// Price with per-unit descriptors
+		`(?i)\$(\d+(?:\.\d{2})?)\s+per\s+(vehicle|person|family|child|adult|pound|cup)(?:\s+\([^)]+\))?`,
+		// Admission with descriptors  
+		`(?i)(?:admission|cost|fee|price):\s*\$(\d+(?:\.\d{2})?)\s+per\s+(vehicle|person|family|child|adult)(?:\s+\([^)]+\))?`,
+		// Price ranges with context
+		`(?i)\$(\d+(?:\.\d{2})?)\s+(adults?|children?|kids?)(?:,\s*\$(\d+(?:\.\d{2})?)\s+(children?|kids?|adults?))?`,
+	}
+	
+	for _, pattern := range contextualPricePatterns {
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			continue
+		}
+		
+		match := re.FindString(text)
+		if match != "" {
+			return match
+		}
+	}
+	
+	// Look for basic price patterns (fallback)
 	pricePatterns := []string{
 		// Dollar amounts
 		`\$(\d+(?:\.\d{2})?)\b`,
