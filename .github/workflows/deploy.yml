@@ -62,13 +62,10 @@ jobs:
 
     - name: Run Go unit tests
       working-directory: backend
-      run: go test ./internal/models ./internal/services -v
-      env:
-        FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
-    
-    - name: Run critical integration tests
-      working-directory: backend
-      run: go test -tags=integration ./internal/services -v -run TestFireCrawl
+      run: |
+        # Run unit tests, excluding external integration tests that make HTTP calls
+        go test ./internal/models -v
+        go test ./internal/services -v -skip "TestExtractionPipeline|TestRemlingerFarmsSpecificParsing|TestParentMapSpecificParsing"
       env:
         FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
 
