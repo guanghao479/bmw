@@ -129,7 +129,7 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       partitionKey: { name: 'StatusKey', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'PriorityKey', type: dynamodb.AttributeType.STRING },
       projectionType: dynamodb.ProjectionType.INCLUDE,
-      nonKeyAttributes: ['source_name', 'base_url', 'scraping_config', 'data_quality', 'status']
+      nonKeyAttributes: ['source_id', 'source_name', 'base_url', 'source_type', 'priority', 'expected_content', 'submitted_by', 'submitted_at', 'updated_at', 'status']
     });
 
     // DynamoDB Table 3: Scraping Operations (Dynamic Scraping State)
