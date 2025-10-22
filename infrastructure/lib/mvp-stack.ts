@@ -408,6 +408,7 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
     const detailsResource = sourceResource.addResource('details');
     const triggerResource = sourceResource.addResource('trigger');
     
+    sourceResource.addMethod('DELETE', adminApiIntegration); // DELETE /api/sources/{id}
     analysisResource.addMethod('GET', adminApiIntegration); // GET /api/sources/{id}/analysis
     activateResource.addMethod('PUT', adminApiIntegration); // PUT /api/sources/{id}/activate
     rejectResource.addMethod('PUT', adminApiIntegration);   // PUT /api/sources/{id}/reject
