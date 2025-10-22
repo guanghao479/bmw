@@ -24,61 +24,61 @@
   - Test transaction failure scenarios
   - _Requirements: 3.5_
 
-- [ ] 2. Add DELETE API endpoint to admin API
+- [x] 2. Add DELETE API endpoint to admin API
   - Create new DELETE /api/sources/{sourceId} endpoint handler
   - Add request validation and authentication checks
   - Implement proper error responses and status codes
   - _Requirements: 4.1, 4.2, 4.4_
 
-- [ ] 2.1 Implement handleDeleteSource function
+- [x] 2.1 Implement handleDeleteSource function
   - Parse and validate source ID from URL path
   - Call DynamoDB service deletion method
   - Format response with deletion results
   - _Requirements: 4.1, 4.4_
 
-- [ ] 2.2 Add admin event logging for deletions
+- [x] 2.2 Add admin event logging for deletions
   - Log deletion attempts and results to admin events table
   - Include administrator identity and timestamp
   - Record detailed deletion statistics
   - _Requirements: 4.1, 4.5_
 
-- [ ] 2.3 Write integration tests for delete API endpoint
+- [x] 2.3 Write integration tests for delete API endpoint
   - Test successful deletion with various source types
   - Test error scenarios (not found, permission denied, server errors)
   - Test admin event logging functionality
   - _Requirements: 4.2, 4.4_
 
-- [ ] 3. Enhance admin interface with delete functionality
+- [x] 3. Enhance admin interface with delete functionality
   - Add delete buttons to source cards in the admin interface
   - Implement confirmation dialog with source details
   - Add proper error handling and success messaging
   - _Requirements: 1.1, 1.3, 1.4, 1.5, 2.1, 2.2, 2.4_
 
-- [ ] 3.1 Add delete buttons to source management UI
+- [x] 3.1 Add delete buttons to source management UI
   - Add delete button to each source card alongside existing action buttons
   - Style button with red color and trash icon using Tailwind CSS
   - Wire up click handlers to trigger confirmation dialog
   - _Requirements: 1.1, 1.5_
 
-- [ ] 3.2 Implement confirmation dialog component
+- [x] 3.2 Implement confirmation dialog component
   - Create modal overlay using native JavaScript and existing CSS patterns
   - Display source details (name, URL, activity count, last scrape date)
   - Add confirmation input (type source name) and action buttons
   - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
-- [ ] 3.3 Add delete API integration to admin interface
+- [x] 3.3 Add delete API integration to admin interface
   - Implement deleteSource method in SourceManagementAdmin class
   - Add proper loading states and button disabling during deletion
   - Handle API responses and display appropriate success/error messages
   - _Requirements: 1.2, 1.3, 1.4_
 
-- [ ] 3.4 Enhance alert system for deletion feedback
+- [x] 3.4 Enhance alert system for deletion feedback
   - Update showAlert method to handle deletion-specific messages
   - Add auto-refresh of source list after successful deletion
   - Implement proper error message display for various failure scenarios
   - _Requirements: 1.3, 1.4_
 
-- [ ] 3.5 Write frontend tests for delete functionality
+- [x] 3.5 Write frontend tests for delete functionality
   - Test confirmation dialog behavior and validation
   - Test button states and loading indicators
   - Test error message display and success workflows

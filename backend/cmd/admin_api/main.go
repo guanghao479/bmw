@@ -168,6 +168,10 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 		sourceID := extractSourceIDFromPath(path, "/reject")
 		responseBody, statusCode = handleRejectSource(ctx, sourceID, request.Body)
 
+	case method == "DELETE" && strings.HasPrefix(path, "/api/sources/") && !strings.Contains(path[13:], "/"):
+		sourceID := strings.TrimPrefix(path, "/api/sources/")
+		responseBody, statusCode = handleDeleteSource(ctx, sourceID)
+
 	case method == "GET" && path == "/api/analytics":
 		responseBody, statusCode = handleGetAnalytics(ctx, request.QueryStringParameters)
 
@@ -613,6 +617,113 @@ func handleRejectSource(ctx context.Context, sourceID string, body string) (Resp
 			"status":    "rejected",
 		},
 	}, 200
+}
+
+// handleDeleteSource handles DELETE /api/sources/{id}
+func handleDeleteSource(ctx context.Context, sourceID string) (ResponseBody, int) {
+	// Validate source ID
+	if sourceID == "" {
+		return ResponseBody{
+			Success: false,
+			Error:   "Source ID is required",
+		}, 400
+	}
+
+	log.Printf("Delete request for source: %s", sourceID)
+
+	// Verify source exists before attempting deletion
+	sourceSubmission, err := dynamoService.GetSourceSubmission(ctx, sourceID)
+	if err != nil {
+		log.Printf("Error getting source submission for deletion: %v", err)
+		
+		// Log failed deletion attempt
+		if logErr := logSourceDeletionEvent(ctx, sourceID, "Unknown Source", "", nil, false, err.Error()); logErr != nil {
+			log.Printf("Error logging failed deletion attempt: %v", logErr)
+		}
+		
+		return ResponseBody{
+			Success: false,
+			Error:   "Source not found",
+		}, 404
+	}
+
+	// Call DynamoDB service deletion method
+	deletionResult, err := dynamoService.DeleteSourceCompletely(ctx, sourceID)
+	if err != nil {
+		log.Printf("Error deleting source %s: %v", sourceID, err)
+		
+		// Log failed deletion attempt
+		if logErr := logSourceDeletionEvent(ctx, sourceID, sourceSubmission.SourceName, sourceSubmission.BaseURL, nil, false, err.Error()); logErr != nil {
+			log.Printf("Error logging failed deletion attempt: %v", logErr)
+		}
+		
+		return ResponseBody{
+			Success: false,
+			Error:   "Failed to delete source: " + err.Error(),
+		}, 500
+	}
+
+	// Log successful deletion
+	if logErr := logSourceDeletionEvent(ctx, sourceID, sourceSubmission.SourceName, sourceSubmission.BaseURL, deletionResult, true, ""); logErr != nil {
+		log.Printf("Error logging successful deletion: %v", logErr)
+		// Don't fail the request if logging fails
+	}
+
+	// Format response with deletion results
+	responseData := map[string]interface{}{
+		"source_id": sourceID,
+		"source_name": sourceSubmission.SourceName,
+		"deleted_records": map[string]interface{}{
+			"submission": deletionResult.SubmissionDeleted,
+			"analysis":   deletionResult.AnalysisDeleted,
+			"config":     deletionResult.ConfigDeleted,
+			"activities_count": deletionResult.ActivitiesDeleted,
+		},
+		"total_records_deleted": deletionResult.TotalRecords,
+	}
+
+	log.Printf("Successfully deleted source %s - %d total records removed", sourceID, deletionResult.TotalRecords)
+
+	return ResponseBody{
+		Success: true,
+		Message: fmt.Sprintf("Source '%s' deleted successfully", sourceSubmission.SourceName),
+		Data:    responseData,
+	}, 200
+}
+
+// logSourceDeletionEvent logs a source deletion event to the admin events table
+func logSourceDeletionEvent(ctx context.Context, sourceID, sourceName, sourceURL string, deletionResult *models.DeletionResult, success bool, errorMessage string) error {
+	eventID := uuid.New().String()
+	
+	// Create deletion event
+	deletionEvent := &models.SourceDeletionEvent{
+		EventType:  models.AdminEventTypeDeletion,
+		EventID:    eventID,
+		AdminUser:  "admin", // TODO: Get actual admin user from context/auth
+		SourceID:   sourceID,
+		SourceName: sourceName,
+		SourceURL:  sourceURL,
+		Success:    success,
+		ErrorMessage: errorMessage,
+	}
+	
+	// Set deletion data if available
+	if deletionResult != nil {
+		deletionEvent.DeletionData = *deletionResult
+	} else {
+		// Create empty deletion result for failed attempts
+		deletionEvent.DeletionData = models.DeletionResult{
+			SourceID:          sourceID,
+			SubmissionDeleted: false,
+			AnalysisDeleted:   false,
+			ConfigDeleted:     false,
+			ActivitiesDeleted: 0,
+			TotalRecords:      0,
+		}
+	}
+	
+	// Store the deletion event
+	return dynamoService.CreateSourceDeletionEvent(ctx, deletionEvent)
 }
 
 // handleGetAnalytics handles GET /api/analytics

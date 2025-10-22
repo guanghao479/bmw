@@ -190,6 +190,16 @@ class SourceManagementAdmin {
                                 style="background: var(--primary-color); color: white; border: none; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer;">
                             Re-extract
                         </button>
+                        <button onclick="adminApp.showDeleteConfirmation('${source.source_id}', '${source.source_name}', '${source.base_url}', ${source.activities_found || 0}, '${source.last_scraped || ''}')" 
+                                style="background: #ef4444; color: white; border: none; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 0.25rem;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="3,6 5,6 21,6"></polyline>
+                                <path d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
+                                <line x1="10" y1="11" x2="10" y2="17"></line>
+                                <line x1="14" y1="11" x2="14" y2="17"></line>
+                            </svg>
+                            Delete
+                        </button>
                     </div>
                 </div>
 
@@ -510,8 +520,18 @@ class SourceManagementAdmin {
                         View Details
                     </button>
                     <button onclick="adminApp.toggleSourceStatus('${source.source_id}')" 
-                            style="background: #ef4444; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">
+                            style="background: #f59e0b; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">
                         Pause
+                    </button>
+                    <button onclick="adminApp.showDeleteConfirmation('${source.source_id}', '${source.source_name}', '${source.base_url}', ${source.activities_found || 0}, '${source.last_scraped || ''}')" 
+                            style="background: #ef4444; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 0.25rem;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3,6 5,6 21,6"></polyline>
+                            <path d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
+                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                        </svg>
+                        Delete
                     </button>
                 </div>
             </div>
@@ -1067,6 +1087,208 @@ class SourceManagementAdmin {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    showDeleteConfirmation(sourceId, sourceName, sourceUrl, activitiesCount, lastScraped) {
+        // Create modal overlay
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        `;
+
+        const modalContent = document.createElement('div');
+        modalContent.style.cssText = `
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+            margin: 1rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        `;
+
+        const lastScrapedText = lastScraped ? this.formatDate(lastScraped) : 'Never';
+
+        modalContent.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3 style="margin: 0; color: #dc2626; display: flex; align-items: center; gap: 0.5rem;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="15" y1="9" x2="9" y2="15"></line>
+                        <line x1="9" y1="9" x2="15" y2="15"></line>
+                    </svg>
+                    Delete Source
+                </h3>
+                <button onclick="this.closest('.modal-overlay').remove()" 
+                        style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #6b7280; padding: 0;">&times;</button>
+            </div>
+
+            <div class="alert alert-error" style="margin-bottom: 1.5rem;">
+                <strong>Warning:</strong> This action cannot be undone. All data associated with this source will be permanently deleted.
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <h4 style="margin: 0 0 1rem 0; color: #374151;">Source Details</h4>
+                <div style="background: #f9fafb; padding: 1rem; border-radius: 8px; border-left: 4px solid #dc2626;">
+                    <div style="margin-bottom: 0.75rem;">
+                        <strong>Name:</strong> ${this.escapeHtml(sourceName)}
+                    </div>
+                    <div style="margin-bottom: 0.75rem;">
+                        <strong>URL:</strong> ${this.escapeHtml(sourceUrl)}
+                    </div>
+                    <div style="margin-bottom: 0.75rem;">
+                        <strong>Activities Found:</strong> ${activitiesCount}
+                    </div>
+                    <div>
+                        <strong>Last Scraped:</strong> ${lastScrapedText}
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <label for="delete-confirmation-input" style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #374151;">
+                    Type the source name to confirm deletion:
+                </label>
+                <input type="text" 
+                       id="delete-confirmation-input" 
+                       placeholder="Enter source name exactly as shown above"
+                       style="width: 100%; padding: 0.75rem; border: 2px solid #d1d5db; border-radius: 8px; font-size: 1rem; box-sizing: border-box;">
+                <div id="delete-confirmation-error" style="color: #dc2626; font-size: 0.85rem; margin-top: 0.25rem; display: none;">
+                    Source name does not match. Please type it exactly as shown above.
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                <button onclick="this.closest('.modal-overlay').remove()" 
+                        style="background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; padding: 0.75rem 1.5rem; border-radius: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 500;">
+                    Cancel
+                </button>
+                <button id="delete-confirm-button"
+                        onclick="adminApp.confirmDelete('${sourceId}', '${this.escapeHtml(sourceName)}', this.closest('.modal-overlay'))"
+                        disabled
+                        style="background: #dc2626; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 500; opacity: 0.5;">
+                    Delete Permanently
+                </button>
+            </div>
+        `;
+
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+
+        // Set up confirmation input validation
+        const confirmationInput = modal.querySelector('#delete-confirmation-input');
+        const confirmButton = modal.querySelector('#delete-confirm-button');
+        const errorDiv = modal.querySelector('#delete-confirmation-error');
+
+        confirmationInput.addEventListener('input', (e) => {
+            const inputValue = e.target.value.trim();
+            const isValid = inputValue === sourceName;
+            
+            confirmButton.disabled = !isValid;
+            confirmButton.style.opacity = isValid ? '1' : '0.5';
+            confirmButton.style.cursor = isValid ? 'pointer' : 'not-allowed';
+            
+            if (inputValue && !isValid) {
+                errorDiv.style.display = 'block';
+            } else {
+                errorDiv.style.display = 'none';
+            }
+        });
+
+        // Close modal when clicking outside
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+
+        // Focus the input
+        setTimeout(() => {
+            confirmationInput.focus();
+        }, 100);
+    }
+
+    async confirmDelete(sourceId, sourceName, modal) {
+        const confirmButton = modal.querySelector('#delete-confirm-button');
+        const originalText = confirmButton.textContent;
+        
+        // Show loading state
+        confirmButton.disabled = true;
+        confirmButton.textContent = 'Deleting...';
+        confirmButton.style.opacity = '0.7';
+
+        try {
+            await this.deleteSource(sourceId, sourceName);
+            modal.remove();
+        } catch (error) {
+            // Re-enable button on error
+            confirmButton.disabled = false;
+            confirmButton.textContent = originalText;
+            confirmButton.style.opacity = '1';
+        }
+    }
+
+    async deleteSource(sourceId, sourceName) {
+        try {
+            const response = await this.makeApiCall(`/sources/${sourceId}`, 'DELETE');
+            
+            if (response.success) {
+                this.showSourceAlert(
+                    `Source "${sourceName}" deleted successfully! All associated data has been removed.`,
+                    'success'
+                );
+                
+                // Refresh the source list after successful deletion
+                await this.loadSourceManagement();
+            } else {
+                throw new Error(response.error || 'Failed to delete source');
+            }
+        } catch (error) {
+            console.error('Error deleting source:', error);
+            this.showSourceAlert(
+                `Failed to delete source "${sourceName}": ${error.message}`,
+                'error'
+            );
+            throw error;
+        }
+    }
+
+    showSourceAlert(message, type = 'info') {
+        // Remove existing alerts in sources tab
+        document.querySelectorAll('#sources-tab .alert').forEach(alert => alert.remove());
+
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type}`;
+        alertDiv.textContent = message;
+
+        // Insert at the top of the sources tab
+        const sourcesTab = document.getElementById('sources-tab');
+        const firstFormSection = sourcesTab.querySelector('.form-section');
+        if (firstFormSection) {
+            firstFormSection.insertBefore(alertDiv, firstFormSection.firstChild);
+        }
+
+        // Auto-remove success alerts after 5 seconds
+        if (type === 'success') {
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 5000);
+        }
+
+        // Scroll to top to show the alert
+        sourcesTab.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     showAlert(message, type = 'info') {
