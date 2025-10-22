@@ -65,7 +65,7 @@ jobs:
       run: |
         # Run unit tests, excluding external integration tests that make HTTP calls
         go test ./internal/models -v
-        go test ./internal/services -v -skip "TestExtractionPipeline|TestRemlingerFarmsSpecificParsing|TestParentMapSpecificParsing"
+        go test ./internal/services -v -skip "TestExtractionPipeline|TestRemlingerFarmsSpecificParsing|TestParentMapSpecificParsing|TestAdminInterfaceIntegration|TestExtractionQualityMetrics"
       env:
         FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
 
