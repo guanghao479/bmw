@@ -125,7 +125,7 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
 
     // Add Global Secondary Index to Source Management Table
     sourceManagementTable.addGlobalSecondaryIndex({
-      indexName: 'status-priority-index',
+      indexName: 'status-priority-index-v2',
       partitionKey: { name: 'StatusKey', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'PriorityKey', type: dynamodb.AttributeType.STRING },
       projectionType: dynamodb.ProjectionType.INCLUDE,

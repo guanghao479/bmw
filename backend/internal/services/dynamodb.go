@@ -414,7 +414,7 @@ func (s *DynamoDBService) QuerySourcesByStatus(ctx context.Context, status strin
 
 	result, err := s.client.Query(ctx, &dynamodb.QueryInput{
 		TableName:              aws.String(s.sourceManagementTable),
-		IndexName:              aws.String("status-priority-index"),
+		IndexName:              aws.String("status-priority-index-v2"),
 		KeyConditionExpression: aws.String("StatusKey = :statusKey"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":statusKey": &types.AttributeValueMemberS{Value: statusKey},
