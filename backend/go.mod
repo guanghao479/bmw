@@ -12,7 +12,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.49.0
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.76.2
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.38.5
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.0
 	github.com/google/uuid v1.6.0
 	github.com/mendableai/firecrawl-go v1.0.0
 )
