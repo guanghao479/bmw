@@ -408,21 +408,22 @@ func (s *DynamoDBService) GetSourceConfig(ctx context.Context, sourceID string) 
 	return &config, nil
 }
 
-// QuerySourcesByStatus queries sources by status using GSI
+// QuerySourcesByStatus queries sources by status using table scan (temporary workaround)
 func (s *DynamoDBService) QuerySourcesByStatus(ctx context.Context, status string, limit int32) ([]models.SourceSubmission, error) {
-	statusKey := models.GenerateSourceStatusKey(status)
-
-	result, err := s.client.Query(ctx, &dynamodb.QueryInput{
-		TableName:              aws.String(s.sourceManagementTable),
-		IndexName:              aws.String("status-priority-index-v2"),
-		KeyConditionExpression: aws.String("StatusKey = :statusKey"),
+	result, err := s.client.Scan(ctx, &dynamodb.ScanInput{
+		TableName:        aws.String(s.sourceManagementTable),
+		FilterExpression: aws.String("#status = :status AND SK = :sk"),
+		ExpressionAttributeNames: map[string]string{
+			"#status": "status",
+		},
 		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":statusKey": &types.AttributeValueMemberS{Value: statusKey},
+			":status": &types.AttributeValueMemberS{Value: status},
+			":sk":     &types.AttributeValueMemberS{Value: "SUBMISSION"},
 		},
 		Limit: aws.Int32(limit),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to query sources by status: %w", err)
+		return nil, fmt.Errorf("failed to scan sources by status: %w", err)
 	}
 
 	var sources []models.SourceSubmission
