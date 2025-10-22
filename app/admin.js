@@ -18,7 +18,7 @@ class SourceManagementAdmin {
     detectEnvironment() {
         const hostname = window.location.hostname;
         if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.includes('192.168')) {
-            // Development - use local mock API or development endpoints
+            // Development - use local mock API
             return 'http://localhost:3000/api';
         } else {
             // Production - use actual AWS API Gateway endpoints
@@ -414,7 +414,13 @@ class SourceManagementAdmin {
                 const analytics = analyticsResponse.data;
                 this.displayAnalyticsOverview(analytics);
             } else {
-                throw new Error(analyticsResponse.error || 'Failed to load analytics');
+                // Show default analytics when API fails
+                this.displayAnalyticsOverview({
+                    total_sources_submitted: 0,
+                    sources_active: 0,
+                    success_rate: '0%',
+                    total_activities: 0
+                });
             }
             
             // Display active sources with enhanced data
@@ -422,12 +428,23 @@ class SourceManagementAdmin {
                 this.sources.active = sourcesResponse.data || [];
                 this.displayEnhancedActiveSources();
             } else {
-                throw new Error(sourcesResponse.error || 'Failed to load active sources');
+                // Ensure sources array is empty when API fails
+                this.sources.active = [];
+                this.displayEnhancedActiveSources();
             }
             
         } catch (error) {
-            analyticsContainer.innerHTML = `<div class="alert alert-error">Failed to load data: ${error.message}</div>`;
-            sourcesContainer.innerHTML = `<div class="alert alert-error">Failed to load active sources: ${error.message}</div>`;
+            // Show default analytics when network error occurs
+            this.displayAnalyticsOverview({
+                total_sources_submitted: 0,
+                sources_active: 0,
+                success_rate: '0%',
+                total_activities: 0
+            });
+            
+            // Ensure sources array is empty when network error occurs
+            this.sources.active = [];
+            this.displayEnhancedActiveSources();
         }
     }
 
@@ -436,20 +453,24 @@ class SourceManagementAdmin {
         const analyticsHtml = `
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
                 <div class="source-card" style="text-align: center; padding: 1rem;">
-                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-secondary);">Total Sources</h4>
+                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-secondary);">Sources Submitted</h4>
                     <div style="font-size: 1.8rem; font-weight: bold; color: var(--primary-color);">${analytics.total_sources_submitted || 0}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">All time</div>
                 </div>
                 <div class="source-card" style="text-align: center; padding: 1rem;">
-                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-secondary);">Active Sources</h4>
+                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-secondary);">Active & Scraping</h4>
                     <div style="font-size: 1.8rem; font-weight: bold; color: #10b981;">${analytics.sources_active || 0}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Currently running</div>
                 </div>
                 <div class="source-card" style="text-align: center; padding: 1rem;">
                     <h4 style="margin: 0 0 0.5rem 0; color: var(--text-secondary);">Success Rate</h4>
                     <div style="font-size: 1.8rem; font-weight: bold; color: #10b981;">${analytics.success_rate || '0%'}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Last 30 days</div>
                 </div>
                 <div class="source-card" style="text-align: center; padding: 1rem;">
-                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-secondary);">Total Activities</h4>
+                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-secondary);">Activities Found</h4>
                     <div style="font-size: 1.8rem; font-weight: bold; color: var(--primary-color);">${analytics.total_activities || 0}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Total scraped</div>
                 </div>
             </div>
         `;
@@ -460,7 +481,7 @@ class SourceManagementAdmin {
         const container = document.getElementById('active-sources');
         
         if (this.sources.active.length === 0) {
-            container.innerHTML = '<div class="alert alert-info">No active sources configured yet. Submit a source for analysis to get started.</div>';
+            container.innerHTML = '<div class="alert alert-info">No sources are currently active and scraping. Sources need to be submitted, analyzed, and activated before they appear here. Use the "Event Crawling" tab to submit new sources for analysis.</div>';
             return;
         }
 
