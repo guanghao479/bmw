@@ -48,6 +48,14 @@ const (
 	AdminEventStatusEdited   AdminEventStatus = "edited"
 )
 
+// AdminEventType represents the type of admin event
+type AdminEventType string
+
+const (
+	AdminEventTypeExtraction AdminEventType = "extraction"
+	AdminEventTypeDeletion   AdminEventType = "source_deleted"
+)
+
 // ExtractionSchema represents a predefined schema for Firecrawl extraction
 type ExtractionSchema struct {
 	Name        string                 `json:"name"`
@@ -90,6 +98,32 @@ type ConversionResult struct {
 	ValidationResults map[string]interface{} `json:"validation_results,omitempty"` // Field validation results
 }
 
+// SourceDeletionEvent represents an admin event for source deletion
+type SourceDeletionEvent struct {
+	// DynamoDB Keys
+	PK string `json:"PK" dynamodbav:"PK"` // ADMIN_EVENT#{event_id}
+	SK string `json:"SK" dynamodbav:"SK"` // TIMESTAMP#{timestamp}
+
+	// Event metadata
+	EventType    AdminEventType `json:"event_type" dynamodbav:"event_type"`     // "source_deleted"
+	EventID      string         `json:"event_id" dynamodbav:"event_id"`
+	AdminUser    string         `json:"admin_user" dynamodbav:"admin_user"`
+	Timestamp    time.Time      `json:"timestamp" dynamodbav:"timestamp"`
+
+	// Source information
+	SourceID     string `json:"source_id" dynamodbav:"source_id"`
+	SourceName   string `json:"source_name" dynamodbav:"source_name"`
+	SourceURL    string `json:"source_url" dynamodbav:"source_url"`
+
+	// Deletion details
+	DeletionData DeletionResult `json:"deletion_data" dynamodbav:"deletion_data"`
+	Success      bool           `json:"success" dynamodbav:"success"`
+	ErrorMessage string         `json:"error_message,omitempty" dynamodbav:"error_message,omitempty"`
+
+	// GSI Keys
+	EventTypeKey string `json:"EventTypeKey,omitempty" dynamodbav:"EventTypeKey,omitempty"` // EVENT_TYPE#{event_type}
+}
+
 // DynamoDB Key Generation Functions
 
 // CreateAdminEventPK creates the primary key for an admin event
@@ -105,6 +139,21 @@ func CreateAdminEventSK(timestamp time.Time) string {
 // GenerateAdminEventStatusKey creates a GSI key for querying by status
 func GenerateAdminEventStatusKey(status AdminEventStatus) string {
 	return fmt.Sprintf("STATUS#%s", string(status))
+}
+
+// CreateSourceDeletionEventPK creates the primary key for a source deletion event
+func CreateSourceDeletionEventPK(eventID string) string {
+	return fmt.Sprintf("ADMIN_EVENT#%s", eventID)
+}
+
+// CreateSourceDeletionEventSK creates the sort key for a source deletion event
+func CreateSourceDeletionEventSK(timestamp time.Time) string {
+	return fmt.Sprintf("TIMESTAMP#%s", timestamp.Format("2006-01-02T15:04:05Z"))
+}
+
+// GenerateEventTypeKey creates a GSI key for querying by event type
+func GenerateEventTypeKey(eventType AdminEventType) string {
+	return fmt.Sprintf("EVENT_TYPE#%s", string(eventType))
 }
 
 // Validation Functions
@@ -180,6 +229,32 @@ func (csr *CrawlSubmissionRequest) Validate() error {
 	// If custom schema, validate it's provided
 	if csr.SchemaType == "custom" && csr.CustomSchema == nil {
 		return fmt.Errorf("custom_schema is required when schema_type is 'custom'")
+	}
+
+	return nil
+}
+
+// Validate validates a source deletion event
+func (sde *SourceDeletionEvent) Validate() error {
+	if sde.EventID == "" {
+		return fmt.Errorf("event_id is required")
+	}
+	if sde.AdminUser == "" {
+		return fmt.Errorf("admin_user is required")
+	}
+	if sde.SourceID == "" {
+		return fmt.Errorf("source_id is required")
+	}
+	if sde.SourceName == "" {
+		return fmt.Errorf("source_name is required")
+	}
+	if sde.EventType != AdminEventTypeDeletion {
+		return fmt.Errorf("invalid event_type for source deletion: %s", sde.EventType)
+	}
+	
+	// Validate deletion data
+	if err := sde.DeletionData.Validate(); err != nil {
+		return fmt.Errorf("invalid deletion_data: %w", err)
 	}
 
 	return nil

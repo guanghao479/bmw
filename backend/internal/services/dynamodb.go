@@ -1112,3 +1112,178 @@ func (s *DynamoDBService) batchWriteAdminEvents(ctx context.Context, events []*m
 
 	return err
 }
+
+// Source Deletion Operations
+
+// DeleteSourceCompletely removes a source and all associated data using transactions
+func (s *DynamoDBService) DeleteSourceCompletely(ctx context.Context, sourceID string) (*models.DeletionResult, error) {
+	result := &models.DeletionResult{
+		SourceID: sourceID,
+	}
+
+	// First, query all associated activity records to count them
+	activities, err := s.queryActivitiesBySource(ctx, sourceID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query activities for source %s: %w", sourceID, err)
+	}
+	result.ActivitiesDeleted = len(activities)
+
+	// Get source record keys to check what exists
+	sourceKeys := models.GetSourceRecordKeys(sourceID)
+	var transactItems []types.TransactWriteItem
+
+	// Check and prepare deletion for each source record type
+	for _, key := range sourceKeys {
+		exists, err := s.checkRecordExists(ctx, s.sourceManagementTable, key.PK, key.SK)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check record existence %s/%s: %w", key.PK, key.SK, err)
+		}
+
+		if exists {
+			// Add to transaction
+			transactItems = append(transactItems, types.TransactWriteItem{
+				Delete: &types.Delete{
+					TableName: aws.String(s.sourceManagementTable),
+					Key: map[string]types.AttributeValue{
+						"PK": &types.AttributeValueMemberS{Value: key.PK},
+						"SK": &types.AttributeValueMemberS{Value: key.SK},
+					},
+				},
+			})
+
+			// Track what we're deleting
+			switch key.SK {
+			case models.CreateSourceSubmissionSK():
+				result.SubmissionDeleted = true
+			case models.CreateSourceAnalysisSK():
+				result.AnalysisDeleted = true
+			case models.CreateSourceConfigSK():
+				result.ConfigDeleted = true
+			}
+		}
+	}
+
+	// Add activity deletions to transaction (in batches if needed)
+	for _, activity := range activities {
+		transactItems = append(transactItems, types.TransactWriteItem{
+			Delete: &types.Delete{
+				TableName: aws.String(s.familyActivitiesTable),
+				Key: map[string]types.AttributeValue{
+					"PK": &types.AttributeValueMemberS{Value: activity.PK},
+					"SK": &types.AttributeValueMemberS{Value: activity.SK},
+				},
+			},
+		})
+	}
+
+	// Execute transaction in batches (DynamoDB limit is 100 items per transaction)
+	if err := s.executeTransactionBatches(ctx, transactItems); err != nil {
+		return nil, fmt.Errorf("failed to execute deletion transaction: %w", err)
+	}
+
+	// Calculate total records deleted
+	result.TotalRecords = 0
+	if result.SubmissionDeleted {
+		result.TotalRecords++
+	}
+	if result.AnalysisDeleted {
+		result.TotalRecords++
+	}
+	if result.ConfigDeleted {
+		result.TotalRecords++
+	}
+	result.TotalRecords += result.ActivitiesDeleted
+
+	return result, nil
+}
+
+// queryActivitiesBySource finds all activities associated with a source
+func (s *DynamoDBService) queryActivitiesBySource(ctx context.Context, sourceID string) ([]models.FamilyActivity, error) {
+	// Query activities table for records with source_id
+	result, err := s.client.Scan(ctx, &dynamodb.ScanInput{
+		TableName:        aws.String(s.familyActivitiesTable),
+		FilterExpression: aws.String("source_id = :source_id"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":source_id": &types.AttributeValueMemberS{Value: sourceID},
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan activities by source: %w", err)
+	}
+
+	var activities []models.FamilyActivity
+	err = attributevalue.UnmarshalListOfMaps(result.Items, &activities)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal activities: %w", err)
+	}
+
+	return activities, nil
+}
+
+// checkRecordExists checks if a record exists in DynamoDB
+func (s *DynamoDBService) checkRecordExists(ctx context.Context, tableName, pk, sk string) (bool, error) {
+	result, err := s.client.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: aws.String(tableName),
+		Key: map[string]types.AttributeValue{
+			"PK": &types.AttributeValueMemberS{Value: pk},
+			"SK": &types.AttributeValueMemberS{Value: sk},
+		},
+	})
+	if err != nil {
+		return false, err
+	}
+
+	return result.Item != nil, nil
+}
+
+// executeTransactionBatches executes transaction items in batches of 100
+func (s *DynamoDBService) executeTransactionBatches(ctx context.Context, items []types.TransactWriteItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+
+	batchSize := 100 // DynamoDB transaction limit
+	for i := 0; i < len(items); i += batchSize {
+		end := i + batchSize
+		if end > len(items) {
+			end = len(items)
+		}
+
+		batch := items[i:end]
+		_, err := s.client.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{
+			TransactItems: batch,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to execute transaction batch %d-%d: %w", i, end-1, err)
+		}
+	}
+
+	return nil
+}
+
+// CreateSourceDeletionEvent logs a source deletion event
+func (s *DynamoDBService) CreateSourceDeletionEvent(ctx context.Context, event *models.SourceDeletionEvent) error {
+	// Set timestamps and keys
+	now := time.Now()
+	event.Timestamp = now
+	event.PK = models.CreateSourceDeletionEventPK(event.EventID)
+	event.SK = models.CreateSourceDeletionEventSK(event.Timestamp)
+	event.EventTypeKey = models.GenerateEventTypeKey(event.EventType)
+
+	// Marshal to DynamoDB attribute values
+	item, err := attributevalue.MarshalMap(event)
+	if err != nil {
+		return fmt.Errorf("failed to marshal source deletion event: %w", err)
+	}
+
+	// Put item
+	_, err = s.client.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: aws.String(s.adminEventsTable),
+		Item:      item,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create source deletion event: %w", err)
+	}
+
+	return nil
+}

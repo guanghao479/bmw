@@ -275,6 +275,16 @@ type FrequencyAdjustment struct {
 	TriggerScore float64   `json:"trigger_score" dynamodbav:"trigger_score"`
 }
 
+// DeletionResult tracks what records were deleted during source removal
+type DeletionResult struct {
+	SourceID          string `json:"source_id" dynamodbav:"source_id"`
+	SubmissionDeleted bool   `json:"submission_deleted" dynamodbav:"submission_deleted"`
+	AnalysisDeleted   bool   `json:"analysis_deleted" dynamodbav:"analysis_deleted"`
+	ConfigDeleted     bool   `json:"config_deleted" dynamodbav:"config_deleted"`
+	ActivitiesDeleted int    `json:"activities_deleted" dynamodbav:"activities_deleted"`
+	TotalRecords      int    `json:"total_records" dynamodbav:"total_records"`
+}
+
 // Helper functions to create primary keys for source management
 func CreateSourcePK(sourceID string) string {
 	return "SOURCE#" + sourceID
@@ -330,6 +340,37 @@ func (sc *DynamoSourceConfig) Validate() error {
 	}
 	if sc.ScrapingConfig.Frequency == "" {
 		return fmt.Errorf("scraping frequency is required")
+	}
+	return nil
+}
+
+// Helper functions for source record queries
+
+// GetSourceRecordKeys returns all possible DynamoDB keys for a source
+func GetSourceRecordKeys(sourceID string) []struct{ PK, SK string } {
+	pk := CreateSourcePK(sourceID)
+	return []struct{ PK, SK string }{
+		{PK: pk, SK: CreateSourceSubmissionSK()},
+		{PK: pk, SK: CreateSourceAnalysisSK()},
+		{PK: pk, SK: CreateSourceConfigSK()},
+	}
+}
+
+// GetActivityRecordPrefix returns the prefix for querying activities by source
+func GetActivityRecordPrefix(sourceID string) string {
+	return "ACTIVITY#" + sourceID
+}
+
+// Validate validates a deletion result
+func (dr *DeletionResult) Validate() error {
+	if dr.SourceID == "" {
+		return fmt.Errorf("source_id is required")
+	}
+	if dr.TotalRecords < 0 {
+		return fmt.Errorf("total_records cannot be negative")
+	}
+	if dr.ActivitiesDeleted < 0 {
+		return fmt.Errorf("activities_deleted cannot be negative")
 	}
 	return nil
 }
