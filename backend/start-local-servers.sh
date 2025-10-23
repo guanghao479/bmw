@@ -29,14 +29,14 @@ if [ ! -d "../infrastructure/cdk.out" ]; then
     exit 1
 fi
 
-echo "🌐 Starting frontend server on http://localhost:8000..."
+echo "🌐 Starting frontend server..."
 echo ""
 echo "Servers will start in background. Use browser MCP tools for testing."
 echo "Press Ctrl+C to stop all servers."
 
-# Start frontend server
+# Start frontend server using dedicated script
 cd ../app
-python3 -m http.server 8000 &
+./start-local-frontend.sh &
 FRONTEND_PID=$!
 cd ../backend
 
