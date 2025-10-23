@@ -18,12 +18,12 @@ class SourceManagementAdmin {
     detectEnvironment() {
         const hostname = window.location.hostname;
         const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
-        
+
         if (isLocal) {
             // Local development - use SAM CLI local API Gateway endpoint
             return 'http://127.0.0.1:3000/api';
         } else if (hostname.includes('192.168') || hostname.includes('github.dev')) {
-            // Other development environments - use mock API or development endpoints
+            // Other development environments - use development endpoints
             return 'http://localhost:3000/api';
         } else {
             // Production - use actual AWS API Gateway endpoints
@@ -117,7 +117,7 @@ class SourceManagementAdmin {
                 this.displaySourceManagement();
             } else {
                 console.warn('Failed to load sources:', response.error);
-                // Fallback to mock data for development
+                // Fallback to empty data when API fails
                 this.sources.active = [
                     {
                         source_id: 'demo-source',
@@ -297,9 +297,9 @@ class SourceManagementAdmin {
 
     async makeApiCall(endpoint, method = 'GET', body = null) {
         const url = `${this.apiBaseUrl}${endpoint}`;
-        const isLocal = window.location.hostname === 'localhost' || 
-                       window.location.hostname === '127.0.0.1';
-        
+        const isLocal = window.location.hostname === 'localhost' ||
+            window.location.hostname === '127.0.0.1';
+
         const options = {
             method: method,
             mode: 'cors',
@@ -317,23 +317,23 @@ class SourceManagementAdmin {
         try {
             const response = await fetch(url, options);
             const data = await response.json();
-            
+
             if (!response.ok) {
                 throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
             }
-            
+
             return data;
         } catch (error) {
             console.error('API call failed:', error);
-            
+
             // Provide specific error message for local development
-            const isLocal = window.location.hostname === 'localhost' || 
-                           window.location.hostname === '127.0.0.1';
-            
+            const isLocal = window.location.hostname === 'localhost' ||
+                window.location.hostname === '127.0.0.1';
+
             if (isLocal && (error.name === 'TypeError' || error.message.includes('Failed to fetch'))) {
                 throw new Error('Local backend is not running. Please start the SAM local API server with: sam local start-api -t ../infrastructure/cdk.out/SeattleFamilyActivitiesMVPStack.template.json --env-vars env.json --port 3000');
             }
-            
+
             throw error;
         }
     }
@@ -350,17 +350,17 @@ class SourceManagementAdmin {
     async loadActiveSources() {
         const container = document.getElementById('active-sources');
         container.innerHTML = '<div class="alert alert-info">Loading active sources...</div>';
-        
+
         try {
             const response = await this.makeApiCall('/sources/active');
-            
+
             if (response.success) {
                 this.sources.active = response.data || [];
                 this.displayActiveSources();
             } else {
                 throw new Error(response.error || 'Failed to load active sources');
             }
-            
+
         } catch (error) {
             container.innerHTML = `<div class="alert alert-error">Failed to load active sources: ${error.message}</div>`;
         }
@@ -368,7 +368,7 @@ class SourceManagementAdmin {
 
     displayActiveSources() {
         const container = document.getElementById('active-sources');
-        
+
         if (this.sources.active.length === 0) {
             container.innerHTML = '<div class="alert alert-info">No active sources configured yet.</div>';
             return;
@@ -416,18 +416,18 @@ class SourceManagementAdmin {
         // Load analytics overview
         const analyticsContainer = document.getElementById('analytics-overview');
         analyticsContainer.innerHTML = '<div class="alert alert-info">Loading analytics...</div>';
-        
+
         // Load active sources
         const sourcesContainer = document.getElementById('active-sources');
         sourcesContainer.innerHTML = '<div class="alert alert-info">Loading active sources...</div>';
-        
+
         try {
             // Fetch both analytics and active sources data
             const [analyticsResponse, sourcesResponse] = await Promise.all([
                 this.makeApiCall('/analytics'),
                 this.makeApiCall('/sources/active')
             ]);
-            
+
             // Display analytics overview
             if (analyticsResponse.success) {
                 const analytics = analyticsResponse.data;
@@ -441,7 +441,7 @@ class SourceManagementAdmin {
                     total_activities: 0
                 });
             }
-            
+
             // Display active sources with enhanced data
             if (sourcesResponse.success) {
                 this.sources.active = sourcesResponse.data || [];
@@ -451,7 +451,7 @@ class SourceManagementAdmin {
                 this.sources.active = [];
                 this.displayEnhancedActiveSources();
             }
-            
+
         } catch (error) {
             // Show default analytics when network error occurs
             this.displayAnalyticsOverview({
@@ -460,7 +460,7 @@ class SourceManagementAdmin {
                 success_rate: '0%',
                 total_activities: 0
             });
-            
+
             // Ensure sources array is empty when network error occurs
             this.sources.active = [];
             this.displayEnhancedActiveSources();
@@ -498,7 +498,7 @@ class SourceManagementAdmin {
 
     displayEnhancedActiveSources() {
         const container = document.getElementById('active-sources');
-        
+
         if (this.sources.active.length === 0) {
             container.innerHTML = '<div class="alert alert-info">No sources are currently active and scraping. Sources need to be submitted, analyzed, and activated before they appear here. Use the "Event Crawling" tab to submit new sources for analysis.</div>';
             return;
@@ -583,7 +583,7 @@ class SourceManagementAdmin {
     getStatusColor(status) {
         const colors = {
             'ready': '#10b981',
-            'running': '#f59e0b', 
+            'running': '#f59e0b',
             'completed': '#10b981',
             'failed': '#ef4444',
             'paused': '#6b7280'
@@ -626,10 +626,10 @@ class SourceManagementAdmin {
     async loadAnalytics() {
         const container = document.getElementById('analytics-content');
         container.innerHTML = '<div class="alert alert-info">Loading analytics...</div>';
-        
+
         try {
             const response = await this.makeApiCall('/analytics');
-            
+
             if (response.success) {
                 const analytics = response.data;
                 const analyticsHtml = `
@@ -664,12 +664,12 @@ class SourceManagementAdmin {
                         Detailed analytics dashboard coming soon with source performance metrics, content quality scores, and scraping efficiency reports.
                     </div>
                 `;
-                
+
                 container.innerHTML = analyticsHtml;
             } else {
                 throw new Error(response.error || 'Failed to load analytics');
             }
-            
+
         } catch (error) {
             container.innerHTML = `<div class="alert alert-error">Failed to load analytics: ${error.message}</div>`;
         }
@@ -698,7 +698,7 @@ class SourceManagementAdmin {
 
     formatDate(dateString) {
         const date = new Date(dateString);
-        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
 
 
@@ -1233,11 +1233,11 @@ class SourceManagementAdmin {
         confirmationInput.addEventListener('input', (e) => {
             const inputValue = e.target.value.trim();
             const isValid = inputValue === sourceName;
-            
+
             confirmButton.disabled = !isValid;
             confirmButton.style.opacity = isValid ? '1' : '0.5';
             confirmButton.style.cursor = isValid ? 'pointer' : 'not-allowed';
-            
+
             if (inputValue && !isValid) {
                 errorDiv.style.display = 'block';
             } else {
@@ -1261,7 +1261,7 @@ class SourceManagementAdmin {
     async confirmDelete(sourceId, sourceName, modal) {
         const confirmButton = modal.querySelector('#delete-confirm-button');
         const originalText = confirmButton.textContent;
-        
+
         // Show loading state
         confirmButton.disabled = true;
         confirmButton.textContent = 'Deleting...';
@@ -1281,13 +1281,13 @@ class SourceManagementAdmin {
     async deleteSource(sourceId, sourceName) {
         try {
             const response = await this.makeApiCall(`/sources/${sourceId}`, 'DELETE');
-            
+
             if (response.success) {
                 this.showSourceAlert(
                     `Source "${sourceName}" deleted successfully! All associated data has been removed.`,
                     'success'
                 );
-                
+
                 // Refresh the source list after successful deletion
                 await this.loadSourceManagement();
             } else {
@@ -1358,11 +1358,11 @@ class SourceManagementAdmin {
         console.log('Admin Environment Detection Test:');
         console.log('- Hostname:', window.location.hostname);
         console.log('- API Base URL:', this.apiBaseUrl);
-        
-        const isLocal = window.location.hostname === 'localhost' || 
-                       window.location.hostname === '127.0.0.1';
+
+        const isLocal = window.location.hostname === 'localhost' ||
+            window.location.hostname === '127.0.0.1';
         console.log('- Is Local:', isLocal);
-        
+
         return {
             hostname: window.location.hostname,
             apiBaseUrl: this.apiBaseUrl,
@@ -1372,9 +1372,9 @@ class SourceManagementAdmin {
 
     // Test local backend connection
     async testLocalBackendConnection() {
-        const isLocal = window.location.hostname === 'localhost' || 
-                       window.location.hostname === '127.0.0.1';
-        
+        const isLocal = window.location.hostname === 'localhost' ||
+            window.location.hostname === '127.0.0.1';
+
         if (!isLocal) {
             console.log('Not in local development mode');
             return false;

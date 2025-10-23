@@ -49,7 +49,7 @@
   - Document browser testing procedures
   - _Requirements: 4.1, 4.2, 4.4, 4.5_
 
-- [-] 7. Deprecate mock API server
+- [x] 7. Deprecate mock API server
   - Remove mock-api-server.js file
   - Update any documentation references to mock API server
   - Update frontend configuration to remove mock API server endpoints
