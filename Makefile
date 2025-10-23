@@ -39,10 +39,10 @@ clean: ## Clean build artifacts
 	@rm -f backend/env.json
 	@echo "✅ Clean complete"
 
-deploy: ## Deploy infrastructure
+infra-deploy: ## Deploy infrastructure
 	@echo "🚀 Deploying infrastructure..."
 	@cd infrastructure && npm run deploy
 
-deploy-diff: ## Show deployment diff
-	@echo "📋 Showing deployment diff..."
+infra-diff: ## Show infrastructure deployment diff
+	@echo "📋 Showing infrastructure deployment diff..."
 	@cd infrastructure && npm run diff
