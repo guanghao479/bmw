@@ -1,16 +1,18 @@
 #!/bin/bash
 
 # Start local backend development server using AWS SAM CLI
-# This script starts the backend Lambda functions as HTTP servers for local development
 
 set -e
 
 echo "🚀 Starting Local Backend Development Server"
 echo "==========================================="
 
+# Navigate to backend directory
+cd "$(dirname "$0")/../backend"
+
 # Check if we're in the right directory
 if [ ! -f "go.mod" ]; then
-    echo "❌ Please run this script from the backend directory"
+    echo "❌ Backend go.mod not found"
     exit 1
 fi
 
@@ -74,7 +76,7 @@ echo "✅ Environment configuration created (using environment variable referenc
 # Check CDK output exists
 if [ ! -d "../infrastructure/cdk.out" ]; then
     echo "❌ CDK output not found. Please synthesize CDK stack first:"
-    echo "   cd ../infrastructure"
+    echo "   cd infrastructure"
     echo "   npm install"
     echo "   cdk synth"
     exit 1
@@ -84,7 +86,7 @@ fi
 TEMPLATE_FILE="../infrastructure/cdk.out/SeattleFamilyActivitiesMVPStack.template.json"
 if [ ! -f "$TEMPLATE_FILE" ]; then
     echo "❌ CDK template not found at: $TEMPLATE_FILE"
-    echo "Please run: cd ../infrastructure && cdk synth"
+    echo "Please run: cd infrastructure && cdk synth"
     exit 1
 fi
 

@@ -1,44 +1,43 @@
 #!/bin/bash
 
-# Start local backend and frontend servers for browser testing
+# Start both backend and frontend development servers
 
 set -e
 
-echo "🚀 Starting Local Development Servers"
-echo "===================================="
+echo "🚀 Starting Full Development Environment"
+echo "======================================="
 
-# Check if we're in the right directory
-if [ ! -f "go.mod" ]; then
-    echo "❌ Please run this script from the backend directory"
+# Get script directory
+SCRIPT_DIR="$(dirname "$0")"
+
+# Check if backend directory exists
+if [ ! -d "$SCRIPT_DIR/../backend" ]; then
+    echo "❌ backend directory not found"
     exit 1
 fi
 
-# Start backend using the dedicated backend script
+# Check if app directory exists  
+if [ ! -d "$SCRIPT_DIR/../app" ]; then
+    echo "❌ app directory not found"
+    exit 1
+fi
+
 echo "🔧 Starting backend server..."
-./start-local-backend.sh &
+"$SCRIPT_DIR/dev-backend" &
 BACKEND_PID=$!
 
 # Wait for backend to start
 echo "⏳ Waiting for backend to initialize..."
 sleep 8
 
-# Check CDK output
-if [ ! -d "../infrastructure/cdk.out" ]; then
-    echo "❌ CDK output not found. Please deploy CDK stack first:"
-    echo "   cd ../infrastructure && npm run deploy"
-    exit 1
-fi
-
 echo "🌐 Starting frontend server..."
 echo ""
 echo "Servers will start in background. Use browser MCP tools for testing."
 echo "Press Ctrl+C to stop all servers."
 
-# Start frontend server using dedicated script
-cd ../app
-./start-local-frontend.sh &
+# Start frontend server
+"$SCRIPT_DIR/dev-frontend" &
 FRONTEND_PID=$!
-cd ../backend
 
 # Cleanup function
 cleanup() {
@@ -71,7 +70,9 @@ else
 fi
 
 echo ""
-echo "🎯 Servers are ready for browser MCP testing!"
+echo "🎯 Development environment ready!"
+echo "   Frontend: http://localhost:8000"
+echo "   Backend:  http://127.0.0.1:3000"
 
 # Keep running until interrupted
 while true; do

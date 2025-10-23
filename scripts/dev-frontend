@@ -7,9 +7,12 @@ set -e
 echo "🌐 Starting Local Frontend Development Server"
 echo "============================================="
 
+# Navigate to app directory
+cd "$(dirname "$0")/../app"
+
 # Check if we're in the right directory
 if [ ! -f "index.html" ]; then
-    echo "❌ Please run this script from the app directory"
+    echo "❌ Frontend index.html not found"
     exit 1
 fi
 
