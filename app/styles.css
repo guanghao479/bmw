@@ -534,35 +534,861 @@ body {
     -webkit-line-clamp: 3;
 }
 
-/* Loading State */
+/* ========================================
+   ANIMATION SYSTEM AND MICRO-INTERACTIONS
+   ======================================== */
+
+/* Animation Variables */
+:root {
+    /* Stagger timing for card animations */
+    --stagger-delay-base: 100ms;
+    --stagger-delay-increment: 50ms;
+    
+    /* Card entrance animation timing */
+    --card-entrance-duration: 600ms;
+    --card-entrance-easing: cubic-bezier(0.4, 0, 0.2, 1);
+    
+    /* Loading animation timing */
+    --loading-spinner-duration: 1.2s;
+    --loading-pulse-duration: 2s;
+    
+    /* Hover animation timing */
+    --hover-lift-duration: 300ms;
+    --hover-lift-easing: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Card Entrance Animations */
+@keyframes cardSlideUp {
+    0% {
+        opacity: 0;
+        transform: translateY(30px) scale(0.95);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes cardFadeIn {
+    0% {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes cardSlideInLeft {
+    0% {
+        opacity: 0;
+        transform: translateX(-30px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes cardSlideInRight {
+    0% {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Staggered Animation Classes */
+.card-animate {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+    animation: cardSlideUp var(--card-entrance-duration) var(--card-entrance-easing) forwards;
+}
+
+.card-animate--delay-1 {
+    animation-delay: calc(var(--stagger-delay-base) + var(--stagger-delay-increment) * 1);
+}
+
+.card-animate--delay-2 {
+    animation-delay: calc(var(--stagger-delay-base) + var(--stagger-delay-increment) * 2);
+}
+
+.card-animate--delay-3 {
+    animation-delay: calc(var(--stagger-delay-base) + var(--stagger-delay-increment) * 3);
+}
+
+.card-animate--delay-4 {
+    animation-delay: calc(var(--stagger-delay-base) + var(--stagger-delay-increment) * 4);
+}
+
+.card-animate--delay-5 {
+    animation-delay: calc(var(--stagger-delay-base) + var(--stagger-delay-increment) * 5);
+}
+
+.card-animate--delay-6 {
+    animation-delay: calc(var(--stagger-delay-base) + var(--stagger-delay-increment) * 6);
+}
+
+.card-animate--delay-7 {
+    animation-delay: calc(var(--stagger-delay-base) + var(--stagger-delay-increment) * 7);
+}
+
+.card-animate--delay-8 {
+    animation-delay: calc(var(--stagger-delay-base) + var(--stagger-delay-increment) * 8);
+}
+
+/* Alternative animation styles for variety */
+.card-animate--fade {
+    animation-name: cardFadeIn;
+}
+
+.card-animate--slide-left {
+    animation-name: cardSlideInLeft;
+}
+
+.card-animate--slide-right {
+    animation-name: cardSlideInRight;
+}
+
+/* Loading State Animations */
 .loading {
     text-align: center;
     padding: var(--space-20);
     display: none;
+    position: relative;
 }
 
 .loading.show {
     display: block;
 }
 
+/* Enhanced Glassmorphic Loading Spinner */
 .loading-spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid var(--neutral-200);
+    width: 48px;
+    height: 48px;
+    border: 3px solid rgba(255, 255, 255, 0.2);
     border-top: 3px solid var(--primary);
     border-radius: var(--radius-full);
-    animation: spin 1s linear infinite;
+    animation: spinGlass var(--loading-spinner-duration) linear infinite;
     margin: 0 auto var(--space-4);
+    position: relative;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.1) 0%,
+        rgba(255, 255, 255, 0.05) 100%
+    );
+    box-shadow: 
+        0 8px 32px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
+.loading-spinner::before {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: -3px;
+    right: -3px;
+    bottom: -3px;
+    border-radius: var(--radius-full);
+    background: linear-gradient(
+        45deg,
+        transparent,
+        rgba(99, 102, 241, 0.1),
+        transparent
+    );
+    animation: spinGlassGlow var(--loading-spinner-duration) linear infinite;
+    z-index: -1;
+}
+
+@keyframes spinGlass {
+    0% { 
+        transform: rotate(0deg);
+    }
+    100% { 
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes spinGlassGlow {
+    0% { 
+        transform: rotate(0deg);
+        opacity: 0.5;
+    }
+    50% {
+        opacity: 1;
+    }
+    100% { 
+        transform: rotate(360deg);
+        opacity: 0.5;
+    }
+}
+
+/* Loading Text Animation */
 .loading p {
     color: var(--text-secondary);
     font-weight: var(--font-weight-medium);
+    animation: loadingPulse var(--loading-pulse-duration) ease-in-out infinite;
 }
 
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+@keyframes loadingPulse {
+    0%, 100% {
+        opacity: 0.6;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+/* Loading Skeleton Animation for Cards */
+.card-skeleton {
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.1) 0%,
+        rgba(255, 255, 255, 0.2) 50%,
+        rgba(255, 255, 255, 0.1) 100%
+    );
+    background-size: 200% 100%;
+    animation: skeletonShimmer 1.5s ease-in-out infinite;
+    border-radius: var(--radius-xl);
+    min-height: 280px;
+    position: relative;
+    overflow: hidden;
+}
+
+.card-skeleton::before {
+    content: '';
+    position: absolute;
+    top: var(--space-4);
+    left: var(--space-4);
+    right: var(--space-4);
+    height: 160px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-lg);
+}
+
+.card-skeleton::after {
+    content: '';
+    position: absolute;
+    bottom: var(--space-4);
+    left: var(--space-4);
+    right: var(--space-4);
+    height: 80px;
+    background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.1) 0%,
+        rgba(255, 255, 255, 0.05) 100%
+    );
+    border-radius: var(--radius-md);
+}
+
+@keyframes skeletonShimmer {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+/* Staggered Loading Animation for Multiple Skeletons */
+.card-skeleton:nth-child(1) { animation-delay: 0ms; }
+.card-skeleton:nth-child(2) { animation-delay: 100ms; }
+.card-skeleton:nth-child(3) { animation-delay: 200ms; }
+.card-skeleton:nth-child(4) { animation-delay: 300ms; }
+.card-skeleton:nth-child(5) { animation-delay: 400ms; }
+.card-skeleton:nth-child(6) { animation-delay: 500ms; }
+.card-skeleton:nth-child(7) { animation-delay: 600ms; }
+.card-skeleton:nth-child(8) { animation-delay: 700ms; }
+
+/* Enhanced Card Hover Animations */
+.card,
+.glass-card,
+.activity-card-hybrid,
+.card--hybrid {
+    transition: all var(--hover-lift-duration) var(--hover-lift-easing);
+    will-change: transform, box-shadow;
+}
+
+.card:hover,
+.glass-card:hover,
+.activity-card-hybrid:hover,
+.card--hybrid:hover {
+    animation: cardHoverLift 0.3s ease-out forwards;
+}
+
+@keyframes cardHoverLift {
+    0% {
+        transform: translateY(0) scale(1);
+    }
+    50% {
+        transform: translateY(-2px) scale(1.01);
+    }
+    100% {
+        transform: translateY(-6px) scale(1.02);
+    }
+}
+
+/* Micro-interaction: Button Press Animation */
+.neuro-button,
+.activity-card-hybrid__action-button,
+.filter-btn,
+.filter-btn-glass,
+.date-tab,
+.date-tab-neuro {
+    transition: all 0.2s var(--hover-lift-easing);
+    will-change: transform, box-shadow;
+}
+
+.neuro-button:active,
+.activity-card-hybrid__action-button:active,
+.filter-btn:active,
+.filter-btn-glass:active,
+.date-tab:active,
+.date-tab-neuro:active {
+    animation: buttonPress 0.15s ease-out;
+}
+
+@keyframes buttonPress {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(0.98);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Scroll-triggered Fade In Animation */
+.fade-in-on-scroll {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.6s var(--card-entrance-easing);
+}
+
+.fade-in-on-scroll.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Section Entrance Animations */
+.section-animate {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: all 0.8s var(--card-entrance-easing);
+}
+
+.section-animate.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Search Container Animation */
+.search-container,
+.search-container-glass {
+    animation: searchSlideDown 0.6s var(--card-entrance-easing) forwards;
+}
+
+@keyframes searchSlideDown {
+    0% {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Header Animation */
+.header {
+    animation: headerFadeIn 0.8s var(--card-entrance-easing) forwards;
+}
+
+@keyframes headerFadeIn {
+    0% {
+        opacity: 0;
+        transform: translateY(-30px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Date Tabs Animation */
+.date-tabs-section {
+    animation: dateTabsSlideIn 0.6s var(--card-entrance-easing) 0.2s forwards;
+    opacity: 0;
+}
+
+@keyframes dateTabsSlideIn {
+    0% {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Focus Ring Animation */
+.focus-ring-animate:focus-visible {
+    animation: focusRingPulse 0.3s ease-out;
+}
+
+@keyframes focusRingPulse {
+    0% {
+        outline-width: 0px;
+        outline-offset: 0px;
+    }
+    50% {
+        outline-width: 3px;
+        outline-offset: 3px;
+    }
+    100% {
+        outline-width: 2px;
+        outline-offset: 2px;
+    }
+}
+
+/* ========================================
+   SMOOTH PAGE TRANSITIONS AND HOVER EFFECTS
+   ======================================== */
+
+/* Page Transition Animations */
+.page-transition-enter {
+    opacity: 0;
+    transform: translateX(100%);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.page-transition-enter-active {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.page-transition-exit {
+    opacity: 1;
+    transform: translateX(0);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.page-transition-exit-active {
+    opacity: 0;
+    transform: translateX(-100%);
+}
+
+/* Enhanced Detail Page Modal Transitions */
+.detail-page {
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(0px);
+    -webkit-backdrop-filter: blur(0px);
+}
+
+.detail-page.show {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.detail-container {
+    transform: translateY(20px);
+    opacity: 0;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1) 0.1s;
+}
+
+.detail-page.show .detail-container {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+/* Enhanced Glass Modal Transitions */
+.glass-modal-backdrop {
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-modal-backdrop.show {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.glass-modal-content {
+    transform: scale(0.9) translateY(30px);
+    opacity: 0;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1) 0.1s;
+}
+
+.glass-modal-backdrop.show .glass-modal-content {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+}
+
+/* Enhanced Hover Effects for Interactive Elements */
+
+/* Search Input Enhanced Hover */
+.search-input:hover,
+.search-input-glass:hover {
+    transform: translateY(-1px);
+    box-shadow: 
+        0 8px 25px rgba(0, 0, 0, 0.1),
+        0 0 0 1px rgba(99, 102, 241, 0.1);
+}
+
+.search-input:focus,
+.search-input-glass:focus {
+    transform: translateY(-2px);
+}
+
+/* Filter Button Enhanced Hover */
+.filter-btn:hover,
+.filter-btn-glass:hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.filter-btn:active,
+.filter-btn-glass:active {
+    transform: translateY(0) scale(0.98);
+}
+
+/* Enhanced Card Hover with Depth Perception */
+.card:hover,
+.glass-card:hover,
+.activity-card-hybrid:hover,
+.card--hybrid:hover {
+    transform: translateY(-8px) scale(1.02);
+    box-shadow: 
+        0 25px 50px rgba(0, 0, 0, 0.15),
+        0 10px 30px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    z-index: 10;
+    position: relative;
+}
+
+/* Card Image Hover Effect */
+.card:hover .card-image,
+.glass-card:hover .card-image,
+.activity-card-hybrid:hover .activity-card-hybrid__image,
+.card--hybrid:hover .card-image {
+    transform: scale(1.05);
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Enhanced Neumorphic Button Depth Perception */
+.neuro-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 
+        10px 10px 20px var(--neuro-shadow-dark),
+        -10px -10px 20px var(--neuro-shadow-light),
+        0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.neuro-button:active {
+    transform: translateY(1px);
+    box-shadow: 
+        inset 6px 6px 12px var(--neuro-shadow-dark),
+        inset -6px -6px 12px var(--neuro-shadow-light);
+}
+
+/* Enhanced Date Tab Hover Effects */
+.date-tab:hover,
+.date-tab-neuro:hover {
+    transform: translateY(-3px) scale(1.05);
+    box-shadow: 
+        0 8px 25px rgba(0, 0, 0, 0.15),
+        6px 6px 12px var(--neuro-shadow-dark),
+        -6px -6px 12px var(--neuro-shadow-light);
+}
+
+.date-tab:active,
+.date-tab-neuro:active {
+    transform: translateY(0) scale(0.98);
+}
+
+/* Enhanced Form Control Hover Effects */
+.neuro-input:hover,
+.neuro-select:hover,
+.neuro-textarea:hover {
+    box-shadow: 
+        inset 6px 6px 12px var(--neuro-shadow-dark),
+        inset -6px -6px 12px var(--neuro-shadow-light),
+        0 0 0 1px rgba(99, 102, 241, 0.1);
+    background: var(--neuro-light);
+}
+
+/* Enhanced Action Button Hover Effects */
+.activity-card-hybrid__action-button:hover,
+.card--hybrid .card-action-button:hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 
+        8px 8px 16px rgba(148, 163, 184, 0.4),
+        -8px -8px 16px rgba(255, 255, 255, 0.8),
+        0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Navigation Button Enhanced Hover */
+.date-nav-btn:hover,
+.date-nav-btn-neuro:hover {
+    transform: translateY(-2px) scale(1.1);
+    box-shadow: 
+        8px 8px 16px var(--neuro-shadow-dark),
+        -8px -8px 16px var(--neuro-shadow-light),
+        0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Breadcrumb Back Button Enhanced Hover */
+.breadcrumb-back:hover {
+    transform: translateX(-3px);
+    color: var(--primary-light);
+    text-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
+}
+
+/* Admin Link Enhanced Hover */
+.admin-link:hover {
+    transform: translateY(-4px) scale(1.1);
+    box-shadow: 
+        0 8px 25px rgba(99, 102, 241, 0.4),
+        0 4px 12px rgba(99, 102, 241, 0.2);
+}
+
+/* Depth Perception Effects for Neumorphic Elements */
+
+/* Neumorphic Container Depth */
+.date-tabs-neuro-container:hover {
+    box-shadow: 
+        inset 10px 10px 20px var(--neuro-shadow-dark),
+        inset -10px -10px 20px var(--neuro-shadow-light),
+        0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Search Container Depth Effect */
+.search-container:hover,
+.search-container-glass:hover {
+    transform: translateY(-3px);
+    box-shadow: 
+        0 15px 35px rgba(0, 0, 0, 0.15),
+        0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Detail Section Hover Effects */
+.detail-section:hover {
+    transform: translateY(-2px);
+    box-shadow: 
+        0 8px 25px rgba(0, 0, 0, 0.1),
+        0 4px 12px rgba(0, 0, 0, 0.05);
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+/* Provider Info Hover Effect */
+.provider-info:hover {
+    transform: translateY(-2px);
+    box-shadow: 
+        0 8px 25px rgba(0, 0, 0, 0.1),
+        0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+/* Contact Method Hover Effects */
+.contact-method:hover {
+    transform: translateY(-2px) scale(1.05);
+    background: rgba(99, 102, 241, 0.2);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+}
+
+/* Tag and Badge Hover Effects */
+.tag:hover,
+.age-group:hover,
+.discount-item:hover {
+    transform: translateY(-1px) scale(1.05);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Category Badge Hover Effects */
+.card-category:hover,
+.activity-card-hybrid__category:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Image Gallery Thumbnail Hover */
+.detail-image-thumbnail:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 10;
+    position: relative;
+}
+
+/* Schedule Time Slot Hover */
+.schedule-time:hover {
+    transform: translateY(-1px);
+    background: var(--primary);
+    color: var(--text-inverse);
+    box-shadow: 0 4px 8px rgba(99, 102, 241, 0.3);
+}
+
+/* Registration Status Hover */
+.registration-status:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Smooth Transitions for All Interactive Elements */
+.card,
+.glass-card,
+.activity-card-hybrid,
+.card--hybrid,
+.neuro-button,
+.filter-btn,
+.filter-btn-glass,
+.date-tab,
+.date-tab-neuro,
+.search-input,
+.search-input-glass,
+.neuro-input,
+.neuro-select,
+.neuro-textarea,
+.contact-method,
+.tag,
+.age-group,
+.discount-item,
+.card-category,
+.activity-card-hybrid__category,
+.detail-image-thumbnail,
+.schedule-time,
+.registration-status,
+.provider-info,
+.detail-section,
+.admin-link,
+.breadcrumb-back {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform, box-shadow, background-color, color;
+}
+
+/* Staggered Hover Effects for Card Grids */
+.content-grid:hover .card:not(:hover),
+.featured-grid:hover .card:not(:hover) {
+    opacity: 0.7;
+    transform: scale(0.98);
+}
+
+/* Focus Enhancement for Better Accessibility */
+.card:focus-visible,
+.glass-card:focus-visible,
+.activity-card-hybrid:focus-visible,
+.card--hybrid:focus-visible {
+    transform: translateY(-4px) scale(1.01);
+    box-shadow: 
+        0 20px 40px rgba(0, 0, 0, 0.15),
+        0 0 0 3px rgba(99, 102, 241, 0.3);
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+    .card-animate,
+    .card-animate--fade,
+    .card-animate--slide-left,
+    .card-animate--slide-right,
+    .fade-in-on-scroll,
+    .section-animate,
+    .search-container,
+    .search-container-glass,
+    .header,
+    .date-tabs-section,
+    .page-transition-enter,
+    .page-transition-enter-active,
+    .page-transition-exit,
+    .page-transition-exit-active,
+    .detail-page,
+    .detail-container,
+    .glass-modal-backdrop,
+    .glass-modal-content {
+        animation: none !important;
+        transition: none !important;
+        opacity: 1 !important;
+        transform: none !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+    
+    .loading-spinner {
+        animation: none !important;
+    }
+    
+    .loading-spinner::before {
+        animation: none !important;
+        opacity: 0 !important;
+    }
+    
+    .loading p {
+        animation: none !important;
+        opacity: 1 !important;
+    }
+    
+    .card-skeleton {
+        animation: none !important;
+        background: rgba(255, 255, 255, 0.15) !important;
+    }
+    
+    .card:hover,
+    .glass-card:hover,
+    .activity-card-hybrid:hover,
+    .card--hybrid:hover,
+    .neuro-button:hover,
+    .filter-btn:hover,
+    .filter-btn-glass:hover,
+    .date-tab:hover,
+    .date-tab-neuro:hover,
+    .search-input:hover,
+    .search-input-glass:hover,
+    .neuro-input:hover,
+    .neuro-select:hover,
+    .neuro-textarea:hover,
+    .contact-method:hover,
+    .tag:hover,
+    .age-group:hover,
+    .discount-item:hover,
+    .card-category:hover,
+    .activity-card-hybrid__category:hover,
+    .detail-image-thumbnail:hover,
+    .schedule-time:hover,
+    .registration-status:hover,
+    .provider-info:hover,
+    .detail-section:hover,
+    .admin-link:hover,
+    .breadcrumb-back:hover {
+        animation: none !important;
+        transform: none !important;
+        transition: none !important;
+    }
+    
+    .neuro-button:active,
+    .activity-card-hybrid__action-button:active,
+    .filter-btn:active,
+    .filter-btn-glass:active,
+    .date-tab:active,
+    .date-tab-neuro:active {
+        animation: none !important;
+        transform: none !important;
+    }
+    
+    .focus-ring-animate:focus-visible {
+        animation: none !important;
+    }
+    
+    .content-grid:hover .card:not(:hover),
+    .featured-grid:hover .card:not(:hover) {
+        opacity: 1 !important;
+        transform: none !important;
+    }
 }
 
 /* Responsive Design */

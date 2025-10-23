@@ -707,23 +707,57 @@ class FamilyEventsApp {
         this.renderMainContent(filteredData);
     }
 
-    // Render main content
+    // Render main content with staggered animations
     renderMainContent(items) {
         const contentGrid = document.getElementById('contentGrid');
         
         if (items.length === 0) {
             contentGrid.innerHTML = `
-                <div class="no-results">
+                <div class="no-results fade-in-on-scroll">
                     <h3>No items found</h3>
                     <p>Try adjusting your search or filter criteria.</p>
                 </div>
             `;
+            
+            // Add animation to no-results message
+            if (window.animationSystem) {
+                const noResults = contentGrid.querySelector('.no-results');
+                window.animationSystem.intersectionObserver.observe(noResults);
+            }
             return;
         }
 
-        contentGrid.innerHTML = items
-            .map(item => this.createCardHTML(item, this.designMode))
-            .join('');
+        // Show loading skeletons first if animation system is available
+        if (window.animationSystem && items.length > 3) {
+            window.animationSystem.showLoadingSkeletons(contentGrid, Math.min(items.length, 8));
+            
+            // Delay showing actual content to demonstrate loading animation
+            setTimeout(() => {
+                this.renderActualContent(contentGrid, items);
+            }, 300);
+        } else {
+            this.renderActualContent(contentGrid, items);
+        }
+    }
+
+    // Render the actual content with animations
+    renderActualContent(contentGrid, items) {
+        // Hide loading skeletons if they exist
+        if (window.animationSystem) {
+            window.animationSystem.hideLoadingSkeletons(contentGrid);
+        }
+
+        // Render cards after skeleton removal delay
+        setTimeout(() => {
+            contentGrid.innerHTML = items
+                .map(item => this.createCardHTML(item, this.designMode))
+                .join('');
+
+            // Add staggered animations to cards
+            if (window.animationSystem) {
+                window.animationSystem.addStaggeredCardAnimations(contentGrid);
+            }
+        }, window.animationSystem ? 400 : 0);
     }
 
     // Create HTML for a single card
@@ -879,17 +913,31 @@ class FamilyEventsApp {
         this.router.navigate(`activity/${itemId}`);
     }
 
-    // Show list view
+    // Show list view with smooth transition
     showListView() {
         this.currentView = 'list';
-        document.querySelector('.container').style.display = 'block';
-        document.getElementById('detailPage').classList.remove('show');
-        setTimeout(() => {
-            document.getElementById('detailPage').style.display = 'none';
-        }, 300);
+        const container = document.querySelector('.container');
+        const detailPage = document.getElementById('detailPage');
+        
+        if (window.animationSystem) {
+            window.animationSystem.animatePageTransition(detailPage, container, 'backward')
+                .then(() => {
+                    // Re-add staggered animations to visible cards
+                    const contentGrid = document.getElementById('contentGrid');
+                    if (contentGrid) {
+                        window.animationSystem.addStaggeredCardAnimations(contentGrid);
+                    }
+                });
+        } else {
+            container.style.display = 'block';
+            detailPage.classList.remove('show');
+            setTimeout(() => {
+                detailPage.style.display = 'none';
+            }, 300);
+        }
     }
     
-    // Show detail view for specific activity
+    // Show detail view for specific activity with smooth transition
     showDetailView(activityId) {
         const item = this.allData.find(i => i.id == activityId);
         
@@ -906,15 +954,21 @@ class FamilyEventsApp {
         } else {
             this.renderDetailPage(item);
             
-            // Hide list view and show detail page
-            document.querySelector('.container').style.display = 'none';
+            const container = document.querySelector('.container');
             const detailPage = document.getElementById('detailPage');
-            detailPage.style.display = 'block';
-            setTimeout(() => detailPage.classList.add('show'), 10);
+            
+            if (window.animationSystem) {
+                window.animationSystem.animatePageTransition(container, detailPage, 'forward');
+            } else {
+                // Fallback for no animation system
+                container.style.display = 'none';
+                detailPage.style.display = 'block';
+                setTimeout(() => detailPage.classList.add('show'), 10);
+            }
         }
     }
 
-    // Show glassmorphic modal for detail view
+    // Show glassmorphic modal for detail view with enhanced transitions
     showGlassModal(item) {
         // Create glass modal if it doesn't exist
         let glassModal = document.getElementById('glassModal');
@@ -947,18 +1001,31 @@ class FamilyEventsApp {
         // Render content in glass modal
         this.renderGlassModalContent(item);
         
-        // Show modal
-        glassModal.classList.add('show');
-        document.body.style.overflow = 'hidden';
+        // Show modal with enhanced animation
+        if (window.animationSystem) {
+            window.animationSystem.animateModalOpen(glassModal).then(() => {
+                document.body.style.overflow = 'hidden';
+            });
+        } else {
+            glassModal.classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
     }
 
-    // Hide glassmorphic modal
+    // Hide glassmorphic modal with enhanced transitions
     hideGlassModal() {
         const glassModal = document.getElementById('glassModal');
         if (glassModal) {
-            glassModal.classList.remove('show');
-            document.body.style.overflow = '';
-            this.router.navigate('');
+            if (window.animationSystem) {
+                window.animationSystem.animateModalClose(glassModal).then(() => {
+                    document.body.style.overflow = '';
+                    this.router.navigate('');
+                });
+            } else {
+                glassModal.classList.remove('show');
+                document.body.style.overflow = '';
+                this.router.navigate('');
+            }
         }
     }
 
@@ -1769,14 +1836,22 @@ class FamilyEventsApp {
         document.head.appendChild(styles);
     }
 
-    // Show loading state
+    // Show loading state with enhanced animations
     showLoading() {
-        document.getElementById('loading').classList.add('show');
+        if (window.animationSystem) {
+            window.animationSystem.showEnhancedLoading();
+        } else {
+            document.getElementById('loading').classList.add('show');
+        }
     }
 
-    // Hide loading state
+    // Hide loading state with enhanced animations
     hideLoading() {
-        document.getElementById('loading').classList.remove('show');
+        if (window.animationSystem) {
+            window.animationSystem.hideEnhancedLoading();
+        } else {
+            document.getElementById('loading').classList.remove('show');
+        }
     }
 
     // Show error message
@@ -1864,30 +1939,424 @@ window.testLocalBackend = async () => {
     return false;
 };
 
-// Add some additional interactive features
-document.addEventListener('DOMContentLoaded', () => {
-    // Add scroll animations
-    const observerOptions = {
-        threshold: 0.1,
-        rootMargin: '0px 0px -50px 0px'
-    };
+// Animation System and Micro-interactions
+class AnimationSystem {
+    constructor() {
+        this.intersectionObserver = null;
+        this.animationQueue = [];
+        this.isAnimating = false;
+        this.setupIntersectionObserver();
+        this.setupScrollAnimations();
+    }
 
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.style.opacity = '1';
-                entry.target.style.transform = 'translateY(0)';
+    // Setup intersection observer for scroll-triggered animations
+    setupIntersectionObserver() {
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        this.intersectionObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    this.triggerElementAnimation(entry.target);
+                }
+            });
+        }, observerOptions);
+    }
+
+    // Setup scroll animations for sections
+    setupScrollAnimations() {
+        const sectionsToAnimate = [
+            '.header',
+            '.search-section',
+            '.date-tabs-section',
+            '.section-title'
+        ];
+
+        sectionsToAnimate.forEach(selector => {
+            const elements = document.querySelectorAll(selector);
+            elements.forEach(element => {
+                element.classList.add('section-animate');
+                this.intersectionObserver.observe(element);
+            });
+        });
+    }
+
+    // Trigger animation for individual elements
+    triggerElementAnimation(element) {
+        if (element.classList.contains('section-animate')) {
+            element.classList.add('visible');
+        } else if (element.classList.contains('fade-in-on-scroll')) {
+            element.classList.add('visible');
+        }
+    }
+
+    // Add staggered entrance animations to cards
+    addStaggeredCardAnimations(cardContainer) {
+        const cards = cardContainer.querySelectorAll('.card, .glass-card, .activity-card-hybrid, .card--hybrid');
+        
+        cards.forEach((card, index) => {
+            // Reset any existing animation classes
+            card.classList.remove('card-animate', 'card-animate--fade', 'card-animate--slide-left', 'card-animate--slide-right');
+            
+            // Remove existing delay classes
+            for (let i = 1; i <= 8; i++) {
+                card.classList.remove(`card-animate--delay-${i}`);
             }
-        });
-    }, observerOptions);
 
-    // Observe all cards for animation
-    setTimeout(() => {
-        document.querySelectorAll('.card').forEach(card => {
-            card.style.opacity = '0';
-            card.style.transform = 'translateY(20px)';
-            card.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
-            observer.observe(card);
+            // Add base animation class
+            card.classList.add('card-animate');
+            
+            // Add stagger delay (max 8 delays, then cycle)
+            const delayIndex = (index % 8) + 1;
+            card.classList.add(`card-animate--delay-${delayIndex}`);
+            
+            // Add variety in animation types
+            if (index % 4 === 1) {
+                card.classList.add('card-animate--fade');
+            } else if (index % 4 === 2) {
+                card.classList.add('card-animate--slide-left');
+            } else if (index % 4 === 3) {
+                card.classList.add('card-animate--slide-right');
+            }
+            
+            // Add to intersection observer for scroll-triggered animation
+            card.classList.add('fade-in-on-scroll');
+            this.intersectionObserver.observe(card);
         });
+    }
+
+    // Show loading skeleton cards
+    showLoadingSkeletons(container, count = 6) {
+        const skeletons = Array.from({ length: count }, (_, index) => 
+            `<div class="card-skeleton" style="animation-delay: ${index * 100}ms;"></div>`
+        ).join('');
+        
+        container.innerHTML = skeletons;
+    }
+
+    // Remove loading skeletons and show actual content
+    hideLoadingSkeletons(container) {
+        const skeletons = container.querySelectorAll('.card-skeleton');
+        skeletons.forEach((skeleton, index) => {
+            setTimeout(() => {
+                skeleton.style.opacity = '0';
+                skeleton.style.transform = 'scale(0.95)';
+                setTimeout(() => skeleton.remove(), 200);
+            }, index * 50);
+        });
+    }
+
+    // Enhanced loading spinner with glassmorphic effects
+    showEnhancedLoading() {
+        const loadingElement = document.getElementById('loading');
+        if (loadingElement) {
+            // Update loading spinner to use glassmorphic version
+            const spinner = loadingElement.querySelector('.loading-spinner');
+            if (spinner) {
+                spinner.classList.add('loading-spinner--glass');
+            }
+            loadingElement.classList.add('show');
+        }
+    }
+
+    // Hide enhanced loading
+    hideEnhancedLoading() {
+        const loadingElement = document.getElementById('loading');
+        if (loadingElement) {
+            loadingElement.classList.remove('show');
+        }
+    }
+
+    // Add micro-interactions to buttons
+    addButtonMicroInteractions() {
+        const buttons = document.querySelectorAll(`
+            .neuro-button,
+            .activity-card-hybrid__action-button,
+            .filter-btn,
+            .filter-btn-glass,
+            .date-tab,
+            .date-tab-neuro
+        `);
+
+        buttons.forEach(button => {
+            // Add focus ring animation class
+            button.classList.add('focus-ring-animate');
+            
+            // Add click ripple effect
+            button.addEventListener('click', (e) => {
+                this.createRippleEffect(e.target, e);
+            });
+        });
+    }
+
+    // Create ripple effect on button click
+    createRippleEffect(element, event) {
+        // Skip if reduced motion is preferred
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            return;
+        }
+
+        const ripple = document.createElement('span');
+        const rect = element.getBoundingClientRect();
+        const size = Math.max(rect.width, rect.height);
+        const x = event.clientX - rect.left - size / 2;
+        const y = event.clientY - rect.top - size / 2;
+
+        ripple.style.cssText = `
+            position: absolute;
+            width: ${size}px;
+            height: ${size}px;
+            left: ${x}px;
+            top: ${y}px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            transform: scale(0);
+            animation: ripple 0.6s ease-out;
+            pointer-events: none;
+            z-index: 1;
+        `;
+
+        // Add ripple styles if not already added
+        if (!document.getElementById('ripple-styles')) {
+            const styles = document.createElement('style');
+            styles.id = 'ripple-styles';
+            styles.textContent = `
+                @keyframes ripple {
+                    to {
+                        transform: scale(2);
+                        opacity: 0;
+                    }
+                }
+            `;
+            document.head.appendChild(styles);
+        }
+
+        // Ensure element has relative positioning
+        const originalPosition = element.style.position;
+        if (getComputedStyle(element).position === 'static') {
+            element.style.position = 'relative';
+        }
+
+        element.appendChild(ripple);
+
+        // Remove ripple after animation
+        setTimeout(() => {
+            ripple.remove();
+            if (originalPosition) {
+                element.style.position = originalPosition;
+            }
+        }, 600);
+    }
+
+    // Animate page transitions with enhanced effects
+    animatePageTransition(fromView, toView, direction = 'forward') {
+        // Skip if reduced motion is preferred
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            return Promise.resolve();
+        }
+
+        return new Promise((resolve) => {
+            const duration = 400;
+            
+            // Add transition classes
+            fromView.classList.add('page-transition-exit');
+            toView.classList.add('page-transition-enter');
+            
+            // Show the new view
+            toView.style.display = 'block';
+            
+            // Trigger the transition
+            requestAnimationFrame(() => {
+                fromView.classList.add('page-transition-exit-active');
+                toView.classList.add('page-transition-enter-active');
+            });
+            
+            setTimeout(() => {
+                // Clean up classes
+                fromView.classList.remove('page-transition-exit', 'page-transition-exit-active');
+                toView.classList.remove('page-transition-enter', 'page-transition-enter-active');
+                
+                // Hide the old view
+                fromView.style.display = 'none';
+                
+                resolve();
+            }, duration);
+        });
+    }
+
+    // Enhanced modal transitions
+    animateModalOpen(modal) {
+        // Skip if reduced motion is preferred
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            modal.classList.add('show');
+            return Promise.resolve();
+        }
+
+        return new Promise((resolve) => {
+            modal.style.display = 'flex';
+            
+            // Trigger reflow
+            modal.offsetHeight;
+            
+            modal.classList.add('show');
+            
+            setTimeout(resolve, 500);
+        });
+    }
+
+    // Enhanced modal close
+    animateModalClose(modal) {
+        // Skip if reduced motion is preferred
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            modal.classList.remove('show');
+            modal.style.display = 'none';
+            return Promise.resolve();
+        }
+
+        return new Promise((resolve) => {
+            modal.classList.remove('show');
+            
+            setTimeout(() => {
+                modal.style.display = 'none';
+                resolve();
+            }, 400);
+        });
+    }
+
+    // Add enhanced hover effects to elements
+    addEnhancedHoverEffects() {
+        // Add hover effects to cards
+        const cards = document.querySelectorAll('.card, .glass-card, .activity-card-hybrid, .card--hybrid');
+        cards.forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                this.addCardHoverEffect(card);
+            });
+            
+            card.addEventListener('mouseleave', () => {
+                this.removeCardHoverEffect(card);
+            });
+        });
+
+        // Add hover effects to interactive elements
+        const interactiveElements = document.querySelectorAll(`
+            .neuro-button,
+            .filter-btn,
+            .filter-btn-glass,
+            .date-tab,
+            .date-tab-neuro,
+            .contact-method,
+            .tag,
+            .age-group
+        `);
+
+        interactiveElements.forEach(element => {
+            element.addEventListener('mouseenter', () => {
+                this.addElementHoverEffect(element);
+            });
+            
+            element.addEventListener('mouseleave', () => {
+                this.removeElementHoverEffect(element);
+            });
+        });
+    }
+
+    // Add card hover effect with depth perception
+    addCardHoverEffect(card) {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            return;
+        }
+
+        // Add subtle parallax effect to card image
+        const image = card.querySelector('.card-image, .activity-card-hybrid__image');
+        if (image) {
+            image.style.transform = 'scale(1.05)';
+        }
+
+        // Add glow effect
+        card.style.boxShadow = `
+            0 25px 50px rgba(0, 0, 0, 0.15),
+            0 10px 30px rgba(0, 0, 0, 0.1),
+            0 0 0 1px rgba(255, 255, 255, 0.5),
+            0 0 20px rgba(99, 102, 241, 0.1)
+        `;
+    }
+
+    // Remove card hover effect
+    removeCardHoverEffect(card) {
+        const image = card.querySelector('.card-image, .activity-card-hybrid__image');
+        if (image) {
+            image.style.transform = '';
+        }
+        
+        card.style.boxShadow = '';
+    }
+
+    // Add element hover effect
+    addElementHoverEffect(element) {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            return;
+        }
+
+        element.style.transform = 'translateY(-2px) scale(1.05)';
+    }
+
+    // Remove element hover effect
+    removeElementHoverEffect(element) {
+        element.style.transform = '';
+    }
+
+    // Add smooth scroll behavior
+    addSmoothScrollBehavior() {
+        // Smooth scroll for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', (e) => {
+                e.preventDefault();
+                const target = document.querySelector(anchor.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Smooth scroll for date tabs
+        const dateTabsContainer = document.getElementById('dateTabs');
+        if (dateTabsContainer) {
+            dateTabsContainer.addEventListener('click', (e) => {
+                if (e.target.classList.contains('date-tab')) {
+                    setTimeout(() => {
+                        e.target.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'nearest',
+                            inline: 'center'
+                        });
+                    }, 100);
+                }
+            });
+        }
+    }
+
+    // Cleanup observer
+    destroy() {
+        if (this.intersectionObserver) {
+            this.intersectionObserver.disconnect();
+        }
+    }
+}
+
+// Initialize animation system
+document.addEventListener('DOMContentLoaded', () => {
+    // Initialize animation system and make it globally available
+    window.animationSystem = new AnimationSystem();
+    
+    // Add micro-interactions and enhanced effects after a short delay to ensure elements are rendered
+    setTimeout(() => {
+        window.animationSystem.addButtonMicroInteractions();
+        window.animationSystem.addEnhancedHoverEffects();
+        window.animationSystem.addSmoothScrollBehavior();
     }, 100);
 });
