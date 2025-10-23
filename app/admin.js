@@ -191,12 +191,13 @@ class SourceManagementAdmin {
                     <div class="source-title">${source.source_name}</div>
                     <div style="display: flex; gap: 0.5rem; align-items: center;">
                         <span class="status-badge status-complete">Active</span>
-                        <button class="btn-small" onclick="adminApp.triggerReExtraction('${source.source_id}', '${source.base_url}')"
-                                style="background: var(--primary-color); color: white; border: none; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer;">
+                        <button class="btn-secondary" onclick="adminApp.triggerReExtraction('${source.source_id}', '${source.base_url}')"
+                                style="font-size: var(--font-size-xs); padding: var(--space-2) var(--space-3);">
                             Re-extract
                         </button>
                         <button onclick="adminApp.showDeleteConfirmation('${source.source_id}', '${source.source_name}', '${source.base_url}', ${source.activities_found || 0}, '${source.last_scraped || ''}')" 
-                                style="background: #ef4444; color: white; border: none; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 0.25rem;">
+                                class="btn-danger"
+                                style="font-size: var(--font-size-xs); padding: var(--space-2) var(--space-3); display: flex; align-items: center; gap: var(--space-1);">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <polyline points="3,6 5,6 21,6"></polyline>
                                 <path d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
@@ -209,22 +210,27 @@ class SourceManagementAdmin {
                 </div>
 
                 <!-- Performance Metrics Row -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.5rem; margin: 1rem 0; padding: 0.75rem; background: var(--bg-secondary); border-radius: 8px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-2); margin: var(--space-4) 0; padding: var(--space-3); 
+                           background: rgba(255, 255, 255, 0.1); 
+                           backdrop-filter: blur(5px); 
+                           -webkit-backdrop-filter: blur(5px);
+                           border: 1px solid rgba(255, 255, 255, 0.15);
+                           border-radius: var(--radius-lg);">
                     <div style="text-align: center;">
-                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Success Rate</div>
-                        <div style="font-weight: bold; color: #10b981;">${source.success_rate || 100}%</div>
+                        <div style="font-size: var(--font-size-xs); color: var(--text-secondary); margin-bottom: var(--space-1); font-weight: var(--font-weight-medium);">Success Rate</div>
+                        <div style="font-weight: var(--font-weight-bold); color: #10b981; font-size: var(--font-size-lg);">${source.success_rate || 100}%</div>
                     </div>
                     <div style="text-align: center;">
-                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Activities</div>
-                        <div style="font-weight: bold; color: var(--primary-color);">${source.activities_found || 0}</div>
+                        <div style="font-size: var(--font-size-xs); color: var(--text-secondary); margin-bottom: var(--space-1); font-weight: var(--font-weight-medium);">Activities</div>
+                        <div style="font-weight: var(--font-weight-bold); color: var(--primary); font-size: var(--font-size-lg);">${source.activities_found || 0}</div>
                     </div>
                     <div style="text-align: center;">
-                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Last Scraped</div>
-                        <div style="font-weight: bold; font-size: 0.85rem;">${this.formatDate(source.last_scraped) || 'Never'}</div>
+                        <div style="font-size: var(--font-size-xs); color: var(--text-secondary); margin-bottom: var(--space-1); font-weight: var(--font-weight-medium);">Last Scraped</div>
+                        <div style="font-weight: var(--font-weight-bold); font-size: var(--font-size-sm); color: var(--text-primary);">${this.formatDate(source.last_scraped) || 'Never'}</div>
                     </div>
                     <div style="text-align: center;">
-                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Frequency</div>
-                        <div style="font-weight: bold; color: var(--text-secondary);">${source.scraping_frequency || 'Manual'}</div>
+                        <div style="font-size: var(--font-size-xs); color: var(--text-secondary); margin-bottom: var(--space-1); font-weight: var(--font-weight-medium);">Frequency</div>
+                        <div style="font-weight: var(--font-weight-bold); color: var(--text-secondary); font-size: var(--font-size-sm);">${source.scraping_frequency || 'Manual'}</div>
                     </div>
                 </div>
 
@@ -470,26 +476,26 @@ class SourceManagementAdmin {
     displayAnalyticsOverview(analytics) {
         const container = document.getElementById('analytics-overview');
         const analyticsHtml = `
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
-                <div class="source-card" style="text-align: center; padding: 1rem;">
-                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-secondary);">Sources Submitted</h4>
-                    <div style="font-size: 1.8rem; font-weight: bold; color: var(--primary-color);">${analytics.total_sources_submitted || 0}</div>
-                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">All time</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-4); margin-bottom: 2rem;">
+                <div class="source-card" style="text-align: center; padding: var(--space-4);">
+                    <h4 style="margin: 0 0 var(--space-2) 0; color: var(--text-secondary); font-weight: var(--font-weight-semibold); font-size: var(--font-size-sm);">Sources Submitted</h4>
+                    <div style="font-size: var(--font-size-4xl); font-weight: var(--font-weight-bold); color: var(--primary);">${analytics.total_sources_submitted || 0}</div>
+                    <div style="font-size: var(--font-size-xs); color: var(--text-muted); margin-top: var(--space-1);">All time</div>
                 </div>
-                <div class="source-card" style="text-align: center; padding: 1rem;">
-                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-secondary);">Active & Scraping</h4>
-                    <div style="font-size: 1.8rem; font-weight: bold; color: #10b981;">${analytics.sources_active || 0}</div>
-                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Currently running</div>
+                <div class="source-card" style="text-align: center; padding: var(--space-4);">
+                    <h4 style="margin: 0 0 var(--space-2) 0; color: var(--text-secondary); font-weight: var(--font-weight-semibold); font-size: var(--font-size-sm);">Active & Scraping</h4>
+                    <div style="font-size: var(--font-size-4xl); font-weight: var(--font-weight-bold); color: #10b981;">${analytics.sources_active || 0}</div>
+                    <div style="font-size: var(--font-size-xs); color: var(--text-muted); margin-top: var(--space-1);">Currently running</div>
                 </div>
-                <div class="source-card" style="text-align: center; padding: 1rem;">
-                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-secondary);">Success Rate</h4>
-                    <div style="font-size: 1.8rem; font-weight: bold; color: #10b981;">${analytics.success_rate || '0%'}</div>
-                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Last 30 days</div>
+                <div class="source-card" style="text-align: center; padding: var(--space-4);">
+                    <h4 style="margin: 0 0 var(--space-2) 0; color: var(--text-secondary); font-weight: var(--font-weight-semibold); font-size: var(--font-size-sm);">Success Rate</h4>
+                    <div style="font-size: var(--font-size-4xl); font-weight: var(--font-weight-bold); color: #10b981;">${analytics.success_rate || '0%'}</div>
+                    <div style="font-size: var(--font-size-xs); color: var(--text-muted); margin-top: var(--space-1);">Last 30 days</div>
                 </div>
-                <div class="source-card" style="text-align: center; padding: 1rem;">
-                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-secondary);">Activities Found</h4>
-                    <div style="font-size: 1.8rem; font-weight: bold; color: var(--primary-color);">${analytics.total_activities || 0}</div>
-                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Total scraped</div>
+                <div class="source-card" style="text-align: center; padding: var(--space-4);">
+                    <h4 style="margin: 0 0 var(--space-2) 0; color: var(--text-secondary); font-weight: var(--font-weight-semibold); font-size: var(--font-size-sm);">Activities Found</h4>
+                    <div style="font-size: var(--font-size-4xl); font-weight: var(--font-weight-bold); color: var(--primary);">${analytics.total_activities || 0}</div>
+                    <div style="font-size: var(--font-size-xs); color: var(--text-muted); margin-top: var(--space-1);">Total scraped</div>
                 </div>
             </div>
         `;
@@ -510,30 +516,35 @@ class SourceManagementAdmin {
                     <div class="source-title">${source.source_name}</div>
                     <div style="display: flex; gap: 0.5rem; align-items: center;">
                         <span class="status-badge status-complete">Active</span>
-                        <button class="btn-small" onclick="adminApp.triggerManualScrape('${source.source_id}')" 
-                                style="background: var(--primary-color); color: white; border: none; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer;">
+                        <button class="btn-secondary" onclick="adminApp.triggerManualScrape('${source.source_id}')" 
+                                style="font-size: var(--font-size-xs); padding: var(--space-2) var(--space-3);">
                             Scrape Now
                         </button>
                     </div>
                 </div>
                 
                 <!-- Performance Metrics Row -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.5rem; margin: 1rem 0; padding: 0.75rem; background: var(--bg-secondary); border-radius: 8px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-2); margin: var(--space-4) 0; padding: var(--space-3); 
+                           background: rgba(255, 255, 255, 0.1); 
+                           backdrop-filter: blur(5px); 
+                           -webkit-backdrop-filter: blur(5px);
+                           border: 1px solid rgba(255, 255, 255, 0.15);
+                           border-radius: var(--radius-lg);">
                     <div style="text-align: center;">
-                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Success Rate</div>
-                        <div style="font-weight: bold; color: #10b981;">${source.success_rate || 0}%</div>
+                        <div style="font-size: var(--font-size-xs); color: var(--text-secondary); margin-bottom: var(--space-1); font-weight: var(--font-weight-medium);">Success Rate</div>
+                        <div style="font-weight: var(--font-weight-bold); color: #10b981; font-size: var(--font-size-lg);">${source.success_rate || 0}%</div>
                     </div>
                     <div style="text-align: center;">
-                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Activities</div>
-                        <div style="font-weight: bold; color: var(--primary-color);">${source.activities_found || 0}</div>
+                        <div style="font-size: var(--font-size-xs); color: var(--text-secondary); margin-bottom: var(--space-1); font-weight: var(--font-weight-medium);">Activities</div>
+                        <div style="font-weight: var(--font-weight-bold); color: var(--primary); font-size: var(--font-size-lg);">${source.activities_found || 0}</div>
                     </div>
                     <div style="text-align: center;">
-                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Last Scraped</div>
-                        <div style="font-weight: bold; font-size: 0.85rem;">${this.formatDate(source.last_scraped) || 'Never'}</div>
+                        <div style="font-size: var(--font-size-xs); color: var(--text-secondary); margin-bottom: var(--space-1); font-weight: var(--font-weight-medium);">Last Scraped</div>
+                        <div style="font-weight: var(--font-weight-bold); font-size: var(--font-size-sm); color: var(--text-primary);">${this.formatDate(source.last_scraped) || 'Never'}</div>
                     </div>
                     <div style="text-align: center;">
-                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Status</div>
-                        <div style="font-weight: bold; color: ${this.getStatusColor(source.scraping_status)};">${source.scraping_status || 'Ready'}</div>
+                        <div style="font-size: var(--font-size-xs); color: var(--text-secondary); margin-bottom: var(--space-1); font-weight: var(--font-weight-medium);">Status</div>
+                        <div style="font-weight: var(--font-weight-bold); color: ${this.getStatusColor(source.scraping_status)}; font-size: var(--font-size-sm);">${source.scraping_status || 'Ready'}</div>
                     </div>
                 </div>
                 
@@ -554,17 +565,20 @@ class SourceManagementAdmin {
                 </div>
                 
                 <!-- Action Buttons -->
-                <div style="margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: flex-end;">
+                <div style="margin-top: 1rem; display: flex; gap: 0.75rem; justify-content: flex-end; flex-wrap: wrap;">
                     <button onclick="adminApp.showSourceDetails('${source.source_id}')" 
-                            style="background: none; border: 1px solid var(--border-color); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">
+                            class="btn-secondary"
+                            style="font-size: var(--font-size-sm);">
                         View Details
                     </button>
                     <button onclick="adminApp.toggleSourceStatus('${source.source_id}')" 
-                            style="background: #f59e0b; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">
+                            class="btn-secondary"
+                            style="background: linear-gradient(145deg, #f59e0b, #d97706); color: var(--text-inverse); font-size: var(--font-size-sm);">
                         Pause
                     </button>
                     <button onclick="adminApp.showDeleteConfirmation('${source.source_id}', '${source.source_name}', '${source.base_url}', ${source.activities_found || 0}, '${source.last_scraped || ''}')" 
-                            style="background: #ef4444; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 0.25rem;">
+                            class="btn-danger"
+                            style="font-size: var(--font-size-sm); display: flex; align-items: center; gap: var(--space-1);">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <polyline points="3,6 5,6 21,6"></polyline>
                             <path d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
@@ -932,20 +946,20 @@ class SourceManagementAdmin {
                     </div>
                 ` : ''}
 
-                <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
-                    <button class="btn btn-secondary" onclick="adminApp.viewEventDetails('${event.event_id}')">
+                <div style="display: flex; gap: 0.75rem; margin-top: 1rem; flex-wrap: wrap;">
+                    <button class="btn-secondary" onclick="adminApp.viewEventDetails('${event.event_id}')">
                         View Details
                     </button>
-                    <button class="btn btn-primary"
+                    <button class="btn-primary"
                             onclick="adminApp.approveEvent('${event.event_id}')"
                             ${!canApprove ? 'disabled' : ''}
                             title="${!canApprove ? 'Fix conversion issues before approving' : 'Approve and publish event'}">
                         Approve
                     </button>
-                    <button class="btn btn-secondary" onclick="adminApp.editEvent('${event.event_id}')">
+                    <button class="btn-secondary" onclick="adminApp.editEvent('${event.event_id}')">
                         Edit
                     </button>
-                    <button class="btn btn-danger" onclick="adminApp.rejectEvent('${event.event_id}')">
+                    <button class="btn-danger" onclick="adminApp.rejectEvent('${event.event_id}')">
                         Reject
                     </button>
                 </div>
@@ -983,27 +997,14 @@ class SourceManagementAdmin {
     }
 
     showEventModal(eventData) {
-        // Create modal overlay
+        // Create glassmorphic modal overlay
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
-        modal.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-        `;
+        // Styles are now handled by CSS classes in admin.html
 
         const modalContent = document.createElement('div');
         modalContent.style.cssText = `
-            background: white;
             padding: 2rem;
-            border-radius: 12px;
             max-width: 800px;
             max-height: 80vh;
             overflow-y: auto;
@@ -1011,37 +1012,60 @@ class SourceManagementAdmin {
         `;
 
         modalContent.innerHTML = `
-            <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 1rem;">
-                <h3>Event Details</h3>
-                <button onclick="this.closest('.modal-overlay').remove()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3 style="margin: 0; color: var(--text-primary); font-weight: var(--font-weight-bold);">Event Details</h3>
+                <button onclick="this.closest('.modal-overlay').remove()" 
+                        class="btn-secondary" 
+                        style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-secondary); padding: 0.5rem; border-radius: var(--radius-md); min-width: auto; min-height: auto;"
+                        aria-label="Close modal">&times;</button>
             </div>
 
             <div style="margin-bottom: 1rem;">
-                <strong>Source URL:</strong> ${this.escapeHtml(eventData.source_url)}
+                <strong style="color: var(--text-primary);">Source URL:</strong> 
+                <span style="color: var(--text-secondary);">${this.escapeHtml(eventData.source_url)}</span>
             </div>
 
             <div style="margin-bottom: 1rem;">
-                <strong>Schema Type:</strong> ${eventData.schema_type}
+                <strong style="color: var(--text-primary);">Schema Type:</strong> 
+                <span style="color: var(--text-secondary);">${eventData.schema_type}</span>
             </div>
 
             <div style="margin-bottom: 1rem;">
-                <strong>Raw Extracted Data:</strong>
-                <pre style="background: #f8f9fa; padding: 1rem; border-radius: 8px; overflow-x: auto; font-size: 0.9rem;">${JSON.stringify(eventData.raw_extracted_data, null, 2)}</pre>
+                <strong style="color: var(--text-primary);">Raw Extracted Data:</strong>
+                <pre style="background: linear-gradient(135deg, rgba(248, 250, 252, 0.8), rgba(241, 245, 249, 0.6)); 
+                           backdrop-filter: blur(10px); 
+                           -webkit-backdrop-filter: blur(10px);
+                           border: 1px solid rgba(255, 255, 255, 0.3);
+                           padding: 1rem; 
+                           border-radius: var(--radius-lg); 
+                           overflow-x: auto; 
+                           font-size: var(--font-size-sm);
+                           color: var(--text-secondary);
+                           font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;">${JSON.stringify(eventData.raw_extracted_data, null, 2)}</pre>
             </div>
 
             ${eventData.conversion_preview ? `
                 <div style="margin-bottom: 1rem;">
-                    <strong>Conversion Preview:</strong>
-                    <pre style="background: #e8f5e8; padding: 1rem; border-radius: 8px; overflow-x: auto; font-size: 0.9rem;">${JSON.stringify(eventData.conversion_preview, null, 2)}</pre>
+                    <strong style="color: var(--text-primary);">Conversion Preview:</strong>
+                    <pre style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.05)); 
+                               backdrop-filter: blur(10px); 
+                               -webkit-backdrop-filter: blur(10px);
+                               border: 1px solid rgba(16, 185, 129, 0.2);
+                               padding: 1rem; 
+                               border-radius: var(--radius-lg); 
+                               overflow-x: auto; 
+                               font-size: var(--font-size-sm);
+                               color: #065f46;
+                               font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;">${JSON.stringify(eventData.conversion_preview, null, 2)}</pre>
                 </div>
             ` : ''}
 
-            <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
-                <button class="btn btn-primary" onclick="adminApp.approveEvent('${eventData.event_id}'); this.closest('.modal-overlay').remove();">
-                    Approve
-                </button>
-                <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove();">
+            <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem; justify-content: flex-end;">
+                <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove();">
                     Close
+                </button>
+                <button class="btn-primary" onclick="adminApp.approveEvent('${eventData.event_id}'); this.closest('.modal-overlay').remove();">
+                    Approve Event
                 </button>
             </div>
         `;
@@ -1130,38 +1154,24 @@ class SourceManagementAdmin {
     }
 
     showDeleteConfirmation(sourceId, sourceName, sourceUrl, activitiesCount, lastScraped) {
-        // Create modal overlay
+        // Create glassmorphic modal overlay
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
-        modal.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-        `;
+        // Styles are now handled by CSS classes in admin.html
 
         const modalContent = document.createElement('div');
         modalContent.style.cssText = `
-            background: white;
             padding: 2rem;
-            border-radius: 12px;
             max-width: 500px;
             width: 90%;
             margin: 1rem;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         `;
 
         const lastScrapedText = lastScraped ? this.formatDate(lastScraped) : 'Never';
 
         modalContent.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                <h3 style="margin: 0; color: #dc2626; display: flex; align-items: center; gap: 0.5rem;">
+                <h3 style="margin: 0; color: #dc2626; display: flex; align-items: center; gap: 0.5rem; font-weight: var(--font-weight-bold);">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="10"></circle>
                         <line x1="15" y1="9" x2="9" y2="15"></line>
@@ -1170,7 +1180,9 @@ class SourceManagementAdmin {
                     Delete Source
                 </h3>
                 <button onclick="this.closest('.modal-overlay').remove()" 
-                        style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #6b7280; padding: 0;">&times;</button>
+                        class="btn-secondary"
+                        style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-secondary); padding: 0.5rem; border-radius: var(--radius-md); min-width: auto; min-height: auto;"
+                        aria-label="Close modal">&times;</button>
             </div>
 
             <div class="alert alert-error" style="margin-bottom: 1.5rem;">
@@ -1178,45 +1190,57 @@ class SourceManagementAdmin {
             </div>
 
             <div style="margin-bottom: 1.5rem;">
-                <h4 style="margin: 0 0 1rem 0; color: #374151;">Source Details</h4>
-                <div style="background: #f9fafb; padding: 1rem; border-radius: 8px; border-left: 4px solid #dc2626;">
+                <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-weight: var(--font-weight-semibold);">Source Details</h4>
+                <div style="background: linear-gradient(135deg, rgba(248, 250, 252, 0.8), rgba(241, 245, 249, 0.6)); 
+                           backdrop-filter: blur(10px); 
+                           -webkit-backdrop-filter: blur(10px);
+                           border: 1px solid rgba(239, 68, 68, 0.2);
+                           border-left: 4px solid #dc2626;
+                           padding: 1rem; 
+                           border-radius: var(--radius-lg);">
                     <div style="margin-bottom: 0.75rem;">
-                        <strong>Name:</strong> ${this.escapeHtml(sourceName)}
+                        <strong style="color: var(--text-primary);">Name:</strong> 
+                        <span style="color: var(--text-secondary);">${this.escapeHtml(sourceName)}</span>
                     </div>
                     <div style="margin-bottom: 0.75rem;">
-                        <strong>URL:</strong> ${this.escapeHtml(sourceUrl)}
+                        <strong style="color: var(--text-primary);">URL:</strong> 
+                        <span style="color: var(--text-secondary);">${this.escapeHtml(sourceUrl)}</span>
                     </div>
                     <div style="margin-bottom: 0.75rem;">
-                        <strong>Activities Found:</strong> ${activitiesCount}
+                        <strong style="color: var(--text-primary);">Activities Found:</strong> 
+                        <span style="color: var(--text-secondary);">${activitiesCount}</span>
                     </div>
                     <div>
-                        <strong>Last Scraped:</strong> ${lastScrapedText}
+                        <strong style="color: var(--text-primary);">Last Scraped:</strong> 
+                        <span style="color: var(--text-secondary);">${lastScrapedText}</span>
                     </div>
                 </div>
             </div>
 
             <div style="margin-bottom: 1.5rem;">
-                <label for="delete-confirmation-input" style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #374151;">
+                <label for="delete-confirmation-input" style="display: block; margin-bottom: 0.5rem; font-weight: var(--font-weight-semibold); color: var(--text-primary);">
                     Type the source name to confirm deletion:
                 </label>
                 <input type="text" 
                        id="delete-confirmation-input" 
                        placeholder="Enter source name exactly as shown above"
-                       style="width: 100%; padding: 0.75rem; border: 2px solid #d1d5db; border-radius: 8px; font-size: 1rem; box-sizing: border-box;">
-                <div id="delete-confirmation-error" style="color: #dc2626; font-size: 0.85rem; margin-top: 0.25rem; display: none;">
+                       class="neuro-input"
+                       style="width: 100%; box-sizing: border-box;">
+                <div id="delete-confirmation-error" style="color: #dc2626; font-size: var(--font-size-xs); font-weight: var(--font-weight-medium); margin-top: var(--space-1); display: none;">
                     Source name does not match. Please type it exactly as shown above.
                 </div>
             </div>
 
             <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
                 <button onclick="this.closest('.modal-overlay').remove()" 
-                        style="background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; padding: 0.75rem 1.5rem; border-radius: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 500;">
+                        class="btn-secondary">
                     Cancel
                 </button>
                 <button id="delete-confirm-button"
                         onclick="adminApp.confirmDelete('${sourceId}', '${this.escapeHtml(sourceName)}', this.closest('.modal-overlay'))"
                         disabled
-                        style="background: #dc2626; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 500; opacity: 0.5;">
+                        class="btn-danger"
+                        style="opacity: 0.5;">
                     Delete Permanently
                 </button>
             </div>
