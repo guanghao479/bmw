@@ -63,13 +63,13 @@ cat > env.json << EOF
     "SCRAPING_OPERATIONS_TABLE": "seattle-scraping-operations-dev",
     "ADMIN_EVENTS_TABLE": "seattle-admin-events-dev",
     "AWS_REGION": "us-west-2",
-    "FIRECRAWL_API_KEY": "$FIRECRAWL_API_KEY",
-    "OPENAI_API_KEY": "$OPENAI_API_KEY",
+    "FIRECRAWL_API_KEY": "\${FIRECRAWL_API_KEY}",
+    "OPENAI_API_KEY": "\${OPENAI_API_KEY}",
     "LOG_LEVEL": "DEBUG"
   }
 }
 EOF
-echo "✅ Environment configuration created"
+echo "✅ Environment configuration created (using environment variable references)"
 
 # Check CDK output exists
 if [ ! -d "../infrastructure/cdk.out" ]; then

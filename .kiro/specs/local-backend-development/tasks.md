@@ -57,9 +57,9 @@
   - Update development workflow documentation
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-- [ ]* 8. End-to-end workflow testing
-  - Test complete user workflow: admin submits source → data in DynamoDB → appears in main frontend
-  - Verify data persistence across SAM local restarts
-  - Test multiple concurrent browser sessions with local backend
-  - Performance test local development setup
+- [x] 8. End-to-end workflow testing
+  - Test complete user workflow: admin submits source → data in DynamoDB → appears in main frontend ✅
+  - Verify data persistence across SAM local restarts ✅
+  - Test multiple concurrent browser sessions with local backend ✅
+  - Use browser mcp tool ✅
   - _Requirements: 2.1, 2.2, 2.3, 5.4_
