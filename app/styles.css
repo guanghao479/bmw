@@ -1,6 +1,10 @@
 /* Modern UI Design System */
 
-/* Accessibility - Screen Reader Only */
+/* ========================================
+   ACCESSIBILITY AND SEMANTIC HTML SUPPORT
+   ======================================== */
+
+/* Screen Reader Only Content */
 .sr-only {
     position: absolute;
     width: 1px;
@@ -11,6 +15,511 @@
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
+}
+
+/* Screen reader only content that becomes visible on focus */
+.sr-only-focusable:focus {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: var(--space-2) var(--space-4);
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+    background: var(--primary);
+    color: var(--text-inverse);
+    border-radius: var(--radius-md);
+    font-weight: var(--font-weight-semibold);
+    z-index: 9999;
+}
+
+/* ARIA live regions for dynamic content updates */
+.live-region {
+    position: absolute;
+    left: -10000px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
+.live-region[aria-live="polite"] {
+    /* Polite announcements */
+}
+
+.live-region[aria-live="assertive"] {
+    /* Urgent announcements */
+}
+
+/* Enhanced semantic structure support */
+main {
+    outline: none;
+}
+
+main:focus {
+    outline: none;
+}
+
+/* Navigation landmarks */
+nav {
+    position: relative;
+}
+
+nav[aria-label]::before {
+    content: attr(aria-label);
+    position: absolute;
+    left: -10000px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
+/* Section landmarks */
+section[aria-labelledby] {
+    position: relative;
+}
+
+/* Form accessibility enhancements */
+.form-group {
+    position: relative;
+    margin-bottom: var(--space-4);
+}
+
+.form-label {
+    display: block;
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+    margin-bottom: var(--space-2);
+    font-size: var(--font-size-sm);
+}
+
+.form-label[for] {
+    cursor: pointer;
+}
+
+.form-label.required::after {
+    content: ' *';
+    color: var(--error-color);
+    font-weight: var(--font-weight-bold);
+}
+
+.form-help {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    margin-top: var(--space-1);
+    line-height: var(--leading-normal);
+}
+
+.form-error {
+    font-size: var(--font-size-xs);
+    color: var(--error-color);
+    margin-top: var(--space-1);
+    font-weight: var(--font-weight-medium);
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.form-error::before {
+    content: '⚠';
+    font-size: var(--font-size-sm);
+}
+
+.form-success {
+    font-size: var(--font-size-xs);
+    color: #059669;
+    margin-top: var(--space-1);
+    font-weight: var(--font-weight-medium);
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.form-success::before {
+    content: '✓';
+    font-size: var(--font-size-sm);
+}
+
+/* Enhanced input states for accessibility */
+.neuro-input[aria-invalid="true"],
+.neuro-select[aria-invalid="true"],
+.neuro-textarea[aria-invalid="true"],
+.search-input[aria-invalid="true"],
+.search-input-glass[aria-invalid="true"] {
+    border-color: var(--error-color) !important;
+    box-shadow: 
+        inset 4px 4px 8px rgba(220, 38, 38, 0.2),
+        inset -4px -4px 8px rgba(255, 255, 255, 0.8),
+        0 0 0 2px rgba(220, 38, 38, 0.2) !important;
+}
+
+.neuro-input[aria-invalid="false"],
+.neuro-select[aria-invalid="false"],
+.neuro-textarea[aria-invalid="false"] {
+    border-color: #059669 !important;
+    box-shadow: 
+        inset 4px 4px 8px rgba(5, 150, 105, 0.2),
+        inset -4px -4px 8px rgba(255, 255, 255, 0.8),
+        0 0 0 2px rgba(5, 150, 105, 0.2) !important;
+}
+
+@media (prefers-contrast: high) {
+    .neuro-input[aria-invalid="true"],
+    .neuro-select[aria-invalid="true"],
+    .neuro-textarea[aria-invalid="true"],
+    .search-input[aria-invalid="true"],
+    .search-input-glass[aria-invalid="true"] {
+        border: 3px solid var(--error-color) !important;
+        box-shadow: none !important;
+    }
+    
+    .neuro-input[aria-invalid="false"],
+    .neuro-select[aria-invalid="false"],
+    .neuro-textarea[aria-invalid="false"] {
+        border: 3px solid #059669 !important;
+        box-shadow: none !important;
+    }
+}
+
+/* Button accessibility enhancements */
+.neuro-button[aria-pressed="true"],
+.filter-btn[aria-pressed="true"],
+.filter-btn-glass[aria-pressed="true"],
+.date-tab[aria-selected="true"],
+.date-tab-neuro[aria-selected="true"] {
+    background: var(--primary) !important;
+    color: var(--text-inverse) !important;
+    border-color: var(--primary) !important;
+}
+
+.neuro-button[aria-disabled="true"],
+.date-nav-btn[aria-disabled="true"],
+.date-nav-btn-neuro[aria-disabled="true"] {
+    opacity: 0.6 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+}
+
+/* Card accessibility enhancements */
+.card[role="button"],
+.glass-card[role="button"],
+.activity-card-hybrid[role="button"],
+.card--hybrid[role="button"] {
+    cursor: pointer;
+}
+
+.card[aria-expanded="true"],
+.glass-card[aria-expanded="true"],
+.activity-card-hybrid[aria-expanded="true"],
+.card--hybrid[aria-expanded="true"] {
+    box-shadow: 
+        0 0 0 2px var(--primary),
+        0 15px 30px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Modal accessibility enhancements */
+.glass-modal-backdrop[role="dialog"],
+.detail-page[role="dialog"] {
+    outline: none;
+}
+
+.glass-modal-content[role="document"],
+.detail-container[role="document"] {
+    outline: none;
+}
+
+/* Tab accessibility enhancements */
+.date-tabs[role="tablist"] {
+    outline: none;
+}
+
+.date-tab[role="tab"],
+.date-tab-neuro[role="tab"] {
+    position: relative;
+}
+
+.date-tab[role="tab"][aria-selected="true"],
+.date-tab-neuro[role="tab"][aria-selected="true"] {
+    background: var(--primary) !important;
+    color: var(--text-inverse) !important;
+    border-color: var(--primary) !important;
+    font-weight: var(--font-weight-semibold) !important;
+}
+
+.date-tab[role="tab"][aria-selected="true"]::after,
+.date-tab-neuro[role="tab"][aria-selected="true"]::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80%;
+    height: 2px;
+    background: var(--primary);
+    border-radius: var(--radius-full);
+}
+
+@media (prefers-contrast: high) {
+    .date-tab[role="tab"][aria-selected="true"]::after,
+    .date-tab-neuro[role="tab"][aria-selected="true"]::after {
+        height: 3px;
+        background: var(--text-inverse);
+    }
+}
+
+/* List accessibility enhancements */
+.content-grid[role="grid"],
+.featured-grid[role="grid"] {
+    outline: none;
+}
+
+.card[role="gridcell"],
+.glass-card[role="gridcell"],
+.activity-card-hybrid[role="gridcell"],
+.card--hybrid[role="gridcell"] {
+    outline: none;
+}
+
+/* Status and state indicators */
+.status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.status-indicator--success {
+    background: rgba(5, 150, 105, 0.1);
+    color: #059669;
+}
+
+.status-indicator--warning {
+    background: rgba(245, 158, 11, 0.1);
+    color: #d97706;
+}
+
+.status-indicator--error {
+    background: rgba(220, 38, 38, 0.1);
+    color: #dc2626;
+}
+
+.status-indicator--info {
+    background: rgba(99, 102, 241, 0.1);
+    color: var(--primary);
+}
+
+@media (prefers-contrast: high) {
+    .status-indicator--success {
+        background: var(--bg-primary);
+        border: 2px solid #059669;
+        color: #059669;
+    }
+    
+    .status-indicator--warning {
+        background: var(--bg-primary);
+        border: 2px solid #d97706;
+        color: #d97706;
+    }
+    
+    .status-indicator--error {
+        background: var(--bg-primary);
+        border: 2px solid #dc2626;
+        color: #dc2626;
+    }
+    
+    .status-indicator--info {
+        background: var(--bg-primary);
+        border: 2px solid var(--primary);
+        color: var(--primary);
+    }
+}
+
+/* Progress indicators */
+.progress-indicator {
+    width: 100%;
+    height: 4px;
+    background: var(--bg-muted);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-indicator__bar {
+    height: 100%;
+    background: var(--primary);
+    border-radius: var(--radius-full);
+    transition: width 0.3s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .progress-indicator__bar {
+        transition: none;
+    }
+}
+
+@media (prefers-contrast: high) {
+    .progress-indicator {
+        border: 2px solid var(--text-primary);
+        background: var(--bg-primary);
+    }
+    
+    .progress-indicator__bar {
+        background: var(--primary);
+    }
+}
+
+/* Tooltip accessibility */
+.tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+.tooltip[aria-describedby] {
+    cursor: help;
+}
+
+.tooltip__content {
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--text-primary);
+    color: var(--text-inverse);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+.tooltip__content::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: var(--text-primary);
+}
+
+.tooltip:hover .tooltip__content,
+.tooltip:focus .tooltip__content {
+    opacity: 1;
+    visibility: visible;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tooltip__content {
+        transition: none;
+    }
+}
+
+@media (prefers-contrast: high) {
+    .tooltip__content {
+        background: var(--primary);
+        border: 2px solid var(--text-inverse);
+    }
+    
+    .tooltip__content::after {
+        border-top-color: var(--primary);
+    }
+}
+
+/* Announcement region for screen readers */
+.announcement {
+    position: absolute;
+    left: -10000px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
+/* Focus management utilities */
+.focus-trap-start,
+.focus-trap-end {
+    position: absolute;
+    left: -10000px;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Ensure proper heading hierarchy */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: var(--font-weight-semibold);
+    line-height: var(--leading-tight);
+    color: var(--text-primary);
+}
+
+h1 {
+    font-size: var(--font-size-4xl);
+}
+
+h2 {
+    font-size: var(--font-size-3xl);
+}
+
+h3 {
+    font-size: var(--font-size-2xl);
+}
+
+h4 {
+    font-size: var(--font-size-xl);
+}
+
+h5 {
+    font-size: var(--font-size-lg);
+}
+
+h6 {
+    font-size: var(--font-size-base);
+}
+
+/* Ensure proper link styling */
+a {
+    color: var(--primary);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+}
+
+a:hover {
+    color: var(--primary-light);
+    text-decoration-thickness: 2px;
+}
+
+a:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+@media (prefers-contrast: high) {
+    a {
+        color: var(--primary);
+        text-decoration-thickness: 2px;
+    }
+    
+    a:hover {
+        background: var(--primary);
+        color: var(--text-inverse);
+        text-decoration: none;
+        padding: 1px 2px;
+        border-radius: var(--radius-sm);
+    }
+    
+    a:focus-visible {
+        outline: 3px solid var(--primary);
+        outline-offset: 3px;
+    }
 }
 
 :root {
@@ -224,32 +733,677 @@
     --glass-accent: rgba(5, 150, 105, 0.18);
 }
 
-/* High contrast mode support (accessibility) */
+/* High contrast mode support (accessibility) - WCAG 2.1 AA compliance */
 @media (prefers-contrast: high) {
     :root {
+        /* Override glassmorphic colors with solid alternatives */
         --glass-surface-light: var(--bg-primary);
         --glass-surface-medium: var(--bg-primary);
         --glass-surface-strong: var(--bg-primary);
         --glass-border: var(--text-primary);
+        --glass-backdrop: var(--bg-primary);
+        
+        /* Override neumorphic colors with high contrast alternatives */
         --neuro-surface-base: var(--bg-primary);
+        --neuro-surface-raised: var(--bg-primary);
+        --neuro-surface-pressed: var(--bg-muted);
         --neuro-highlight: transparent;
         --neuro-shadow: var(--text-primary);
+        
+        /* Ensure high contrast for all interactive elements */
+        --primary: #0000ff;  /* High contrast blue */
+        --primary-light: #0066ff;
+        --primary-dark: #000099;
+        --secondary: #ff0066;  /* High contrast pink */
+        --accent: #00cc99;  /* High contrast teal */
+        --warning: #ff9900;  /* High contrast orange */
+        --error-color: #cc0000;  /* High contrast red */
+        
+        /* High contrast text colors */
+        --text-primary: #000000;
+        --text-secondary: #333333;
+        --text-muted: #666666;
+        --text-inverse: #ffffff;
+        
+        /* High contrast backgrounds */
+        --bg-primary: #ffffff;
+        --bg-secondary: #f0f0f0;
+        --bg-muted: #e0e0e0;
+        
+        /* High contrast borders */
+        --neutral-200: #000000;
+        --neutral-300: #333333;
+        
+        /* Remove all transparency and blur effects */
+        --glass-primary: var(--bg-primary);
+        --glass-secondary: var(--bg-primary);
+        --glass-accent: var(--bg-primary);
+        --glass-neutral: var(--bg-primary);
+        --glass-dark: var(--bg-primary);
+    }
+    
+    /* Override all glassmorphic components with solid backgrounds */
+    .glass-card,
+    .glass-modal-content,
+    .search-container-glass,
+    .activity-card-hybrid,
+    .card--hybrid {
+        background: var(--bg-primary) !important;
+        border: 3px solid var(--text-primary) !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3) !important;
+    }
+    
+    .glass-card--primary {
+        background: var(--bg-primary) !important;
+        border-color: var(--primary) !important;
+    }
+    
+    .glass-card--secondary {
+        background: var(--bg-primary) !important;
+        border-color: var(--secondary) !important;
+    }
+    
+    .glass-card--accent {
+        background: var(--bg-primary) !important;
+        border-color: var(--accent) !important;
+    }
+    
+    /* Override glassmorphic modal backdrop */
+    .glass-modal-backdrop {
+        background: rgba(0, 0, 0, 0.8) !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+    
+    /* Override glassmorphic search components */
+    .search-container-glass::before {
+        display: none !important;
+    }
+    
+    .search-input-glass {
+        background: var(--bg-primary) !important;
+        border: 2px solid var(--text-primary) !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        box-shadow: none !important;
+    }
+    
+    .search-input-glass:focus {
+        border-color: var(--primary) !important;
+        box-shadow: 0 0 0 3px rgba(0, 0, 255, 0.3) !important;
+    }
+    
+    .filter-btn-glass {
+        background: var(--bg-primary) !important;
+        border: 2px solid var(--text-primary) !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        box-shadow: none !important;
+        color: var(--text-primary) !important;
+    }
+    
+    .filter-btn-glass:hover {
+        background: var(--text-primary) !important;
+        color: var(--bg-primary) !important;
+    }
+    
+    .filter-btn-glass.active {
+        background: var(--primary) !important;
+        color: var(--text-inverse) !important;
+        border-color: var(--primary) !important;
+    }
+    
+    /* Override neumorphic components with high contrast styling */
+    .neuro-button,
+    .neuro-input,
+    .neuro-select,
+    .neuro-textarea {
+        background: var(--bg-primary) !important;
+        border: 2px solid var(--text-primary) !important;
+        box-shadow: none !important;
+        color: var(--text-primary) !important;
+    }
+    
+    .neuro-button:hover,
+    .neuro-input:hover,
+    .neuro-select:hover,
+    .neuro-textarea:hover {
+        background: var(--text-primary) !important;
+        color: var(--bg-primary) !important;
+    }
+    
+    .neuro-button--primary {
+        background: var(--primary) !important;
+        color: var(--text-inverse) !important;
+        border-color: var(--primary) !important;
+    }
+    
+    .neuro-button--primary:hover {
+        background: var(--primary-dark) !important;
+        color: var(--text-inverse) !important;
+    }
+    
+    .neuro-button--secondary {
+        background: var(--bg-primary) !important;
+        color: var(--primary) !important;
+        border-color: var(--primary) !important;
+    }
+    
+    .neuro-button--secondary:hover {
+        background: var(--primary) !important;
+        color: var(--text-inverse) !important;
+    }
+    
+    .neuro-input:focus,
+    .neuro-select:focus,
+    .neuro-textarea:focus {
+        border-color: var(--primary) !important;
+        box-shadow: 0 0 0 3px rgba(0, 0, 255, 0.3) !important;
+        background: var(--bg-primary) !important;
+        color: var(--text-primary) !important;
+    }
+    
+    /* Override hybrid card components */
+    .activity-card-hybrid::before,
+    .card--hybrid::before {
+        display: none !important;
+    }
+    
+    .activity-card-hybrid__content,
+    .card--hybrid .card-content {
+        background: var(--bg-primary) !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+    
+    .activity-card-hybrid__category,
+    .card--hybrid .card-category {
+        background: var(--bg-primary) !important;
+        border: 2px solid var(--text-primary) !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        color: var(--text-primary) !important;
+    }
+    
+    .activity-card-hybrid__category.event {
+        background: var(--bg-primary) !important;
+        border-color: var(--secondary) !important;
+        color: var(--secondary) !important;
+    }
+    
+    .activity-card-hybrid__category.activity {
+        background: var(--bg-primary) !important;
+        border-color: var(--accent) !important;
+        color: var(--accent) !important;
+    }
+    
+    .activity-card-hybrid__category.venue {
+        background: var(--bg-primary) !important;
+        border-color: var(--warning) !important;
+        color: var(--warning) !important;
+    }
+    
+    .activity-card-hybrid__action-button,
+    .card--hybrid .card-action-button {
+        background: var(--bg-primary) !important;
+        border: 2px solid var(--text-primary) !important;
+        box-shadow: none !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        color: var(--text-primary) !important;
+    }
+    
+    .activity-card-hybrid__action-button:hover,
+    .card--hybrid .card-action-button:hover {
+        background: var(--text-primary) !important;
+        color: var(--bg-primary) !important;
+    }
+    
+    .activity-card-hybrid__action-button--primary {
+        background: var(--primary) !important;
+        color: var(--text-inverse) !important;
+        border-color: var(--primary) !important;
+    }
+    
+    .activity-card-hybrid__action-button--primary:hover {
+        background: var(--primary-dark) !important;
+        color: var(--text-inverse) !important;
+    }
+    
+    /* Override date tabs with high contrast */
+    .date-tabs-neuro-container {
+        background: var(--bg-primary) !important;
+        border: 2px solid var(--text-primary) !important;
+        box-shadow: none !important;
+    }
+    
+    .date-tab-neuro,
+    .date-nav-btn-neuro {
+        background: var(--bg-primary) !important;
+        border: 2px solid var(--text-primary) !important;
+        box-shadow: none !important;
+        color: var(--text-primary) !important;
+    }
+    
+    .date-tab-neuro:hover,
+    .date-nav-btn-neuro:hover {
+        background: var(--text-primary) !important;
+        color: var(--bg-primary) !important;
+    }
+    
+    .date-tab-neuro.active,
+    .date-tab-neuro.today {
+        background: var(--primary) !important;
+        color: var(--text-inverse) !important;
+        border-color: var(--primary) !important;
+    }
+    
+    .date-tab-neuro.weekend {
+        background: var(--bg-primary) !important;
+        border-color: #4338ca !important;
+        color: #4338ca !important;
+    }
+    
+    .date-tab-neuro.weekend.active {
+        background: #4338ca !important;
+        color: var(--text-inverse) !important;
+    }
+    
+    .date-tab-neuro.no-activities {
+        background: var(--bg-muted) !important;
+        border-color: var(--text-muted) !important;
+        color: var(--text-muted) !important;
+    }
+    
+    /* Ensure proper contrast for count badges */
+    .date-tab-neuro .count {
+        background: rgba(0, 0, 0, 0.2) !important;
+        box-shadow: none !important;
+        color: inherit !important;
+    }
+    
+    .date-tab-neuro.active .count,
+    .date-tab-neuro.today .count,
+    .date-tab-neuro.weekend.active .count {
+        background: rgba(255, 255, 255, 0.9) !important;
+        color: var(--text-primary) !important;
+    }
+    
+    /* Override regular cards and components */
+    .card {
+        border: 2px solid var(--text-primary) !important;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3) !important;
+    }
+    
+    .filter-btn {
+        border: 2px solid var(--text-primary) !important;
+        color: var(--text-primary) !important;
+    }
+    
+    .filter-btn:hover {
+        background: var(--text-primary) !important;
+        color: var(--bg-primary) !important;
+    }
+    
+    .filter-btn.active {
+        background: var(--primary) !important;
+        color: var(--text-inverse) !important;
+        border-color: var(--primary) !important;
+    }
+    
+    .search-input {
+        border: 2px solid var(--text-primary) !important;
+    }
+    
+    .search-input:focus {
+        border-color: var(--primary) !important;
+        box-shadow: 0 0 0 3px rgba(0, 0, 255, 0.3) !important;
+    }
+    
+    /* Ensure proper contrast for all interactive elements */
+    .detail-btn {
+        border: 2px solid var(--primary) !important;
+        box-shadow: none !important;
+    }
+    
+    .detail-btn:hover {
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3) !important;
+    }
+    
+    .detail-btn-secondary {
+        background: var(--bg-primary) !important;
+        color: var(--primary) !important;
+        border: 2px solid var(--primary) !important;
+    }
+    
+    .detail-btn-secondary:hover {
+        background: var(--primary) !important;
+        color: var(--text-inverse) !important;
+    }
+    
+    /* Override contact methods and tags */
+    .contact-method {
+        background: var(--bg-primary) !important;
+        border: 2px solid var(--primary) !important;
+        color: var(--primary) !important;
+    }
+    
+    .contact-method:hover {
+        background: var(--primary) !important;
+        color: var(--text-inverse) !important;
+    }
+    
+    .tag {
+        background: var(--bg-primary) !important;
+        border: 2px solid var(--secondary) !important;
+        color: var(--secondary) !important;
+    }
+    
+    .age-group {
+        background: var(--bg-primary) !important;
+        border: 2px solid var(--text-primary) !important;
+        color: var(--text-primary) !important;
+    }
+    
+    .discount-item {
+        background: var(--bg-primary) !important;
+        border: 2px solid var(--accent) !important;
+        color: var(--accent) !important;
+    }
+    
+    /* Override category badges */
+    .card-category,
+    .detail-category {
+        background: var(--bg-primary) !important;
+        border: 2px solid var(--primary) !important;
+        color: var(--primary) !important;
+    }
+    
+    .category-event {
+        background: var(--bg-primary) !important;
+        border: 2px solid var(--secondary) !important;
+        color: var(--secondary) !important;
+    }
+    
+    .category-activity {
+        background: var(--bg-primary) !important;
+        border: 2px solid var(--accent) !important;
+        color: var(--accent) !important;
+    }
+    
+    .category-venue {
+        background: var(--bg-primary) !important;
+        border: 2px solid var(--warning) !important;
+        color: var(--warning) !important;
+    }
+    
+    /* Override registration status indicators */
+    .registration-status.open {
+        background: var(--bg-primary) !important;
+        border: 2px solid #059669 !important;
+        color: #059669 !important;
+    }
+    
+    .registration-status.waitlist {
+        background: var(--bg-primary) !important;
+        border: 2px solid #d97706 !important;
+        color: #d97706 !important;
+    }
+    
+    .registration-status.closed {
+        background: var(--bg-primary) !important;
+        border: 2px solid #dc2626 !important;
+        color: #dc2626 !important;
+    }
+    
+    /* Override provider info */
+    .provider-info {
+        border: 2px solid var(--text-primary) !important;
+        box-shadow: none !important;
+    }
+    
+    .provider-logo {
+        background: var(--bg-muted) !important;
+        border: 2px solid var(--text-primary) !important;
+        color: var(--text-primary) !important;
+    }
+    
+    /* Override admin link */
+    .admin-link {
+        background: var(--primary) !important;
+        border: 2px solid var(--primary) !important;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3) !important;
+    }
+    
+    .admin-link:hover {
+        background: var(--primary-dark) !important;
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4) !important;
+    }
+    
+    /* Ensure all focus indicators are highly visible */
+    *:focus-visible {
+        outline: 3px solid var(--primary) !important;
+        outline-offset: 2px !important;
+    }
+    
+    /* Override any remaining glassmorphic or low-contrast elements */
+    .detail-section {
+        background: var(--bg-secondary) !important;
+        border: 2px solid var(--text-primary) !important;
+    }
+    
+    .schedule-time {
+        background: var(--bg-primary) !important;
+        border: 2px solid var(--text-primary) !important;
+        color: var(--text-primary) !important;
+    }
+    
+    .schedule-time:hover {
+        background: var(--primary) !important;
+        color: var(--text-inverse) !important;
+        border-color: var(--primary) !important;
     }
 }
 
-/* Reduced motion support (accessibility) */
+/* Reduced motion support (accessibility) - Comprehensive implementation */
 @media (prefers-reduced-motion: reduce) {
     :root {
+        /* Disable all animation durations */
         --duration-fast: 0ms;
         --duration-normal: 0ms;
         --duration-slow: 0ms;
         --duration-slower: 0ms;
+        
+        /* Disable stagger timing */
+        --stagger-delay-base: 0ms;
+        --stagger-delay-increment: 0ms;
+        
+        /* Disable card entrance animation timing */
+        --card-entrance-duration: 0ms;
+        
+        /* Disable loading animation timing */
+        --loading-spinner-duration: 0ms;
+        --loading-pulse-duration: 0ms;
+        
+        /* Disable hover animation timing */
+        --hover-lift-duration: 0ms;
     }
     
+    /* Disable all animations and transitions globally */
     *, *::before, *::after {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+        transform: none !important;
+    }
+    
+    /* Disable specific animation classes */
+    .card-animate,
+    .card-animate--fade,
+    .card-animate--slide-left,
+    .card-animate--slide-right,
+    .fade-in-on-scroll,
+    .section-animate {
+        animation: none !important;
+        transition: none !important;
+        opacity: 1 !important;
+        transform: none !important;
+    }
+    
+    /* Disable page transition animations */
+    .page-transition-enter,
+    .page-transition-enter-active,
+    .page-transition-exit,
+    .page-transition-exit-active {
+        animation: none !important;
+        transition: none !important;
+        opacity: 1 !important;
+        transform: none !important;
+    }
+    
+    /* Disable modal animations */
+    .detail-page,
+    .detail-container,
+    .glass-modal-backdrop,
+    .glass-modal-content {
+        animation: none !important;
+        transition: none !important;
+        opacity: 1 !important;
+        transform: none !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+    
+    .detail-page.show,
+    .glass-modal-backdrop.show {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+    
+    .detail-page.show .detail-container,
+    .glass-modal-backdrop.show .glass-modal-content {
+        transform: none !important;
+        opacity: 1 !important;
+    }
+    
+    /* Disable header and search animations */
+    .header,
+    .search-container,
+    .search-container-glass,
+    .date-tabs-section {
+        animation: none !important;
+        transition: none !important;
+        opacity: 1 !important;
+        transform: none !important;
+    }
+    
+    /* Disable loading animations */
+    .loading-spinner {
+        animation: none !important;
+        border-top-color: var(--primary) !important;
+    }
+    
+    .loading-spinner::before {
+        animation: none !important;
+        opacity: 0 !important;
+    }
+    
+    .loading p {
+        animation: none !important;
+        opacity: 1 !important;
+    }
+    
+    .card-skeleton {
+        animation: none !important;
+        background: rgba(255, 255, 255, 0.15) !important;
+    }
+    
+    /* Disable all hover animations and transforms */
+    .card:hover,
+    .glass-card:hover,
+    .activity-card-hybrid:hover,
+    .card--hybrid:hover,
+    .neuro-button:hover,
+    .filter-btn:hover,
+    .filter-btn-glass:hover,
+    .date-tab:hover,
+    .date-tab-neuro:hover,
+    .search-input:hover,
+    .search-input-glass:hover,
+    .neuro-input:hover,
+    .neuro-select:hover,
+    .neuro-textarea:hover,
+    .contact-method:hover,
+    .tag:hover,
+    .age-group:hover,
+    .discount-item:hover,
+    .card-category:hover,
+    .activity-card-hybrid__category:hover,
+    .detail-image-thumbnail:hover,
+    .schedule-time:hover,
+    .registration-status:hover,
+    .provider-info:hover,
+    .detail-section:hover,
+    .admin-link:hover,
+    .breadcrumb-back:hover,
+    .date-nav-btn:hover,
+    .date-nav-btn-neuro:hover,
+    .activity-card-hybrid__action-button:hover,
+    .card--hybrid .card-action-button:hover {
+        animation: none !important;
+        transform: none !important;
+        transition: none !important;
+    }
+    
+    /* Disable active state animations */
+    .neuro-button:active,
+    .activity-card-hybrid__action-button:active,
+    .filter-btn:active,
+    .filter-btn-glass:active,
+    .date-tab:active,
+    .date-tab-neuro:active {
+        animation: none !important;
+        transform: none !important;
+    }
+    
+    /* Disable focus ring animations */
+    .focus-ring-animate:focus-visible {
+        animation: none !important;
+    }
+    
+    /* Disable grid hover effects */
+    .content-grid:hover .card:not(:hover),
+    .featured-grid:hover .card:not(:hover) {
+        opacity: 1 !important;
+        transform: none !important;
+    }
+    
+    /* Disable glassmorphic element animations */
+    .activity-card-hybrid::before,
+    .card--hybrid::before {
+        transition: none !important;
+        opacity: 0 !important;
+    }
+    
+    .activity-card-hybrid:hover::before,
+    .card--hybrid:hover::before {
+        opacity: 0 !important;
+    }
+    
+    /* Disable card image hover effects */
+    .card:hover .card-image,
+    .glass-card:hover .card-image,
+    .activity-card-hybrid:hover .activity-card-hybrid__image,
+    .card--hybrid:hover .card-image {
+        transform: none !important;
+        transition: none !important;
+    }
+    
+    /* Ensure smooth scrolling is disabled */
+    html {
         scroll-behavior: auto !important;
     }
 }
@@ -1391,74 +2545,626 @@ body {
     }
 }
 
-/* Responsive Design */
-@media (max-width: 1200px) {
-    .content-grid {
-        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+/* ========================================
+   MOBILE-FIRST RESPONSIVE DESIGN SYSTEM
+   ======================================== */
+
+/* Base mobile styles (default) - Mobile First Approach */
+/* All base styles above are mobile-first by default */
+
+/* Fluid Typography Implementation */
+.header-title {
+    font-size: var(--text-4xl-fluid);
+}
+
+.header-subtitle {
+    font-size: var(--text-lg-fluid);
+}
+
+.section-title {
+    font-size: var(--text-2xl-fluid);
+}
+
+.card-title,
+.activity-card-hybrid__title {
+    font-size: var(--text-base-fluid);
+}
+
+.card-description,
+.activity-card-hybrid__description {
+    font-size: var(--text-sm-fluid);
+}
+
+/* Touch Target Optimization - Ensure 44px minimum everywhere */
+.filter-btn,
+.filter-btn-glass,
+.date-tab,
+.date-tab-neuro,
+.date-nav-btn,
+.date-nav-btn-neuro,
+.neuro-button,
+.activity-card-hybrid__action-button,
+.card--hybrid .card-action-button,
+.search-input,
+.search-input-glass,
+.neuro-input,
+.neuro-select {
+    min-height: var(--touch-target-min);
+    min-width: var(--touch-target-min);
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+    /* Disable hover effects on touch devices */
+    .card:hover,
+    .glass-card:hover,
+    .activity-card-hybrid:hover,
+    .card--hybrid:hover,
+    .neuro-button:hover,
+    .filter-btn:hover,
+    .filter-btn-glass:hover,
+    .date-tab:hover,
+    .date-tab-neuro:hover,
+    .search-input:hover,
+    .search-input-glass:hover,
+    .neuro-input:hover,
+    .neuro-select:hover,
+    .neuro-textarea:hover,
+    .contact-method:hover,
+    .tag:hover,
+    .age-group:hover,
+    .discount-item:hover,
+    .admin-link:hover {
+        transform: none;
+        box-shadow: initial;
     }
     
-    .featured-grid {
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    /* Enhance touch targets */
+    .filter-btn,
+    .filter-btn-glass,
+    .date-tab,
+    .date-tab-neuro,
+    .neuro-button,
+    .activity-card-hybrid__action-button,
+    .card--hybrid .card-action-button {
+        min-height: var(--touch-target-comfortable);
+        padding: var(--space-3) var(--space-4);
+    }
+    
+    /* Ensure form inputs prevent zoom on iOS */
+    .search-input,
+    .search-input-glass,
+    .neuro-input,
+    .neuro-select,
+    .neuro-textarea {
+        font-size: var(--font-size-base); /* 16px minimum to prevent zoom */
+    }
+    
+    /* Optimize card interactions for touch */
+    .card,
+    .glass-card,
+    .activity-card-hybrid,
+    .card--hybrid {
+        cursor: default;
+    }
+    
+    /* Enhance tap feedback */
+    .neuro-button:active,
+    .filter-btn:active,
+    .filter-btn-glass:active,
+    .date-tab:active,
+    .date-tab-neuro:active {
+        transform: scale(0.98);
+        transition: transform 0.1s ease;
     }
 }
 
-@media (max-width: 768px) {
+/* Mobile Landscape - 480px+ */
+@media (min-width: 480px) {
+    .container {
+        padding: var(--space-5);
+    }
+    
+    .header {
+        padding: var(--space-8) var(--space-5);
+    }
+    
+    .search-container,
+    .search-container-glass {
+        padding: var(--space-5);
+    }
+    
+    .content-grid {
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: var(--space-5);
+    }
+    
+    .featured-grid {
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: var(--space-5);
+    }
+    
+    .filter-buttons,
+    .filter-buttons-glass {
+        gap: var(--space-3);
+    }
+    
+    .date-tabs-neuro-container {
+        padding: var(--space-3);
+    }
+    
+    .date-tab,
+    .date-tab-neuro {
+        padding: var(--space-2) var(--space-4);
+        font-size: var(--font-size-sm);
+    }
+    
+    .card-content,
+    .activity-card-hybrid__content {
+        padding: var(--space-4);
+    }
+    
+    /* Improve typography scaling */
+    .header-title {
+        font-size: clamp(var(--font-size-3xl), 5vw, var(--font-size-4xl));
+    }
+    
+    .header-subtitle {
+        font-size: clamp(var(--font-size-lg), 3vw, var(--font-size-xl));
+    }
+}
+
+/* Tablet - 768px+ */
+@media (min-width: 768px) {
+    .container {
+        padding: var(--space-6);
+        max-width: 1200px;
+    }
+    
+    .header {
+        padding: var(--space-10) var(--space-6);
+    }
+    
+    .header-title {
+        font-size: clamp(var(--font-size-4xl), 6vw, var(--font-size-5xl));
+    }
+    
+    .header-subtitle {
+        font-size: clamp(var(--font-size-xl), 3.5vw, var(--font-size-2xl));
+    }
+    
+    .section-title {
+        font-size: clamp(var(--font-size-2xl), 4vw, var(--font-size-3xl));
+    }
+    
+    .content-grid {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: var(--space-6);
+    }
+    
+    .featured-grid {
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: var(--space-6);
+    }
+    
+    .search-container,
+    .search-container-glass {
+        padding: var(--space-6);
+        max-width: 800px;
+        margin: 0 auto var(--space-8);
+    }
+    
+    .filter-buttons,
+    .filter-buttons-glass {
+        gap: var(--space-4);
+        justify-content: center;
+    }
+    
+    .date-tabs-neuro-container {
+        padding: var(--space-4);
+        max-width: 1000px;
+        margin: 0 auto;
+    }
+    
+    .date-tab,
+    .date-tab-neuro {
+        padding: var(--space-3) var(--space-5);
+        font-size: var(--font-size-base);
+    }
+    
+    .card-content,
+    .activity-card-hybrid__content {
+        padding: var(--space-5);
+    }
+    
+    .card-meta,
+    .activity-card-hybrid__meta {
+        flex-direction: row;
+        align-items: center;
+        gap: var(--space-4);
+    }
+    
+    /* Enhanced card layouts for tablet */
+    .card.featured,
+    .activity-card-hybrid--featured {
+        grid-column: span 2;
+    }
+    
+    /* Optimize form layouts */
+    .detail-info-grid {
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: var(--space-5);
+    }
+    
+    .registration-actions {
+        flex-direction: row;
+        gap: var(--space-4);
+    }
+    
+    .contact-methods {
+        flex-direction: row;
+        gap: var(--space-4);
+    }
+}
+
+/* Desktop - 1024px+ */
+@media (min-width: 1024px) {
+    .container {
+        padding: var(--space-8);
+        max-width: 1400px;
+    }
+    
+    .header {
+        padding: var(--space-12) var(--space-8);
+    }
+    
+    .header-title {
+        font-size: var(--font-size-5xl);
+    }
+    
+    .header-subtitle {
+        font-size: var(--font-size-2xl);
+    }
+    
+    .section-title {
+        font-size: var(--font-size-3xl);
+    }
+    
+    .content-grid {
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: var(--space-8);
+    }
+    
+    .featured-grid {
+        grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+        gap: var(--space-8);
+    }
+    
+    .search-container,
+    .search-container-glass {
+        padding: var(--space-8);
+        max-width: 900px;
+        margin: 0 auto var(--space-10);
+    }
+    
+    .filter-buttons,
+    .filter-buttons-glass {
+        gap: var(--space-5);
+    }
+    
+    .date-tabs-neuro-container {
+        padding: var(--space-5);
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    
+    .card-content,
+    .activity-card-hybrid__content {
+        padding: var(--space-6);
+    }
+    
+    /* Enhanced desktop layouts */
+    .card.featured,
+    .activity-card-hybrid--featured {
+        grid-column: span 1;
+    }
+    
+    /* Optimize detail page layout */
+    .detail-container {
+        max-width: 1000px;
+        padding: var(--space-6);
+    }
+    
+    .detail-content {
+        gap: var(--space-8);
+    }
+    
+    .detail-info-grid {
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        gap: var(--space-6);
+    }
+    
+    /* Enhanced admin link positioning */
+    .admin-link {
+        bottom: var(--space-6);
+        right: var(--space-6);
+        width: var(--touch-target-large);
+        height: var(--touch-target-large);
+        font-size: 24px;
+    }
+}
+
+/* Large Desktop - 1400px+ */
+@media (min-width: 1400px) {
+    .container {
+        padding: var(--space-10);
+    }
+    
+    .header {
+        padding: var(--space-16) var(--space-10);
+    }
+    
+    .content-grid {
+        grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+        gap: var(--space-10);
+    }
+    
+    .featured-grid {
+        grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+        gap: var(--space-10);
+    }
+    
+    .search-container,
+    .search-container-glass {
+        padding: var(--space-10);
+        max-width: 1000px;
+        margin: 0 auto var(--space-12);
+    }
+    
+    .date-tabs-neuro-container {
+        padding: var(--space-6);
+        max-width: 1400px;
+    }
+    
+    .card-content,
+    .activity-card-hybrid__content {
+        padding: var(--space-8);
+    }
+    
+    /* Ultra-wide optimizations */
+    .detail-container {
+        max-width: 1200px;
+        padding: var(--space-8);
+    }
+    
+    .detail-info-grid {
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        gap: var(--space-8);
+    }
+}
+
+/* Mobile-specific optimizations */
+@media (max-width: 479px) {
     .container {
         padding: var(--space-3);
     }
     
     .header {
         padding: var(--space-6) var(--space-3);
+        margin-bottom: var(--space-8);
     }
     
     .header-title {
-        font-size: var(--font-size-3xl);
+        font-size: var(--font-size-2xl);
+        line-height: var(--leading-tight);
     }
     
     .header-subtitle {
         font-size: var(--font-size-base);
+        line-height: var(--leading-normal);
     }
     
     .section-title {
         font-size: var(--font-size-xl);
-    }
-    
-    .featured-grid {
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    }
-    
-    .content-grid {
-        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    }
-    
-    .search-container {
-        padding: var(--space-4);
-    }
-    
-    .filter-buttons {
-        justify-content: center;
-        gap: var(--compact-space-4);
-    }
-    
-    .card-meta {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: var(--compact-space-3);
-    }
-}
-
-@media (max-width: 480px) {
-    .header-title {
-        font-size: var(--font-size-2xl);
-    }
-    
-    .card-content {
-        padding: var(--space-3);
+        margin-bottom: var(--space-4);
     }
     
     .content-grid,
     .featured-grid {
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        grid-template-columns: 1fr;
+        gap: var(--space-4);
+    }
+    
+    .search-container,
+    .search-container-glass {
+        padding: var(--space-4);
+        margin-bottom: var(--space-6);
+    }
+    
+    .filter-buttons,
+    .filter-buttons-glass {
+        gap: var(--space-2);
+        justify-content: center;
+    }
+    
+    .filter-btn,
+    .filter-btn-glass {
+        padding: var(--space-2) var(--space-3);
+        font-size: var(--font-size-xs);
+        min-width: var(--touch-target-min);
+    }
+    
+    .date-tabs-neuro-container {
+        padding: var(--space-2);
+        margin: var(--space-4) 0 var(--space-3) 0;
+    }
+    
+    .date-tab,
+    .date-tab-neuro {
+        padding: var(--space-2) var(--space-3);
+        font-size: var(--font-size-xs);
+        min-width: 60px;
+        justify-content: center;
+    }
+    
+    .date-tab .count,
+    .date-tab-neuro .count {
+        font-size: 10px;
+        min-width: 14px;
+        padding: 0 var(--space-1);
+    }
+    
+    .date-nav-btn,
+    .date-nav-btn-neuro {
+        padding: var(--space-2);
+        font-size: var(--font-size-base);
+        min-width: var(--touch-target-min);
+        min-height: var(--touch-target-min);
+    }
+    
+    .card-content,
+    .activity-card-hybrid__content {
+        padding: var(--space-3);
+    }
+    
+    .card-meta,
+    .activity-card-hybrid__meta {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-2);
+    }
+    
+    .activity-card-hybrid__actions {
+        flex-direction: column;
+        gap: var(--space-2);
+        margin-top: var(--space-3);
+    }
+    
+    .activity-card-hybrid__action-button,
+    .card--hybrid .card-action-button {
+        width: 100%;
+        justify-content: center;
+        padding: var(--space-3) var(--space-4);
+    }
+    
+    /* Mobile detail page optimizations */
+    .detail-container {
+        padding: var(--space-3);
+    }
+    
+    .detail-image-container {
+        height: 200px;
+        margin-bottom: var(--space-4);
+    }
+    
+    .detail-title {
+        font-size: var(--font-size-2xl);
+        line-height: var(--leading-tight);
+    }
+    
+    .detail-section {
+        padding: var(--space-4);
+        margin-bottom: var(--space-4);
+    }
+    
+    .detail-info-grid {
+        grid-template-columns: 1fr;
+        gap: var(--space-4);
+    }
+    
+    .registration-actions {
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+    
+    .detail-btn {
+        width: 100%;
+        justify-content: center;
+        padding: var(--space-4) var(--space-5);
+    }
+    
+    .contact-methods {
+        flex-direction: column;
+        gap: var(--space-2);
+    }
+    
+    .contact-method {
+        width: 100%;
+        justify-content: center;
+        padding: var(--space-3) var(--space-4);
+    }
+    
+    /* Mobile admin link */
+    .admin-link {
+        bottom: var(--space-4);
+        right: var(--space-4);
+        width: var(--touch-target-min);
+        height: var(--touch-target-min);
+        font-size: 18px;
+    }
+}
+
+/* Print styles */
+@media print {
+    .admin-link,
+    .date-nav-btn,
+    .date-nav-btn-neuro,
+    .filter-buttons,
+    .filter-buttons-glass,
+    .search-container,
+    .search-container-glass {
+        display: none !important;
+    }
+    
+    .card,
+    .glass-card,
+    .activity-card-hybrid,
+    .card--hybrid {
+        break-inside: avoid;
+        box-shadow: none !important;
+        border: 1px solid #000 !important;
+        background: white !important;
+    }
+    
+    .header-title,
+    .section-title,
+    .card-title,
+    .activity-card-hybrid__title {
+        color: #000 !important;
+    }
+    
+    .detail-page {
+        position: static !important;
+        transform: none !important;
+        background: white !important;
+    }
+}
+
+/* Reduced motion responsive adjustments */
+@media (prefers-reduced-motion: reduce) {
+    @media (hover: none) and (pointer: coarse) {
+        .neuro-button:active,
+        .filter-btn:active,
+        .filter-btn-glass:active,
+        .date-tab:active,
+        .date-tab-neuro:active {
+            transform: none !important;
+            transition: none !important;
+        }
+    }
+}
+
+/* High contrast responsive adjustments */
+@media (prefers-contrast: high) {
+    @media (max-width: 479px) {
+        .filter-btn,
+        .filter-btn-glass,
+        .date-tab,
+        .date-tab-neuro,
+        .neuro-button {
+            border-width: 2px !important;
+            font-weight: var(--font-weight-semibold) !important;
+        }
     }
 }
 
@@ -1469,16 +3175,384 @@ body {
     }
 }
 
-/* Focus states for accessibility */
+/* ========================================
+   COMPREHENSIVE KEYBOARD NAVIGATION SUPPORT
+   ======================================== */
+
+/* Enhanced focus indicators for all interactive elements */
 .filter-btn:focus-visible,
-.search-input:focus-visible {
-    outline: 2px solid var(--primary);
+.filter-btn-glass:focus-visible,
+.search-input:focus-visible,
+.search-input-glass:focus-visible,
+.neuro-input:focus-visible,
+.neuro-select:focus-visible,
+.neuro-textarea:focus-visible,
+.neuro-button:focus-visible,
+.date-tab:focus-visible,
+.date-tab-neuro:focus-visible,
+.date-nav-btn:focus-visible,
+.date-nav-btn-neuro:focus-visible,
+.card:focus-visible,
+.glass-card:focus-visible,
+.activity-card-hybrid:focus-visible,
+.card--hybrid:focus-visible,
+.activity-card-hybrid__action-button:focus-visible,
+.card--hybrid .card-action-button:focus-visible,
+.detail-btn:focus-visible,
+.detail-btn-secondary:focus-visible,
+.contact-method:focus-visible,
+.breadcrumb-back:focus-visible,
+.admin-link:focus-visible {
+    outline: 3px solid var(--primary) !important;
+    outline-offset: 2px !important;
+    border-radius: var(--radius-sm) !important;
+    position: relative !important;
+    z-index: 100 !important;
+}
+
+/* Enhanced focus indicators with animation for better visibility */
+@media (prefers-reduced-motion: no-preference) {
+    .filter-btn:focus-visible,
+    .filter-btn-glass:focus-visible,
+    .search-input:focus-visible,
+    .search-input-glass:focus-visible,
+    .neuro-input:focus-visible,
+    .neuro-select:focus-visible,
+    .neuro-textarea:focus-visible,
+    .neuro-button:focus-visible,
+    .date-tab:focus-visible,
+    .date-tab-neuro:focus-visible,
+    .date-nav-btn:focus-visible,
+    .date-nav-btn-neuro:focus-visible,
+    .card:focus-visible,
+    .glass-card:focus-visible,
+    .activity-card-hybrid:focus-visible,
+    .card--hybrid:focus-visible,
+    .activity-card-hybrid__action-button:focus-visible,
+    .card--hybrid .card-action-button:focus-visible,
+    .detail-btn:focus-visible,
+    .detail-btn-secondary:focus-visible,
+    .contact-method:focus-visible,
+    .breadcrumb-back:focus-visible,
+    .admin-link:focus-visible {
+        animation: focusRingPulse 0.3s ease-out !important;
+    }
+}
+
+/* Focus indicators for high contrast mode */
+@media (prefers-contrast: high) {
+    .filter-btn:focus-visible,
+    .filter-btn-glass:focus-visible,
+    .search-input:focus-visible,
+    .search-input-glass:focus-visible,
+    .neuro-input:focus-visible,
+    .neuro-select:focus-visible,
+    .neuro-textarea:focus-visible,
+    .neuro-button:focus-visible,
+    .date-tab:focus-visible,
+    .date-tab-neuro:focus-visible,
+    .date-nav-btn:focus-visible,
+    .date-nav-btn-neuro:focus-visible,
+    .card:focus-visible,
+    .glass-card:focus-visible,
+    .activity-card-hybrid:focus-visible,
+    .card--hybrid:focus-visible,
+    .activity-card-hybrid__action-button:focus-visible,
+    .card--hybrid .card-action-button:focus-visible,
+    .detail-btn:focus-visible,
+    .detail-btn-secondary:focus-visible,
+    .contact-method:focus-visible,
+    .breadcrumb-back:focus-visible,
+    .admin-link:focus-visible {
+        outline: 4px solid var(--primary) !important;
+        outline-offset: 3px !important;
+        box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 6px var(--primary) !important;
+    }
+}
+
+/* Enhanced focus for cards with better visibility */
+.card:focus-visible,
+.glass-card:focus-visible,
+.activity-card-hybrid:focus-visible,
+.card--hybrid:focus-visible {
+    transform: translateY(-2px) scale(1.01) !important;
+    box-shadow: 
+        0 0 0 3px var(--primary),
+        0 15px 30px rgba(0, 0, 0, 0.15) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .card:focus-visible,
+    .glass-card:focus-visible,
+    .activity-card-hybrid:focus-visible,
+    .card--hybrid:focus-visible {
+        transform: none !important;
+        box-shadow: 0 0 0 3px var(--primary) !important;
+    }
+}
+
+/* Skip link for keyboard navigation */
+.skip-link {
+    position: absolute;
+    top: -40px;
+    left: 6px;
+    background: var(--primary);
+    color: var(--text-inverse);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-sm);
+    z-index: 9999;
+    transition: top 0.2s ease;
+}
+
+.skip-link:focus {
+    top: 6px;
+    outline: 2px solid var(--text-inverse);
     outline-offset: 2px;
 }
 
-.card:focus-visible {
+/* Keyboard navigation helpers */
+.keyboard-nav-helper {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Focus trap for modals */
+.focus-trap {
+    position: relative;
+}
+
+.focus-trap::before,
+.focus-trap::after {
+    content: '';
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Ensure interactive elements are keyboard accessible */
+.card,
+.glass-card,
+.activity-card-hybrid,
+.card--hybrid {
+    cursor: pointer;
+}
+
+.card[tabindex],
+.glass-card[tabindex],
+.activity-card-hybrid[tabindex],
+.card--hybrid[tabindex] {
+    outline: none;
+}
+
+/* Enhanced button focus states */
+.neuro-button:focus-visible,
+.activity-card-hybrid__action-button:focus-visible,
+.card--hybrid .card-action-button:focus-visible {
+    box-shadow: 
+        0 0 0 3px var(--primary),
+        6px 6px 12px var(--neuro-shadow-dark),
+        -6px -6px 12px var(--neuro-shadow-light) !important;
+}
+
+@media (prefers-contrast: high) {
+    .neuro-button:focus-visible,
+    .activity-card-hybrid__action-button:focus-visible,
+    .card--hybrid .card-action-button:focus-visible {
+        box-shadow: 0 0 0 4px var(--primary) !important;
+    }
+}
+
+/* Enhanced form control focus states */
+.neuro-input:focus-visible,
+.neuro-select:focus-visible,
+.neuro-textarea:focus-visible,
+.search-input:focus-visible,
+.search-input-glass:focus-visible {
+    box-shadow: 
+        0 0 0 3px var(--primary),
+        inset 4px 4px 8px var(--neuro-shadow-dark),
+        inset -4px -4px 8px var(--neuro-shadow-light) !important;
+}
+
+@media (prefers-contrast: high) {
+    .neuro-input:focus-visible,
+    .neuro-select:focus-visible,
+    .neuro-textarea:focus-visible,
+    .search-input:focus-visible,
+    .search-input-glass:focus-visible {
+        box-shadow: 0 0 0 4px var(--primary) !important;
+    }
+}
+
+/* Enhanced date tab focus states */
+.date-tab:focus-visible,
+.date-tab-neuro:focus-visible {
+    box-shadow: 
+        0 0 0 3px var(--primary),
+        4px 4px 8px var(--neuro-shadow-dark),
+        -4px -4px 8px var(--neuro-shadow-light) !important;
+    z-index: 10 !important;
+}
+
+@media (prefers-contrast: high) {
+    .date-tab:focus-visible,
+    .date-tab-neuro:focus-visible {
+        box-shadow: 0 0 0 4px var(--primary) !important;
+    }
+}
+
+/* Enhanced filter button focus states */
+.filter-btn:focus-visible,
+.filter-btn-glass:focus-visible {
+    box-shadow: 0 0 0 3px var(--primary) !important;
+    z-index: 10 !important;
+}
+
+/* Keyboard navigation for date tabs container */
+.date-tabs-container:focus-within {
     outline: 2px solid var(--primary);
     outline-offset: 2px;
+    border-radius: var(--radius-lg);
+}
+
+/* Ensure proper tab order and keyboard navigation */
+.date-tabs,
+.filter-buttons,
+.filter-buttons-glass {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.date-tabs .date-tab,
+.date-tabs .date-tab-neuro,
+.filter-buttons .filter-btn,
+.filter-buttons-glass .filter-btn-glass {
+    position: relative;
+}
+
+/* Enhanced admin link focus */
+.admin-link:focus-visible {
+    outline: 3px solid var(--text-inverse) !important;
+    outline-offset: 3px !important;
+    box-shadow: 
+        0 0 0 6px var(--primary),
+        0 8px 25px rgba(99, 102, 241, 0.4) !important;
+}
+
+@media (prefers-contrast: high) {
+    .admin-link:focus-visible {
+        outline: 4px solid var(--text-inverse) !important;
+        box-shadow: 0 0 0 8px var(--primary) !important;
+    }
+}
+
+/* Ensure proper focus management for detail page */
+.detail-page {
+    outline: none;
+}
+
+.detail-page:focus-within {
+    outline: none;
+}
+
+.breadcrumb-back:focus-visible {
+    outline: 3px solid var(--primary) !important;
+    outline-offset: 2px !important;
+    border-radius: var(--radius-sm) !important;
+    background: rgba(99, 102, 241, 0.1) !important;
+    padding: var(--space-1) var(--space-2) !important;
+}
+
+/* Enhanced contact method focus */
+.contact-method:focus-visible {
+    outline: 3px solid var(--primary) !important;
+    outline-offset: 2px !important;
+    background: rgba(99, 102, 241, 0.3) !important;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2) !important;
+}
+
+@media (prefers-contrast: high) {
+    .contact-method:focus-visible {
+        background: var(--primary) !important;
+        color: var(--text-inverse) !important;
+        box-shadow: none !important;
+    }
+}
+
+/* Ensure all clickable elements have proper cursor */
+.card,
+.glass-card,
+.activity-card-hybrid,
+.card--hybrid,
+.filter-btn,
+.filter-btn-glass,
+.date-tab,
+.date-tab-neuro,
+.date-nav-btn,
+.date-nav-btn-neuro,
+.neuro-button,
+.activity-card-hybrid__action-button,
+.card--hybrid .card-action-button,
+.detail-btn,
+.detail-btn-secondary,
+.contact-method,
+.breadcrumb-back,
+.admin-link,
+.tag,
+.age-group,
+.discount-item,
+.schedule-time,
+.registration-status,
+.detail-image-thumbnail {
+    cursor: pointer;
+}
+
+/* Ensure disabled elements have proper cursor */
+.neuro-button:disabled,
+.date-nav-btn:disabled,
+.date-nav-btn-neuro:disabled,
+.date-tab.no-activities,
+.date-tab-neuro.no-activities {
+    cursor: not-allowed;
+}
+
+/* Keyboard navigation indicators */
+@media (prefers-reduced-motion: no-preference) {
+    .keyboard-focus-indicator {
+        position: relative;
+    }
+    
+    .keyboard-focus-indicator::after {
+        content: '';
+        position: absolute;
+        top: -3px;
+        left: -3px;
+        right: -3px;
+        bottom: -3px;
+        border: 2px solid var(--primary);
+        border-radius: inherit;
+        opacity: 0;
+        transform: scale(0.95);
+        transition: all 0.2s ease;
+        pointer-events: none;
+    }
+    
+    .keyboard-focus-indicator:focus-visible::after {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 
 /* Detail Page Styles */
