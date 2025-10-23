@@ -46,7 +46,7 @@ class FamilyEventsApp {
         this.selectedDate = 'all'; // 'all' or specific date (YYYY-MM-DD)
         this.dateTabs = [];
         this.currentTabIndex = 0;
-        this.glassMode = false; // Enable glassmorphic components
+        this.designMode = 'hybrid'; // 'hybrid' (default), 'glass', or 'classic'
         
         this.init();
     }
@@ -618,11 +618,11 @@ class FamilyEventsApp {
     // Add glassmorphic toggle button
     addGlassToggleButton() {
         // Check if toggle button already exists
-        if (document.getElementById('glass-toggle-btn')) return;
+        if (document.getElementById('design-toggle-btn')) return;
 
         const toggleBtn = document.createElement('button');
-        toggleBtn.id = 'glass-toggle-btn';
-        toggleBtn.innerHTML = '✨ Glass Mode';
+        toggleBtn.id = 'design-toggle-btn';
+        toggleBtn.innerHTML = '✨ Hybrid Mode';
         toggleBtn.style.cssText = `
             position: fixed;
             top: 130px;
@@ -639,26 +639,37 @@ class FamilyEventsApp {
         `;
 
         toggleBtn.addEventListener('click', () => {
-            this.toggleGlassMode();
-            toggleBtn.innerHTML = this.glassMode ? '✨ Glass Mode ON' : '✨ Glass Mode';
-            toggleBtn.style.background = this.glassMode ? 
-                'linear-gradient(135deg, rgba(99, 102, 241, 0.8), rgba(236, 72, 153, 0.8))' : 
-                'rgba(255, 255, 255, 0.9)';
-            toggleBtn.style.color = this.glassMode ? 'white' : 'inherit';
+            this.toggleDesignMode();
+            const modeLabels = {
+                'hybrid': '✨ Hybrid Mode',
+                'glass': '🔮 Glass Mode', 
+                'classic': '📋 Classic Mode'
+            };
+            const modeColors = {
+                'hybrid': 'linear-gradient(135deg, rgba(99, 102, 241, 0.6), rgba(20, 184, 166, 0.6))',
+                'glass': 'linear-gradient(135deg, rgba(99, 102, 241, 0.8), rgba(236, 72, 153, 0.8))',
+                'classic': 'rgba(255, 255, 255, 0.9)'
+            };
+            toggleBtn.innerHTML = modeLabels[this.designMode];
+            toggleBtn.style.background = modeColors[this.designMode];
+            toggleBtn.style.color = this.designMode === 'classic' ? 'inherit' : 'white';
         });
 
         toggleBtn.addEventListener('mouseenter', () => {
-            if (!this.glassMode) {
+            if (this.designMode === 'classic') {
                 toggleBtn.style.background = 'rgba(255, 255, 255, 1)';
-                toggleBtn.style.transform = 'translateY(-1px)';
             }
+            toggleBtn.style.transform = 'translateY(-1px)';
         });
 
         toggleBtn.addEventListener('mouseleave', () => {
-            if (!this.glassMode) {
-                toggleBtn.style.background = 'rgba(255, 255, 255, 0.9)';
-                toggleBtn.style.transform = 'translateY(0)';
-            }
+            const modeColors = {
+                'hybrid': 'linear-gradient(135deg, rgba(99, 102, 241, 0.6), rgba(20, 184, 166, 0.6))',
+                'glass': 'linear-gradient(135deg, rgba(99, 102, 241, 0.8), rgba(236, 72, 153, 0.8))',
+                'classic': 'rgba(255, 255, 255, 0.9)'
+            };
+            toggleBtn.style.background = modeColors[this.designMode];
+            toggleBtn.style.transform = 'translateY(0)';
         });
 
         document.body.appendChild(toggleBtn);
@@ -711,34 +722,75 @@ class FamilyEventsApp {
         }
 
         contentGrid.innerHTML = items
-            .map(item => this.createCardHTML(item, this.glassMode))
+            .map(item => this.createCardHTML(item, this.designMode))
             .join('');
     }
 
     // Create HTML for a single card
-    createCardHTML(item, useGlassVariant = false) {
+    createCardHTML(item, designMode = 'hybrid') {
         const categoryClass = `category-${item.category}`;
-        const cardClass = useGlassVariant ? 'glass-card' : 'card';
-        const categoryVariant = useGlassVariant ? this.getGlassCategoryVariant(item.category) : '';
         
-        return `
-            <div class="${cardClass} ${categoryVariant}" data-id="${item.id}" role="button" tabindex="0" aria-label="View details for ${item.title}">
-                <img src="${item.image}" alt="${item.title} activity" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0xNzUgMTI1SDE0MFYxNzVIMTc1VjE1MEgyMjVWMTc1SDI2MFYxMjVIMjI1VjEwMEgxNzVWMTI1WiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4K'; this.onerror=null;">
-                <div class="card-content">
-                    <span class="card-category ${categoryClass}">${this.formatCategory(item.category)}</span>
-                    <h3 class="card-title">${item.title}</h3>
-                    <p class="card-description">${item.description}</p>
-                    <div class="card-meta">
-                        <div>
-                            <div class="card-date">${this.formatDate(this.getActivityDate(item))} • ${item.time}</div>
-                            <div class="card-location">📍 ${item.location}</div>
-                            ${item.age_range ? `<div class="card-age">👶 ${item.age_range}</div>` : ''}
+        // Determine card type based on design mode
+        let cardClass, categoryVariant;
+        if (designMode === 'glass') {
+            cardClass = 'glass-card';
+            categoryVariant = this.getGlassCategoryVariant(item.category);
+        } else if (designMode === 'hybrid') {
+            // Use hybrid cards as the new default for modern UX
+            cardClass = 'activity-card-hybrid';
+            categoryVariant = item.featured ? 'activity-card-hybrid--featured' : '';
+        } else {
+            // Classic mode - original card design
+            cardClass = 'card';
+            categoryVariant = item.featured ? 'featured' : '';
+        }
+        
+        // For hybrid cards, use the new structure
+        if (cardClass === 'activity-card-hybrid') {
+            return `
+                <div class="${cardClass} ${categoryVariant}" data-id="${item.id}" role="button" tabindex="0" aria-label="View details for ${item.title}">
+                    <img src="${item.image}" alt="${item.title} activity" class="activity-card-hybrid__image" loading="lazy" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0xNzUgMTI1SDE0MFYxNzVIMTc1VjE1MEgyMjVWMTc1SDI2MFYxMjVIMjI1VjEwMEgxNzVWMTI1WiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4K'; this.onerror=null;">
+                    <div class="activity-card-hybrid__content">
+                        <span class="activity-card-hybrid__category ${item.category}">${this.formatCategory(item.category)}</span>
+                        <h3 class="activity-card-hybrid__title">${item.title}</h3>
+                        <p class="activity-card-hybrid__description">${item.description}</p>
+                        <div class="activity-card-hybrid__meta">
+                            <div>
+                                <div class="activity-card-hybrid__date">${this.formatDate(this.getActivityDate(item))} • ${item.time}</div>
+                                <div class="activity-card-hybrid__location">📍 ${item.location}</div>
+                                ${item.age_range ? `<div class="activity-card-hybrid__age">👶 ${item.age_range}</div>` : ''}
+                            </div>
+                            <div class="activity-card-hybrid__price">${item.price}</div>
                         </div>
-                        <div class="card-price">${item.price}</div>
+                        <div class="activity-card-hybrid__actions">
+                            <button class="activity-card-hybrid__action-button activity-card-hybrid__action-button--primary" onclick="event.stopPropagation(); window.location.hash='activity/${item.id}';" aria-label="View details for ${item.title}">
+                                View Details
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
-        `;
+            `;
+        } else {
+            // Original card structure for glass and classic cards
+            return `
+                <div class="${cardClass} ${categoryVariant}" data-id="${item.id}" role="button" tabindex="0" aria-label="View details for ${item.title}">
+                    <img src="${item.image}" alt="${item.title} activity" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0xNzUgMTI1SDE0MFYxNzVIMTc1VjE1MEgyMjVWMTc1SDI2MFYxMjVIMjI1VjEwMEgxNzVWMTI1WiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4K'; this.onerror=null;">
+                    <div class="card-content">
+                        <span class="card-category ${categoryClass}">${this.formatCategory(item.category)}</span>
+                        <h3 class="card-title">${item.title}</h3>
+                        <p class="card-description">${item.description}</p>
+                        <div class="card-meta">
+                            <div>
+                                <div class="card-date">${this.formatDate(this.getActivityDate(item))} • ${item.time}</div>
+                                <div class="card-location">📍 ${item.location}</div>
+                                ${item.age_range ? `<div class="card-age">👶 ${item.age_range}</div>` : ''}
+                            </div>
+                            <div class="card-price">${item.price}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
     }
 
     // Get glass card variant based on category
@@ -849,7 +901,7 @@ class FamilyEventsApp {
         
         this.currentView = 'detail';
         
-        if (this.glassMode) {
+        if (this.designMode === 'glass') {
             this.showGlassModal(item);
         } else {
             this.renderDetailPage(item);
@@ -989,45 +1041,36 @@ class FamilyEventsApp {
         `;
     }
 
-    // Toggle glassmorphic mode
-    toggleGlassMode() {
-        this.glassMode = !this.glassMode;
+    // Toggle design mode (hybrid -> glass -> classic -> hybrid)
+    toggleDesignMode() {
+        const modes = ['hybrid', 'glass', 'classic'];
+        const currentIndex = modes.indexOf(this.designMode);
+        this.designMode = modes[(currentIndex + 1) % modes.length];
         
-        // Update search container
-        const searchContainer = document.querySelector('.search-container');
+        // Update search container based on design mode
+        const searchContainer = document.querySelector('.search-container, .search-container-glass');
         if (searchContainer) {
-            if (this.glassMode) {
+            // Reset all classes first
+            const searchInput = searchContainer.querySelector('.search-input, .search-input-glass');
+            const filterButtons = searchContainer.querySelector('.filter-buttons, .filter-buttons-glass');
+            
+            if (this.designMode === 'glass') {
                 searchContainer.className = 'search-container-glass';
-                
-                // Update search input
-                const searchInput = searchContainer.querySelector('.search-input');
-                if (searchInput) {
-                    searchInput.className = 'search-input-glass';
-                }
-                
-                // Update filter buttons
-                const filterButtons = searchContainer.querySelector('.filter-buttons');
+                if (searchInput) searchInput.className = 'search-input-glass';
                 if (filterButtons) {
                     filterButtons.className = 'filter-buttons-glass';
-                    filterButtons.querySelectorAll('.filter-btn').forEach(btn => {
-                        btn.className = btn.className.replace('filter-btn', 'filter-btn-glass');
+                    filterButtons.querySelectorAll('.filter-btn, .filter-btn-glass').forEach(btn => {
+                        btn.className = btn.className.replace(/filter-btn(-glass)?/, 'filter-btn-glass');
                     });
                 }
             } else {
+                // Both hybrid and classic use standard search styling
                 searchContainer.className = 'search-container';
-                
-                // Revert search input
-                const searchInput = searchContainer.querySelector('.search-input-glass');
-                if (searchInput) {
-                    searchInput.className = 'search-input';
-                }
-                
-                // Revert filter buttons
-                const filterButtons = searchContainer.querySelector('.filter-buttons-glass');
+                if (searchInput) searchInput.className = 'search-input';
                 if (filterButtons) {
                     filterButtons.className = 'filter-buttons';
-                    filterButtons.querySelectorAll('.filter-btn-glass').forEach(btn => {
-                        btn.className = btn.className.replace('filter-btn-glass', 'filter-btn');
+                    filterButtons.querySelectorAll('.filter-btn, .filter-btn-glass').forEach(btn => {
+                        btn.className = btn.className.replace(/filter-btn(-glass)?/, 'filter-btn');
                     });
                 }
             }
@@ -1037,7 +1080,12 @@ class FamilyEventsApp {
         this.renderContent();
         
         // Show status
-        this.showDataStatus(`Glassmorphic mode ${this.glassMode ? 'enabled' : 'disabled'}`, 'info');
+        const modeNames = {
+            'hybrid': 'Hybrid (Glass + Neuro)',
+            'glass': 'Glassmorphic',
+            'classic': 'Classic'
+        };
+        this.showDataStatus(`Design mode: ${modeNames[this.designMode]}`, 'info');
     }
     
     // Render the detail page content
