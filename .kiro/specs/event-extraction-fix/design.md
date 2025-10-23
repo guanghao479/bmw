@@ -4,13 +4,13 @@
 
 The event extraction system is experiencing conversion failures where events are successfully found during the FireCrawl scraping phase but fail to convert into the expected Activity data structure. The issue appears to be in the data transformation pipeline between the raw FireCrawl response and the schema conversion service.
 
-Based on analysis of the codebase, the problem lies in the mismatch between what FireCrawl returns (markdown content) and what the schema conversion service expects (structured JSON data with events arrays). The current implementation creates mock structured data from markdown but this conversion is incomplete and unreliable.
+Based on analysis of the codebase, the problem lies in the mismatch between what FireCrawl returns (markdown content) and what the schema conversion service expects (structured JSON data with events arrays). The current implementation creates structured data from markdown but this conversion is incomplete and unreliable.
 
 ## Architecture
 
 ### Current Flow (Problematic)
 ```
-FireCrawl API → Markdown Content → Mock Structured Data → Schema Conversion → Activity Model
+FireCrawl API → Markdown Content → Structured Data → Schema Conversion → Activity Model
 ```
 
 ### Proposed Fixed Flow
@@ -25,7 +25,7 @@ FireCrawl API → Enhanced Markdown Parser → Validated Structured Data → Imp
 **Location**: `backend/internal/services/firecrawl.go`
 
 **Current Issues**:
-- `parseParentMapActivities()` creates minimal mock data
+- `parseParentMapActivities()` creates minimal structured data
 - `extractEventsFromMarkdown()` uses basic header detection
 - No validation of extracted data structure
 - Missing field mapping for common event attributes

@@ -2,13 +2,13 @@
 
 ## Introduction
 
-This feature enables local development of the Seattle Family Activities platform by allowing the backend Go services to run locally as HTTP servers instead of Lambda functions, and configuring the frontend to connect to the local backend. This will replace the current mock API server and provide a complete local development environment.
+This feature enables local development of the Seattle Family Activities platform by allowing the backend Go services to run locally as HTTP servers instead of Lambda functions, and configuring the frontend to connect to the local backend. This provides a complete local development environment with real backend functionality.
 
 ## Glossary
 
 - **Backend Service**: The Go-based admin API and scraping orchestrator currently deployed as AWS Lambda functions
 - **Frontend Application**: The vanilla JavaScript web application served from the app/ directory
-- **Mock API Server**: The current Node.js server (mock-api-server.js) that provides fake API responses for development
+- **SAM Local API**: The AWS SAM CLI local API Gateway that runs Lambda functions as HTTP servers for development
 - **Local Development Environment**: A setup where both backend and frontend run on the developer's local machine
 - **HTTP Server Mode**: Running the Go Lambda functions as standard HTTP servers instead of Lambda handlers
 - **Environment Detection**: Frontend logic that determines whether to use local or production API endpoints
@@ -41,15 +41,15 @@ This feature enables local development of the Seattle Family Activities platform
 
 ### Requirement 3
 
-**User Story:** As a developer, I want to deprecate the mock API server, so that I can use real backend logic during development instead of fake responses.
+**User Story:** As a developer, I want to use real backend services during local development, so that I can test with actual business logic instead of mock responses.
 
 #### Acceptance Criteria
 
-1. THE Mock API Server SHALL be marked as deprecated in documentation
-2. THE Mock API Server SHALL be removed from the development workflow
-3. THE Backend Service SHALL provide all endpoints currently served by the Mock API Server
-4. THE Frontend Application SHALL no longer reference the Mock API Server endpoints
-5. THE development documentation SHALL be updated to use the local Backend Service
+1. THE Frontend Application SHALL connect directly to SAM local API endpoints
+2. THE development workflow SHALL use real backend services for all API calls
+3. THE Backend Service SHALL provide all endpoints needed for frontend functionality
+4. THE Frontend Application SHALL no longer reference any mock API endpoints
+5. THE development documentation SHALL reflect the real backend service usage
 
 ### Requirement 4
 

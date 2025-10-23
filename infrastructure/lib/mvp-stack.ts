@@ -1,6 +1,6 @@
 import { Stack, StackProps, Duration, CfnOutput, RemovalPolicy } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import * as s3 from 'aws-cdk-lib/aws-s3';
+
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
@@ -34,35 +34,7 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
      * - Auto-source creation from successful extractions
      */
 
-    // S3 bucket for events data with public read access
-    const eventsBucket = new s3.Bucket(this, 'EventsDataBucket', {
-      bucketName: 'seattle-family-activities-mvp-data-usw2',
-      publicReadAccess: true,
-      blockPublicAccess: new s3.BlockPublicAccess({
-        blockPublicAcls: false,
-        blockPublicPolicy: false,
-        ignorePublicAcls: false,
-        restrictPublicBuckets: false
-      }),
-      cors: [
-        {
-          allowedOrigins: ['https://guanghao479.github.io', 'http://localhost:*'],
-          allowedMethods: [s3.HttpMethods.GET, s3.HttpMethods.HEAD],
-          allowedHeaders: ['*'],
-          exposedHeaders: ['ETag'],
-          maxAge: 3600
-        }
-      ],
-      lifecycleRules: [
-        {
-          id: 'DeleteOldSnapshots',
-          enabled: true,
-          prefix: 'events/snapshots/',
-          expiration: Duration.days(30) // Keep daily snapshots for 30 days
-        }
-      ],
-      removalPolicy: RemovalPolicy.DESTROY // For MVP - allows easy cleanup
-    });
+
 
     // DynamoDB Table 1: Family Activities (Business Data)
     const familyActivitiesTable = new dynamodb.Table(this, 'FamilyActivitiesTable', {
@@ -184,21 +156,6 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
         iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')
       ],
       inlinePolicies: {
-        S3BackupAccess: new iam.PolicyDocument({
-          statements: [
-            new iam.PolicyStatement({
-              effect: iam.Effect.ALLOW,
-              actions: [
-                's3:PutObject',
-                's3:PutObjectAcl'
-              ],
-              resources: [
-                eventsBucket.bucketArn,
-                `${eventsBucket.bucketArn}/*`
-              ]
-            })
-          ]
-        }),
         DynamoDBAccess: new iam.PolicyDocument({
           statements: [
             new iam.PolicyStatement({
@@ -373,9 +330,9 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       restApiName: 'SeattleFamilyActivities-AdminAPI',
       description: 'Admin API for Seattle Family Activities source management',
       defaultCorsPreflightOptions: {
-        allowOrigins: ['https://guanghao479.github.io', 'http://localhost:8000'],
+        allowOrigins: ['*'],
         allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        allowHeaders: ['Content-Type', 'X-Amz-Date', 'Authorization', 'X-Api-Key', 'X-Amz-Security-Token'],
+        allowHeaders: ['Content-Type', 'X-Amz-Date', 'Authorization', 'X-Api-Key', 'X-Amz-Security-Token', 'Cache-Control', 'Accept'],
       },
       deployOptions: {
         stageName: 'prod'
@@ -456,20 +413,6 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
     schemasResource.addMethod('GET', adminApiIntegration); // GET /api/schemas
 
     // Outputs for reference
-    new CfnOutput(this, 'S3BucketName', {
-      value: eventsBucket.bucketName,
-      description: 'S3 bucket name for events data',
-      exportName: 'SeattleFamilyActivities-S3BucketName'
-    });
-
-    new CfnOutput(this, 'S3BucketURL', {
-      value: `https://${eventsBucket.bucketName}.s3.us-west-2.amazonaws.com`,
-      description: 'S3 bucket URL for frontend configuration',
-      exportName: 'SeattleFamilyActivities-S3BucketURL'
-    });
-
-
-
     new CfnOutput(this, 'ScrapingOrchestratorFunctionName', {
       value: scrapingOrchestratorFunction.functionName,
       description: 'Scraping orchestrator Lambda function name for manual invocation',
@@ -482,11 +425,7 @@ export class SeattleFamilyActivitiesMVPStack extends Stack {
       exportName: 'SeattleFamilyActivities-EventsApiUrl'
     });
 
-    new CfnOutput(this, 'EventsDataURL', {
-      value: `https://${eventsBucket.bucketName}.s3.us-west-2.amazonaws.com/events/latest.json`,
-      description: 'Legacy S3 URL - now used only for backups, main data served via API',
-      exportName: 'SeattleFamilyActivities-EventsDataURL'
-    });
+
 
     new CfnOutput(this, 'GitHubActionsRoleArn', {
       value: githubActionsRole.roleArn,

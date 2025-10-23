@@ -52,9 +52,9 @@ class FamilyEventsApp {
 
     // Load configuration based on environment
     loadConfiguration() {
-        const isDevelopment = window.location.hostname === 'localhost' || 
-                             window.location.hostname === '127.0.0.1' ||
-                             window.location.hostname.includes('github.dev');
+        const isLocal = window.location.hostname === 'localhost' || 
+                       window.location.hostname === '127.0.0.1';
+        const isDevelopment = isLocal || window.location.hostname.includes('github.dev');
         
         const baseConfig = {
             refreshIntervalMs: 30 * 60 * 1000, // 30 minutes
@@ -66,15 +66,29 @@ class FamilyEventsApp {
             environment: isDevelopment ? 'development' : 'production'
         };
 
-        // Environment-specific configurations
-        if (isDevelopment) {
+        // Local development with SAM CLI
+        if (isLocal) {
+            return {
+                ...baseConfig,
+                // SAM CLI default local API Gateway endpoint
+                apiEndpoint: 'http://127.0.0.1:3000/api/events/approved',
+                refreshIntervalMs: 5 * 60 * 1000, // 5 minutes for development
+                debugMode: true,
+                samLocal: true,
+                environment: 'local'
+            };
+        }
+        // Other development environments (GitHub Codespaces, etc.)
+        else if (isDevelopment) {
             return {
                 ...baseConfig,
                 apiEndpoint: 'https://your-api-gateway-url.amazonaws.com/api/events/approved', // TODO: Update with actual API Gateway URL
                 refreshIntervalMs: 5 * 60 * 1000, // 5 minutes for development
                 debugMode: true
             };
-        } else {
+        } 
+        // Production
+        else {
             return {
                 ...baseConfig,
                 apiEndpoint: 'https://your-api-gateway-url.amazonaws.com/api/events/approved', // TODO: Update with actual API Gateway URL
@@ -106,7 +120,13 @@ class FamilyEventsApp {
             }
         } catch (error) {
             console.warn('Failed to fetch fresh data:', error);
-            this.showDataStatus(`Using cached data (${this.config.environment})`, 'warning');
+            
+            // Provide specific error message for local development
+            if (this.config.samLocal) {
+                this.showDataStatus('Local backend unavailable - using cached data', 'warning');
+            } else {
+                this.showDataStatus(`Using cached data (${this.config.environment})`, 'warning');
+            }
         }
 
         // Fall back to cached data
@@ -117,9 +137,14 @@ class FamilyEventsApp {
             return;
         }
 
-        // No data available - show error message
-        this.showError('Unable to load family activities from our database. Please check your internet connection and try refreshing the page.');
-        this.showDataStatus('Failed to load API data', 'error');
+        // No data available - show environment-specific error message
+        if (this.config.samLocal) {
+            this.showError('Local backend is not running. Please start the SAM local API server with: sam local start-api -t ../infrastructure/cdk.out/SeattleFamilyActivitiesMVPStack.template.json --env-vars env.json --port 3000');
+            this.showDataStatus('Local backend unavailable', 'error');
+        } else {
+            this.showError('Unable to load family activities from our database. Please check your internet connection and try refreshing the page.');
+            this.showDataStatus('Failed to load API data', 'error');
+        }
     }
 
     // Fetch data from API endpoint
@@ -148,6 +173,8 @@ class FamilyEventsApp {
 
                 const response = await fetch(apiUrl, {
                     signal: controller.signal,
+                    mode: this.config.samLocal ? 'cors' : 'cors',
+                    credentials: this.config.samLocal ? 'omit' : 'same-origin',
                     headers: {
                         'Cache-Control': 'no-cache',
                         'Accept': 'application/json'
@@ -1467,12 +1494,79 @@ class FamilyEventsApp {
             </div>
         `;
     }
+
+    // Test environment detection (for debugging)
+    testEnvironmentDetection() {
+        console.log('Environment Detection Test:');
+        console.log('- Hostname:', window.location.hostname);
+        console.log('- Configuration:', this.config);
+        console.log('- API Endpoint:', this.config.apiEndpoint);
+        console.log('- Environment:', this.config.environment);
+        console.log('- SAM Local:', this.config.samLocal);
+        console.log('- Debug Mode:', this.config.debugMode);
+        
+        return {
+            hostname: window.location.hostname,
+            config: this.config
+        };
+    }
+
+    // Test local backend connection
+    async testLocalBackendConnection() {
+        if (!this.config.samLocal) {
+            console.log('Not in local development mode');
+            return false;
+        }
+
+        try {
+            console.log('Testing connection to local backend...');
+            const response = await fetch('http://127.0.0.1:3000/api/health', {
+                method: 'GET',
+                mode: 'cors',
+                credentials: 'omit',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                console.log('✅ Local backend is running and accessible');
+                this.showDataStatus('Local backend connection successful', 'success');
+                return true;
+            } else {
+                console.log('❌ Local backend responded with error:', response.status);
+                this.showDataStatus(`Local backend error: ${response.status}`, 'error');
+                return false;
+            }
+        } catch (error) {
+            console.log('❌ Local backend connection failed:', error.message);
+            this.showDataStatus('Local backend unavailable', 'error');
+            return false;
+        }
+    }
 }
 
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    new FamilyEventsApp();
+    window.familyApp = new FamilyEventsApp();
 });
+
+// Global functions for testing (accessible from browser console)
+window.testFrontendEnvironment = () => {
+    if (window.familyApp) {
+        return window.familyApp.testEnvironmentDetection();
+    }
+    console.log('App not initialized yet');
+    return null;
+};
+
+window.testLocalBackend = async () => {
+    if (window.familyApp) {
+        return await window.familyApp.testLocalBackendConnection();
+    }
+    console.log('App not initialized yet');
+    return false;
+};
 
 // Add some additional interactive features
 document.addEventListener('DOMContentLoaded', () => {

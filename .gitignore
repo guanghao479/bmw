@@ -3,6 +3,7 @@
 # Environment files with secrets
 .envrc
 .env
+backend/env.json
 
 # Testing directory - ALL test artifacts go here
 testing/

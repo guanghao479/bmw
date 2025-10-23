@@ -263,7 +263,7 @@ OPENAI_API_KEY=your_key_here
 3. Test error handling and user experience when backend is unavailable
 4. Create startup scripts and development commands
 5. Add comprehensive setup documentation with browser testing steps
-6. Deprecate mock API server and update references
+6. Update development workflow documentation to reflect real backend usage
 7. Create troubleshooting guide for common SAM local and browser connectivity issues
 
 ## Security Considerations

@@ -17,8 +17,13 @@ class SourceManagementAdmin {
     // Detect if we're in development or production
     detectEnvironment() {
         const hostname = window.location.hostname;
-        if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.includes('192.168')) {
-            // Development - use local mock API
+        const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+        
+        if (isLocal) {
+            // Local development - use SAM CLI local API Gateway endpoint
+            return 'http://127.0.0.1:3000/api';
+        } else if (hostname.includes('192.168') || hostname.includes('github.dev')) {
+            // Other development environments - use mock API or development endpoints
             return 'http://localhost:3000/api';
         } else {
             // Production - use actual AWS API Gateway endpoints
@@ -292,8 +297,13 @@ class SourceManagementAdmin {
 
     async makeApiCall(endpoint, method = 'GET', body = null) {
         const url = `${this.apiBaseUrl}${endpoint}`;
+        const isLocal = window.location.hostname === 'localhost' || 
+                       window.location.hostname === '127.0.0.1';
+        
         const options = {
             method: method,
+            mode: 'cors',
+            credentials: isLocal ? 'omit' : 'same-origin',
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
@@ -315,6 +325,15 @@ class SourceManagementAdmin {
             return data;
         } catch (error) {
             console.error('API call failed:', error);
+            
+            // Provide specific error message for local development
+            const isLocal = window.location.hostname === 'localhost' || 
+                           window.location.hostname === '127.0.0.1';
+            
+            if (isLocal && (error.name === 'TypeError' || error.message.includes('Failed to fetch'))) {
+                throw new Error('Local backend is not running. Please start the SAM local API server with: sam local start-api -t ../infrastructure/cdk.out/SeattleFamilyActivitiesMVPStack.template.json --env-vars env.json --port 3000');
+            }
+            
             throw error;
         }
     }
@@ -1333,6 +1352,60 @@ class SourceManagementAdmin {
             }, 5000);
         }
     }
+
+    // Test environment detection (for debugging)
+    testEnvironmentDetection() {
+        console.log('Admin Environment Detection Test:');
+        console.log('- Hostname:', window.location.hostname);
+        console.log('- API Base URL:', this.apiBaseUrl);
+        
+        const isLocal = window.location.hostname === 'localhost' || 
+                       window.location.hostname === '127.0.0.1';
+        console.log('- Is Local:', isLocal);
+        
+        return {
+            hostname: window.location.hostname,
+            apiBaseUrl: this.apiBaseUrl,
+            isLocal: isLocal
+        };
+    }
+
+    // Test local backend connection
+    async testLocalBackendConnection() {
+        const isLocal = window.location.hostname === 'localhost' || 
+                       window.location.hostname === '127.0.0.1';
+        
+        if (!isLocal) {
+            console.log('Not in local development mode');
+            return false;
+        }
+
+        try {
+            console.log('Testing admin connection to local backend...');
+            const response = await fetch('http://127.0.0.1:3000/api/health', {
+                method: 'GET',
+                mode: 'cors',
+                credentials: 'omit',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                console.log('✅ Local backend is running and accessible');
+                this.showAlert('Local backend connection successful', 'success');
+                return true;
+            } else {
+                console.log('❌ Local backend responded with error:', response.status);
+                this.showAlert(`Local backend error: ${response.status}`, 'error');
+                return false;
+            }
+        } catch (error) {
+            console.log('❌ Local backend connection failed:', error.message);
+            this.showAlert('Local backend unavailable. Please start SAM local API server.', 'error');
+            return false;
+        }
+    }
 }
 
 
@@ -1342,6 +1415,23 @@ function loadPendingEvents() {
         window.adminApp.loadPendingEvents();
     }
 }
+
+// Global functions for testing (accessible from browser console)
+window.testAdminEnvironment = () => {
+    if (window.adminApp) {
+        return window.adminApp.testEnvironmentDetection();
+    }
+    console.log('Admin app not initialized yet');
+    return null;
+};
+
+window.testAdminLocalBackend = async () => {
+    if (window.adminApp) {
+        return await window.adminApp.testLocalBackendConnection();
+    }
+    console.log('Admin app not initialized yet');
+    return false;
+};
 
 // Initialize the admin interface when the page loads
 document.addEventListener('DOMContentLoaded', () => {

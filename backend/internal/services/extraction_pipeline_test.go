@@ -127,7 +127,7 @@ func testCompleteExtractionPipeline(t *testing.T, url string) ([]models.Activity
 	log.Printf("Step 2: Testing schema conversion pipeline")
 	conversionService := NewSchemaConversionService()
 	
-	// Create a mock AdminEvent for conversion testing
+	// Create a test AdminEvent for conversion testing
 	adminEvent := &models.AdminEvent{
 		EventID:           "test-event-" + fmt.Sprintf("%d", time.Now().Unix()),
 		SourceURL:         url,

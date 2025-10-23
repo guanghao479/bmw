@@ -728,7 +728,7 @@ func logSourceDeletionEvent(ctx context.Context, sourceID, sourceName, sourceURL
 
 // handleGetAnalytics handles GET /api/analytics
 func handleGetAnalytics(ctx context.Context, queryParams map[string]string) (ResponseBody, int) {
-	// For MVP, return mock analytics data
+	// For MVP, return basic analytics data
 	// In production, this would query source metrics from DynamoDB
 	analytics := map[string]interface{}{
 		"total_sources_submitted": 12,

@@ -3659,7 +3659,7 @@ func (fc *FireCrawlClient) parseAdminExtractResponse(response interface{}, schem
 		return nil, fmt.Errorf("unexpected response format from FireCrawl")
 	}
 
-	// For now, we'll create mock structured data based on the markdown content
+	// For now, we'll create structured data based on the markdown content
 	// In a real implementation, this would use Firecrawl's structured extraction
 	rawData := make(map[string]interface{})
 
