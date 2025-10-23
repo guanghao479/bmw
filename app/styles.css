@@ -14,7 +14,7 @@
 }
 
 :root {
-    /* Colors */
+    /* Brand Colors (maintained for consistency) */
     --primary: #6366f1;
     --primary-light: #818cf8;
     --primary-dark: #4f46e5;
@@ -22,6 +22,41 @@
     --accent: #14b8a6;
     --warning: #f59e0b;
     --error-color: #dc2626;
+    
+    /* Theme Variables (for future theme switching) */
+    --theme-primary: var(--primary);
+    --theme-secondary: var(--secondary);
+    --theme-accent: var(--accent);
+    --theme-surface: var(--bg-primary);
+    --theme-surface-variant: var(--bg-secondary);
+    
+    /* Glassmorphic Colors (theme-aware) */
+    --glass-primary: rgba(99, 102, 241, 0.15);
+    --glass-secondary: rgba(236, 72, 153, 0.12);
+    --glass-accent: rgba(20, 184, 166, 0.18);
+    --glass-neutral: rgba(255, 255, 255, 0.25);
+    --glass-dark: rgba(0, 0, 0, 0.15);
+    --glass-backdrop: rgba(255, 255, 255, 0.8);
+    
+    /* Theme-aware glassmorphic colors (for future themes) */
+    --glass-surface-light: rgba(255, 255, 255, 0.25);
+    --glass-surface-medium: rgba(255, 255, 255, 0.15);
+    --glass-surface-strong: rgba(255, 255, 255, 0.35);
+    --glass-border: rgba(255, 255, 255, 0.2);
+    
+    /* Neumorphic Surface Colors (theme-aware) */
+    --neuro-light: #f8fafc;
+    --neuro-base: #f1f5f9;
+    --neuro-dark: #e2e8f0;
+    --neuro-shadow-light: rgba(255, 255, 255, 0.9);
+    --neuro-shadow-dark: rgba(148, 163, 184, 0.4);
+    
+    /* Theme-aware neumorphic colors (for future themes) */
+    --neuro-surface-base: var(--neuro-base);
+    --neuro-surface-raised: var(--neuro-light);
+    --neuro-surface-pressed: var(--neuro-dark);
+    --neuro-highlight: var(--neuro-shadow-light);
+    --neuro-shadow: var(--neuro-shadow-dark);
     
     --neutral-50: #fafafa;
     --neutral-100: #f5f5f5;
@@ -40,7 +75,7 @@
     --text-muted: var(--neutral-500);
     --text-inverse: white;
     
-    /* Background */
+    /* Background Colors */
     --bg-primary: white;
     --bg-secondary: var(--neutral-50);
     --bg-muted: var(--neutral-100);
@@ -65,7 +100,7 @@
     --radius-2xl: 24px;
     --radius-full: 9999px;
     
-    /* Spacing */
+    /* Spacing (4px base grid) */
     --space-1: 4px;
     --space-2: 8px;
     --space-3: 12px;
@@ -87,17 +122,40 @@
     --compact-space-5: 12px;
     --compact-space-6: 16px;
     
+    /* Responsive Breakpoints */
+    --breakpoint-sm: 480px;   /* Mobile landscape */
+    --breakpoint-md: 768px;   /* Tablet */
+    --breakpoint-lg: 1024px;  /* Desktop */
+    --breakpoint-xl: 1400px;  /* Large desktop */
+    
+    /* Touch Target Sizes (mobile-first) */
+    --touch-target-min: 44px;  /* Minimum 44px per requirements */
+    --touch-target-comfortable: 48px;
+    --touch-target-large: 56px;
+    
     /* Typography */
     --font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    
+    /* Font Sizes (fixed sizes) */
     --font-size-xs: 12px;
     --font-size-sm: 14px;
-    --font-size-base: 16px;
+    --font-size-base: 16px;  /* Minimum 16px on mobile per requirements */
     --font-size-lg: 18px;
     --font-size-xl: 20px;
     --font-size-2xl: 24px;
     --font-size-3xl: 30px;
     --font-size-4xl: 36px;
     --font-size-5xl: 48px;
+    
+    /* Fluid Typography (responsive scaling) */
+    --text-xs-fluid: clamp(10px, 2vw, 12px);
+    --text-sm-fluid: clamp(12px, 2.5vw, 14px);
+    --text-base-fluid: clamp(16px, 3vw, 18px);  /* Ensures 16px minimum */
+    --text-lg-fluid: clamp(18px, 3.5vw, 20px);
+    --text-xl-fluid: clamp(20px, 4vw, 24px);
+    --text-2xl-fluid: clamp(24px, 5vw, 30px);
+    --text-3xl-fluid: clamp(30px, 6vw, 36px);
+    --text-4xl-fluid: clamp(36px, 7vw, 48px);
     
     --font-weight-normal: 400;
     --font-weight-medium: 500;
@@ -109,6 +167,91 @@
     --leading-snug: 1.375;
     --leading-normal: 1.5;
     --leading-relaxed: 1.625;
+    
+    /* Animation Timing Functions */
+    --ease-out-cubic: cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-in-out-cubic: cubic-bezier(0.4, 0, 0.6, 1);
+    --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    
+    /* Animation Durations */
+    --duration-fast: 150ms;
+    --duration-normal: 200ms;
+    --duration-slow: 300ms;
+    --duration-slower: 500ms;
+}
+
+/* Theme-Ready Architecture for Future Theme Switching */
+
+/* Dark theme (future implementation) */
+[data-theme="dark"] {
+    --theme-surface: #1f2937;
+    --theme-surface-variant: #374151;
+    --theme-on-surface: #f9fafb;
+    --theme-on-surface-variant: #d1d5db;
+    
+    /* Dark glassmorphic adjustments */
+    --glass-surface-light: rgba(0, 0, 0, 0.25);
+    --glass-surface-medium: rgba(0, 0, 0, 0.15);
+    --glass-surface-strong: rgba(0, 0, 0, 0.35);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --glass-backdrop: rgba(0, 0, 0, 0.8);
+    
+    /* Dark neumorphic adjustments */
+    --neuro-surface-base: #374151;
+    --neuro-surface-raised: #4b5563;
+    --neuro-surface-pressed: #1f2937;
+    --neuro-highlight: rgba(255, 255, 255, 0.1);
+    --neuro-shadow: rgba(0, 0, 0, 0.4);
+    
+    /* Update text and background colors for dark theme */
+    --text-primary: #f9fafb;
+    --text-secondary: #d1d5db;
+    --text-muted: #9ca3af;
+    --bg-primary: #1f2937;
+    --bg-secondary: #374151;
+    --bg-muted: #4b5563;
+}
+
+/* Seasonal theme example (future) */
+[data-theme="autumn"] {
+    --theme-primary: #d97706;
+    --theme-secondary: #dc2626;
+    --theme-accent: #059669;
+    
+    /* Autumn glassmorphic colors */
+    --glass-primary: rgba(217, 119, 6, 0.15);
+    --glass-secondary: rgba(220, 38, 38, 0.12);
+    --glass-accent: rgba(5, 150, 105, 0.18);
+}
+
+/* High contrast mode support (accessibility) */
+@media (prefers-contrast: high) {
+    :root {
+        --glass-surface-light: var(--bg-primary);
+        --glass-surface-medium: var(--bg-primary);
+        --glass-surface-strong: var(--bg-primary);
+        --glass-border: var(--text-primary);
+        --neuro-surface-base: var(--bg-primary);
+        --neuro-highlight: transparent;
+        --neuro-shadow: var(--text-primary);
+    }
+}
+
+/* Reduced motion support (accessibility) */
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --duration-fast: 0ms;
+        --duration-normal: 0ms;
+        --duration-slow: 0ms;
+        --duration-slower: 0ms;
+    }
+    
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
 }
 
 /* Reset */
@@ -193,7 +336,9 @@ body {
     background: var(--bg-secondary);
     color: var(--text-primary);
     margin-bottom: var(--space-4);
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all var(--duration-normal) var(--ease-out-cubic);
+    /* Ensure minimum touch target size */
+    min-height: var(--touch-target-min);
 }
 
 .search-input:focus {
@@ -224,8 +369,14 @@ body {
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-medium);
     cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all var(--duration-normal) var(--ease-out-cubic);
     white-space: nowrap;
+    /* Ensure minimum touch target size */
+    min-height: var(--touch-target-min);
+    min-width: var(--touch-target-min);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .filter-btn:hover {
@@ -273,9 +424,11 @@ body {
     border-radius: var(--radius-xl);
     overflow: hidden;
     border: 1px solid var(--neutral-200);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all var(--duration-slow) var(--ease-out-cubic);
     cursor: pointer;
     box-shadow: var(--shadow-sm);
+    /* Ensure proper touch interaction */
+    min-height: var(--touch-target-comfortable);
 }
 
 .card:hover {
@@ -944,9 +1097,15 @@ body {
     font-size: var(--font-size-lg);
     color: var(--text-secondary);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all var(--duration-normal) var(--ease-out-cubic);
     flex-shrink: 0;
     z-index: 10;
+    /* Ensure minimum touch target size */
+    min-height: var(--touch-target-min);
+    min-width: var(--touch-target-min);
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .date-nav-btn:hover {
@@ -990,13 +1149,17 @@ body {
     font-weight: var(--font-weight-medium);
     color: var(--text-secondary);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all var(--duration-normal) var(--ease-out-cubic);
     white-space: nowrap;
     flex-shrink: 0;
     display: flex;
     align-items: center;
     gap: var(--space-1);
     position: relative;
+    /* Ensure minimum touch target size */
+    min-height: var(--touch-target-min);
+    min-width: var(--touch-target-min);
+    justify-content: center;
 }
 
 .date-tab:hover {
@@ -1145,8 +1308,8 @@ body {
     position: fixed;
     bottom: 20px;
     right: 20px;
-    width: 48px;
-    height: 48px;
+    width: var(--touch-target-comfortable);
+    height: var(--touch-target-comfortable);
     background: var(--primary);
     color: white;
     border-radius: 50%;
@@ -1156,7 +1319,7 @@ body {
     text-decoration: none;
     font-size: 20px;
     box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-    transition: all 0.3s ease;
+    transition: all var(--duration-slow) var(--ease-out-cubic);
     z-index: 1000;
     opacity: 0.8;
 }
@@ -1177,8 +1340,8 @@ body {
     .admin-link {
         bottom: 16px;
         right: 16px;
-        width: 44px;
-        height: 44px;
+        width: var(--touch-target-min);
+        height: var(--touch-target-min);
         font-size: 18px;
     }
 }
