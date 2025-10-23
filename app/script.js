@@ -46,6 +46,7 @@ class FamilyEventsApp {
         this.selectedDate = 'all'; // 'all' or specific date (YYYY-MM-DD)
         this.dateTabs = [];
         this.currentTabIndex = 0;
+        this.glassMode = false; // Enable glassmorphic components
         
         this.init();
     }
@@ -506,7 +507,7 @@ class FamilyEventsApp {
 
     // Setup event listeners for interactivity
     setupEventListeners() {
-        // Search input
+        // Search input (support both regular and glass variants)
         const searchInput = document.getElementById('searchInput');
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
@@ -515,8 +516,8 @@ class FamilyEventsApp {
             });
         }
 
-        // Filter buttons
-        const filterButtons = document.querySelectorAll('.filter-btn');
+        // Filter buttons (support both regular and glass variants)
+        const filterButtons = document.querySelectorAll('.filter-btn, .filter-btn-glass');
         filterButtons.forEach(btn => {
             btn.addEventListener('click', (e) => {
                 // Remove active class and set aria-pressed to false for all buttons
@@ -560,6 +561,9 @@ class FamilyEventsApp {
 
         // Add manual refresh button
         this.addRefreshButton();
+        
+        // Add glassmorphic toggle button
+        this.addGlassToggleButton();
         
         // Setup date tabs
         this.setupDateTabs();
@@ -611,6 +615,55 @@ class FamilyEventsApp {
         document.body.appendChild(refreshBtn);
     }
 
+    // Add glassmorphic toggle button
+    addGlassToggleButton() {
+        // Check if toggle button already exists
+        if (document.getElementById('glass-toggle-btn')) return;
+
+        const toggleBtn = document.createElement('button');
+        toggleBtn.id = 'glass-toggle-btn';
+        toggleBtn.innerHTML = '✨ Glass Mode';
+        toggleBtn.style.cssText = `
+            position: fixed;
+            top: 130px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            z-index: 999;
+            backdrop-filter: blur(10px);
+            transition: all 0.2s ease;
+        `;
+
+        toggleBtn.addEventListener('click', () => {
+            this.toggleGlassMode();
+            toggleBtn.innerHTML = this.glassMode ? '✨ Glass Mode ON' : '✨ Glass Mode';
+            toggleBtn.style.background = this.glassMode ? 
+                'linear-gradient(135deg, rgba(99, 102, 241, 0.8), rgba(236, 72, 153, 0.8))' : 
+                'rgba(255, 255, 255, 0.9)';
+            toggleBtn.style.color = this.glassMode ? 'white' : 'inherit';
+        });
+
+        toggleBtn.addEventListener('mouseenter', () => {
+            if (!this.glassMode) {
+                toggleBtn.style.background = 'rgba(255, 255, 255, 1)';
+                toggleBtn.style.transform = 'translateY(-1px)';
+            }
+        });
+
+        toggleBtn.addEventListener('mouseleave', () => {
+            if (!this.glassMode) {
+                toggleBtn.style.background = 'rgba(255, 255, 255, 0.9)';
+                toggleBtn.style.transform = 'translateY(0)';
+            }
+        });
+
+        document.body.appendChild(toggleBtn);
+    }
+
     // Filter and search data
     getFilteredData() {
         return this.allData.filter(item => {
@@ -658,16 +711,18 @@ class FamilyEventsApp {
         }
 
         contentGrid.innerHTML = items
-            .map(item => this.createCardHTML(item, false))
+            .map(item => this.createCardHTML(item, this.glassMode))
             .join('');
     }
 
     // Create HTML for a single card
-    createCardHTML(item) {
+    createCardHTML(item, useGlassVariant = false) {
         const categoryClass = `category-${item.category}`;
+        const cardClass = useGlassVariant ? 'glass-card' : 'card';
+        const categoryVariant = useGlassVariant ? this.getGlassCategoryVariant(item.category) : '';
         
         return `
-            <div class="card" data-id="${item.id}" role="button" tabindex="0" aria-label="View details for ${item.title}">
+            <div class="${cardClass} ${categoryVariant}" data-id="${item.id}" role="button" tabindex="0" aria-label="View details for ${item.title}">
                 <img src="${item.image}" alt="${item.title} activity" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0xNzUgMTI1SDE0MFYxNzVIMTc1VjE1MEgyMjVWMTc1SDI2MFYxMjVIMjI1VjEwMEgxNzVWMTI1WiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4K'; this.onerror=null;">
                 <div class="card-content">
                     <span class="card-category ${categoryClass}">${this.formatCategory(item.category)}</span>
@@ -684,6 +739,16 @@ class FamilyEventsApp {
                 </div>
             </div>
         `;
+    }
+
+    // Get glass card variant based on category
+    getGlassCategoryVariant(category) {
+        const variantMap = {
+            'event': 'glass-card--secondary',
+            'activity': 'glass-card--accent',
+            'venue': 'glass-card--primary'
+        };
+        return variantMap[category] || '';
     }
 
     // Format category for display
@@ -783,13 +848,196 @@ class FamilyEventsApp {
         }
         
         this.currentView = 'detail';
-        this.renderDetailPage(item);
         
-        // Hide list view and show detail page
-        document.querySelector('.container').style.display = 'none';
-        const detailPage = document.getElementById('detailPage');
-        detailPage.style.display = 'block';
-        setTimeout(() => detailPage.classList.add('show'), 10);
+        if (this.glassMode) {
+            this.showGlassModal(item);
+        } else {
+            this.renderDetailPage(item);
+            
+            // Hide list view and show detail page
+            document.querySelector('.container').style.display = 'none';
+            const detailPage = document.getElementById('detailPage');
+            detailPage.style.display = 'block';
+            setTimeout(() => detailPage.classList.add('show'), 10);
+        }
+    }
+
+    // Show glassmorphic modal for detail view
+    showGlassModal(item) {
+        // Create glass modal if it doesn't exist
+        let glassModal = document.getElementById('glassModal');
+        if (!glassModal) {
+            glassModal = document.createElement('div');
+            glassModal.id = 'glassModal';
+            glassModal.className = 'glass-modal-backdrop';
+            glassModal.innerHTML = `
+                <div class="glass-modal-content">
+                    <div id="glassModalContent"></div>
+                </div>
+            `;
+            document.body.appendChild(glassModal);
+            
+            // Add click outside to close
+            glassModal.addEventListener('click', (e) => {
+                if (e.target === glassModal) {
+                    this.hideGlassModal();
+                }
+            });
+            
+            // Add escape key to close
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && glassModal.classList.contains('show')) {
+                    this.hideGlassModal();
+                }
+            });
+        }
+        
+        // Render content in glass modal
+        this.renderGlassModalContent(item);
+        
+        // Show modal
+        glassModal.classList.add('show');
+        document.body.style.overflow = 'hidden';
+    }
+
+    // Hide glassmorphic modal
+    hideGlassModal() {
+        const glassModal = document.getElementById('glassModal');
+        if (glassModal) {
+            glassModal.classList.remove('show');
+            document.body.style.overflow = '';
+            this.router.navigate('');
+        }
+    }
+
+    // Render content for glass modal
+    renderGlassModalContent(item) {
+        const modalContent = document.getElementById('glassModalContent');
+        const originalActivity = this.getOriginalActivityData(item.id);
+        
+        modalContent.innerHTML = `
+            <div style="padding: var(--space-6);">
+                <!-- Close button -->
+                <button onclick="window.familyApp.hideGlassModal()" 
+                        style="position: absolute; top: var(--space-4); right: var(--space-4); 
+                               background: rgba(255, 255, 255, 0.8); border: none; 
+                               border-radius: var(--radius-full); width: 32px; height: 32px; 
+                               display: flex; align-items: center; justify-content: center; 
+                               cursor: pointer; font-size: 18px; color: var(--text-secondary);"
+                        aria-label="Close modal">×</button>
+                
+                <!-- Header -->
+                <div class="detail-header">
+                    <div class="detail-image-container" style="height: 200px; margin-bottom: var(--space-4);">
+                        <img src="${item.image}" alt="${item.title}" class="detail-image" 
+                             style="width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-xl);"
+                             onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0xNzUgMTI1SDE0MFYxNzVIMTc1VjE1MEgyMjVWMTc1SDI2MFYxMjVIMjI1VjEwMEgxNzVWMTI1WiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4K';">
+                    </div>
+                    
+                    <div class="detail-category" style="margin-bottom: var(--space-2);">${this.formatCategory(item.category)}</div>
+                    <h1 class="detail-title" style="font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold); margin-bottom: var(--space-3);">${item.title}</h1>
+                    <p class="detail-description" style="color: var(--text-secondary); line-height: var(--leading-relaxed); margin-bottom: var(--space-4);">${item.description}</p>
+                </div>
+                
+                <!-- Quick Info Grid -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-6);">
+                    <div>
+                        <div style="font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); color: var(--text-muted); margin-bottom: var(--space-1);">DATE & TIME</div>
+                        <div style="color: var(--text-primary);">${this.formatDate(this.getActivityDate(item))} • ${item.time}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); color: var(--text-muted); margin-bottom: var(--space-1);">LOCATION</div>
+                        <div style="color: var(--text-primary);">📍 ${item.location}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); color: var(--text-muted); margin-bottom: var(--space-1);">PRICE</div>
+                        <div style="color: var(--primary); font-weight: var(--font-weight-semibold);">${item.price}</div>
+                    </div>
+                    ${item.age_range ? `
+                    <div>
+                        <div style="font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); color: var(--text-muted); margin-bottom: var(--space-1);">AGE RANGE</div>
+                        <div style="color: var(--text-primary);">👶 ${item.age_range}</div>
+                    </div>
+                    ` : ''}
+                </div>
+                
+                <!-- Action Buttons -->
+                <div style="display: flex; gap: var(--space-3); justify-content: center;">
+                    ${item.detail_url ? `
+                        <a href="${item.detail_url}" target="_blank" 
+                           style="background: var(--primary); color: var(--text-inverse); 
+                                  padding: var(--space-3) var(--space-6); border-radius: var(--radius-lg); 
+                                  text-decoration: none; font-weight: var(--font-weight-medium); 
+                                  display: inline-flex; align-items: center; gap: var(--space-2);
+                                  transition: all 0.2s ease;"
+                           onmouseover="this.style.background='var(--primary-light)'; this.style.transform='translateY(-1px)';"
+                           onmouseout="this.style.background='var(--primary)'; this.style.transform='translateY(0)';">
+                            🌐 Learn More
+                        </a>
+                    ` : ''}
+                    <button onclick="window.familyApp.hideGlassModal()" 
+                            style="background: rgba(255, 255, 255, 0.8); color: var(--text-primary); 
+                                   border: 1px solid rgba(255, 255, 255, 0.4); padding: var(--space-3) var(--space-6); 
+                                   border-radius: var(--radius-lg); font-weight: var(--font-weight-medium); 
+                                   cursor: pointer; transition: all 0.2s ease;"
+                            onmouseover="this.style.background='rgba(255, 255, 255, 1)';"
+                            onmouseout="this.style.background='rgba(255, 255, 255, 0.8)';">
+                        Close
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    // Toggle glassmorphic mode
+    toggleGlassMode() {
+        this.glassMode = !this.glassMode;
+        
+        // Update search container
+        const searchContainer = document.querySelector('.search-container');
+        if (searchContainer) {
+            if (this.glassMode) {
+                searchContainer.className = 'search-container-glass';
+                
+                // Update search input
+                const searchInput = searchContainer.querySelector('.search-input');
+                if (searchInput) {
+                    searchInput.className = 'search-input-glass';
+                }
+                
+                // Update filter buttons
+                const filterButtons = searchContainer.querySelector('.filter-buttons');
+                if (filterButtons) {
+                    filterButtons.className = 'filter-buttons-glass';
+                    filterButtons.querySelectorAll('.filter-btn').forEach(btn => {
+                        btn.className = btn.className.replace('filter-btn', 'filter-btn-glass');
+                    });
+                }
+            } else {
+                searchContainer.className = 'search-container';
+                
+                // Revert search input
+                const searchInput = searchContainer.querySelector('.search-input-glass');
+                if (searchInput) {
+                    searchInput.className = 'search-input';
+                }
+                
+                // Revert filter buttons
+                const filterButtons = searchContainer.querySelector('.filter-buttons-glass');
+                if (filterButtons) {
+                    filterButtons.className = 'filter-buttons';
+                    filterButtons.querySelectorAll('.filter-btn-glass').forEach(btn => {
+                        btn.className = btn.className.replace('filter-btn-glass', 'filter-btn');
+                    });
+                }
+            }
+        }
+        
+        // Re-render content with new card style
+        this.renderContent();
+        
+        // Show status
+        this.showDataStatus(`Glassmorphic mode ${this.glassMode ? 'enabled' : 'disabled'}`, 'info');
     }
     
     // Render the detail page content
