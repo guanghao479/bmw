@@ -29,6 +29,7 @@
 - **Testing**: Go testing framework with integration tests
 - **Build**: Native Go build tools, CDK CLI
 - **Local Development**: Makefile targets for starting local servers
+- **Test Artifacts**: All temporary files, logs, binaries, and test data go in `testing/` directory (gitignored)
 
 ## Local Development
 
@@ -77,7 +78,7 @@ make clean
 ```bash
 # Recommended: Use Makefile targets
 make dev-backend          # Start local backend server
-make build               # Build Lambda functions
+make build               # Build Lambda functions (outputs to testing/bin/)
 make test                # Run unit tests
 make test-integration    # Run integration tests
 
@@ -86,8 +87,12 @@ cd backend
 go mod tidy              # Install dependencies
 go test ./internal/models -v
 ./scripts/run_integration_tests.sh
+# All build outputs go to testing/ directory
 go build -o ../testing/bin/admin_api ./cmd/admin_api
 go build -o ../testing/bin/scraping_orchestrator ./cmd/scraping_orchestrator
+
+# Test artifacts and temporary files
+mkdir -p ../testing/{temp,logs,data}  # Create test directories as needed
 ```
 
 ### Infrastructure
@@ -133,3 +138,95 @@ npx serve .
 - `aws-cdk-lib` - Infrastructure constructs
 - `@aws-cdk/aws-lambda-go-alpha` - Go Lambda support
 - `constructs` - CDK constructs library
+#
+# Testing Directory Usage
+
+### Important: All Test Artifacts Go in `testing/`
+
+The `testing/` directory is gitignored and should contain ALL temporary development and testing files:
+
+```bash
+testing/
+├── bin/           # Compiled binaries and executables
+├── temp/          # Temporary files and development artifacts
+├── logs/          # Debug logs and test output
+├── data/          # Test responses, sample data, mock files
+└── build/         # Build artifacts and intermediate files
+```
+
+### Rules for Test Artifacts
+
+1. **Never commit test artifacts** - The `testing/` directory is gitignored
+2. **Use testing/ for all temporary files** - Including logs, binaries, sample data
+3. **Clean builds** - Use `make clean` to remove testing artifacts
+4. **Organized structure** - Use subdirectories within testing/ for organization
+
+### Examples of What Goes in `testing/`
+
+```bash
+# Compiled binaries
+testing/bin/admin_api
+testing/bin/scraping_orchestrator
+
+# Test data and responses
+testing/data/sample_activities.json
+testing/data/firecrawl_response.json
+
+# Debug logs
+testing/logs/integration_test.log
+testing/logs/lambda_debug.log
+
+# Temporary development files
+testing/temp/test_config.json
+testing/temp/debug_output.txt
+```
+## 
+Development Workflow
+
+### Task Completion Requirements
+
+**MANDATORY**: Every completed task must result in a commit and push to trigger CI/CD.
+
+```bash
+# After completing any development task:
+
+# 1. Stage all changes
+git add .
+
+# 2. Create descriptive commit message using conventional commits
+git commit -m "feat: add new activity filtering feature"
+# or
+git commit -m "fix: resolve DynamoDB connection timeout"
+# or
+git commit -m "docs: update API documentation"
+
+# 3. Push to trigger GitHub Actions
+git push origin main
+
+# 4. Monitor deployment
+gh run list --limit 1
+```
+
+### Commit Message Conventions
+
+Use conventional commit format for all commits:
+- `feat:` - New features and enhancements
+- `fix:` - Bug fixes and corrections
+- `docs:` - Documentation changes
+- `refactor:` - Code refactoring without functionality changes
+- `test:` - Adding or updating tests
+- `chore:` - Maintenance tasks and dependency updates
+
+### Automation Requirements
+
+1. **Never skip commits** - Every task completion must result in a commit
+2. **Always push** - Commits must be pushed to trigger CI/CD pipeline
+3. **Monitor results** - Always verify GitHub Actions success after push
+4. **Fix immediately** - Address any deployment failures before moving to next task
+
+### GitHub Actions Integration
+
+The repository uses automated workflows that trigger on push to main:
+- **Frontend deployment**: Automatic GitHub Pages deployment
+- **Backend deployment**: CDK deployment via AWS OIDC authentication
+- **Testing**: Automated test runs and validation

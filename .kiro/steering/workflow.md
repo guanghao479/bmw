@@ -4,9 +4,20 @@
 
 After completing any development task, follow this mandatory workflow:
 
-### 1. Commit Changes
+### 1. Organize Test Artifacts
 ```bash
-# Stage all changes
+# Ensure all temporary files, logs, and test artifacts are in testing/ directory
+# The testing/ directory is gitignored and should contain:
+# - testing/bin/ - Compiled binaries
+# - testing/temp/ - Temporary files
+# - testing/logs/ - Debug logs
+# - testing/data/ - Test data and responses
+mkdir -p testing/{bin,temp,logs,data}
+```
+
+### 2. Commit Changes
+```bash
+# Stage all changes (testing/ directory is automatically ignored)
 git add .
 
 # Create descriptive commit message
@@ -17,13 +28,13 @@ git commit -m "fix: [brief description of fix]"
 git commit -m "docs: [brief description of documentation changes]"
 ```
 
-### 2. Push to Repository
+### 3. Push to Repository
 ```bash
 # Push to main branch (triggers GitHub Actions)
 git push origin main
 ```
 
-### 3. Monitor GitHub Actions
+### 4. Monitor GitHub Actions
 ```bash
 # Check the status of the latest workflow run
 gh run list --limit 1
@@ -35,7 +46,7 @@ gh run watch
 echo "Monitor at: https://github.com/[username]/[repo]/actions"
 ```
 
-### 4. Handle Deployment Issues
+### 5. Handle Deployment Issues
 
 If GitHub Actions fails:
 
@@ -58,7 +69,7 @@ If GitHub Actions fails:
    git push origin main
    ```
 
-### 5. Verify Deployment Success
+### 6. Verify Deployment Success
 
 After successful GitHub Actions run:
 
@@ -97,3 +108,35 @@ If deployment is completely broken:
 2. Push the revert: `git push origin main`
 3. Wait for successful deployment
 4. Investigate and fix the original issue in a new commit
+## Te
+sting Directory Management
+
+### Important: All Test Artifacts Go in `testing/`
+
+Before committing, ensure all temporary development and testing files are properly organized:
+
+```bash
+testing/
+├── bin/           # Compiled binaries and executables
+├── temp/          # Temporary files and development artifacts  
+├── logs/          # Debug logs and test output
+├── data/          # Test responses, sample data, mock files
+└── build/         # Build artifacts and intermediate files
+```
+
+### Rules for Test Artifacts
+
+1. **Never commit test artifacts** - The `testing/` directory is gitignored
+2. **Organize before committing** - Move all temporary files to appropriate testing/ subdirectories
+3. **Clean workspace** - Keep the main codebase clean of temporary files
+4. **Use make clean** - Run `make clean` to remove testing artifacts when needed
+
+### Examples of What Goes in `testing/`
+
+```bash
+# Move these files to testing/ before committing:
+mv debug.log testing/logs/
+mv sample_response.json testing/data/
+mv temp_config.json testing/temp/
+mv compiled_binary testing/bin/
+```
