@@ -534,19 +534,19 @@ class FamilyEventsApp {
             });
         });
 
-        // Card click interactions
+        // Card click interactions (support all card types)
         document.addEventListener('click', (e) => {
-            if (e.target.closest('.card')) {
-                const card = e.target.closest('.card');
+            const card = e.target.closest('.card, .glass-card, .activity-card-hybrid, .card--hybrid');
+            if (card) {
                 this.handleCardClick(card);
             }
         });
 
-        // Card keyboard interactions
+        // Card keyboard interactions (support all card types)
         document.addEventListener('keydown', (e) => {
-            if (e.target.closest('.card') && (e.key === 'Enter' || e.key === ' ')) {
+            const card = e.target.closest('.card, .glass-card, .activity-card-hybrid, .card--hybrid');
+            if (card && (e.key === 'Enter' || e.key === ' ')) {
                 e.preventDefault();
-                const card = e.target.closest('.card');
                 this.handleCardClick(card);
             }
         });
@@ -1671,7 +1671,7 @@ class FamilyEventsApp {
         this.updateDateTabCounts();
         
         dateTabsContainer.innerHTML = this.dateTabs.map(tab => {
-            const classes = ['date-tab'];
+            const classes = ['date-tab-neuro'];
             const isSelected = tab.date === this.selectedDate;
             
             if (isSelected) classes.push('active');
@@ -1695,9 +1695,9 @@ class FamilyEventsApp {
         }).join('');
         
         // Add click event listeners to new tabs
-        dateTabsContainer.querySelectorAll('.date-tab').forEach(tab => {
+        dateTabsContainer.querySelectorAll('.date-tab-neuro').forEach(tab => {
             tab.addEventListener('click', (e) => {
-                const date = e.target.closest('.date-tab').dataset.date;
+                const date = e.target.closest('.date-tab-neuro').dataset.date;
                 this.selectDateTab(date);
             });
         });

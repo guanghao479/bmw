@@ -28,49 +28,88 @@
 - **Environment**: direnv for environment variables
 - **Testing**: Go testing framework with integration tests
 - **Build**: Native Go build tools, CDK CLI
+- **Local Development**: Makefile targets for starting local servers
+
+## Local Development
+
+### Makefile Targets (Recommended)
+
+Use these Makefile targets for local development and testing:
+
+```bash
+# Start both frontend and backend servers simultaneously
+make dev
+
+# Start only the backend server (for API testing)
+make dev-backend
+
+# Start only the frontend server (for UI development)
+make dev-frontend
+
+# Build Lambda functions for testing
+make build
+
+# Run backend unit tests
+make test
+
+# Run integration tests (requires API keys)
+make test-integration
+
+# Deploy infrastructure
+make infra-deploy
+
+# Show infrastructure deployment diff
+make infra-diff
+
+# Clean build artifacts
+make clean
+```
+
+### Development Server Details
+
+- **Frontend Server**: Serves the `app/` directory on a local port
+- **Backend Server**: Runs a local development server for API testing
+- **Combined Mode**: `make dev` starts both servers for full-stack development
 
 ## Common Commands
 
 ### Backend Development
 ```bash
-# Navigate to backend
+# Recommended: Use Makefile targets
+make dev-backend          # Start local backend server
+make build               # Build Lambda functions
+make test                # Run unit tests
+make test-integration    # Run integration tests
+
+# Alternative: Manual commands
 cd backend
-
-# Install dependencies
-go mod tidy
-
-# Run unit tests
+go mod tidy              # Install dependencies
 go test ./internal/models -v
-
-# Run integration tests (requires FIRECRAWL_API_KEY)
 ./scripts/run_integration_tests.sh
-
-# Build Lambda functions
 go build -o ../testing/bin/admin_api ./cmd/admin_api
 go build -o ../testing/bin/scraping_orchestrator ./cmd/scraping_orchestrator
 ```
 
 ### Infrastructure
 ```bash
-# Navigate to infrastructure
+# Recommended: Use Makefile targets
+make infra-deploy        # Deploy to AWS
+make infra-diff         # View deployment differences
+
+# Alternative: Manual commands
 cd infrastructure
-
-# Install dependencies
-npm install
-
-# Deploy to AWS
-npm run deploy
-
-# View differences
-npm run diff
-
-# Destroy stack
-npm run destroy
+npm install             # Install dependencies
+npm run deploy          # Deploy to AWS
+npm run diff           # View differences
+npm run destroy        # Destroy stack
 ```
 
-### Frontend Testing
+### Frontend Development
 ```bash
-# Serve locally (from app directory)
+# Recommended: Use Makefile target
+make dev-frontend
+
+# Alternative: Manual server start (from app directory)
 python -m http.server 8000
 # or
 npx serve .

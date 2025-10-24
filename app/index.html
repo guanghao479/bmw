@@ -47,28 +47,30 @@
 
         <!-- Search and Filter Bar -->
         <section class="search-section" aria-label="Search and filter activities">
-            <div class="search-container">
+            <div class="search-container-glass">
                 <label for="searchInput" class="sr-only">Search activities</label>
-                <input type="text" id="searchInput" placeholder="Search events, activities..." class="search-input" aria-label="Search events, activities, and venues">
-                <div class="filter-buttons" role="group" aria-label="Filter activities by category">
-                    <button class="filter-btn active" data-filter="all" aria-pressed="true">All</button>
-                    <button class="filter-btn" data-filter="events" aria-pressed="false">Events</button>
-                    <button class="filter-btn" data-filter="activities" aria-pressed="false">Activities</button>
-                    <button class="filter-btn" data-filter="venues" aria-pressed="false">Venues</button>
+                <input type="text" id="searchInput" placeholder="Search events, activities..." class="search-input-glass" aria-label="Search events, activities, and venues">
+                <div class="filter-buttons-glass" role="group" aria-label="Filter activities by category">
+                    <button class="filter-btn-glass active" data-filter="all" aria-pressed="true">All</button>
+                    <button class="filter-btn-glass" data-filter="events" aria-pressed="false">Events</button>
+                    <button class="filter-btn-glass" data-filter="activities" aria-pressed="false">Activities</button>
+                    <button class="filter-btn-glass" data-filter="venues" aria-pressed="false">Venues</button>
                 </div>
             </div>
         </section>
 
         <!-- Date Tabs Navigation -->
         <section class="date-tabs-section" aria-label="Filter activities by date">
-            <div class="date-tabs-container">
-                <button class="date-nav-btn prev" id="datePrevBtn" aria-label="Previous dates">‹</button>
-                <div class="date-tabs-scroll" id="dateTabsScroll" role="tablist" aria-label="Select date to filter activities">
-                    <div class="date-tabs" id="dateTabs">
-                        <!-- Date tabs will be generated dynamically -->
+            <div class="date-tabs-neuro-container">
+                <div class="date-tabs-neuro-wrapper">
+                    <button class="date-nav-btn-neuro prev" id="datePrevBtn" aria-label="Previous dates">‹</button>
+                    <div class="date-tabs-scroll" id="dateTabsScroll" role="tablist" aria-label="Select date to filter activities">
+                        <div class="date-tabs-neuro" id="dateTabs">
+                            <!-- Date tabs will be generated dynamically -->
+                        </div>
                     </div>
+                    <button class="date-nav-btn-neuro next" id="dateNextBtn" aria-label="Next dates">›</button>
                 </div>
-                <button class="date-nav-btn next" id="dateNextBtn" aria-label="Next dates">›</button>
             </div>
         </section>
 
@@ -87,8 +89,8 @@
     </div>
 
     <!-- Activity Detail Page -->
-    <div class="detail-page" id="detailPage" style="display: none;" role="dialog" aria-labelledby="detailTitle" aria-modal="true">
-        <div class="detail-container">
+    <div class="glass-modal-backdrop" id="detailPage" style="display: none;" role="dialog" aria-labelledby="detailTitle" aria-modal="true">
+        <div class="glass-modal-content">
             <!-- Breadcrumb Navigation -->
             <nav class="breadcrumb" aria-label="Breadcrumb navigation">
                 <button class="breadcrumb-back" id="breadcrumbBack" aria-label="Go back to activities list">

@@ -4209,29 +4209,120 @@ body {
 
 /* Glass Card Component (.glass-card) with backdrop-filter effects */
 .glass-card {
-    /* Base glassmorphic styling */
-    background: linear-gradient(
-        135deg,
-        rgba(255, 255, 255, 0.25) 0%,
-        rgba(255, 255, 255, 0.1) 100%
-    );
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    /* Base styling with fallback for non-supporting browsers */
+    background: rgba(255, 255, 255, 0.9); /* Fallback background */
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: var(--radius-2xl);
-    box-shadow: 
-        0 8px 32px rgba(0, 0, 0, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    box-shadow: var(--shadow-lg); /* Fallback shadow */
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     overflow: hidden;
+    /* Performance optimizations */
+    will-change: transform, box-shadow;
+    transform: translateZ(0); /* Force hardware acceleration */
+    backface-visibility: hidden; /* Prevent flickering */
+}
+
+/* Enhanced glassmorphic styling for supporting browsers */
+@supports (backdrop-filter: blur(20px)) {
+    .glass-card {
+        background: linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.25) 0%,
+            rgba(255, 255, 255, 0.1) 100%
+        );
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        box-shadow: 
+            0 8px 32px rgba(0, 0, 0, 0.1),
+            inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    }
+}
+
+/* Progressive enhancement for older webkit browsers */
+@supports (-webkit-backdrop-filter: blur(20px)) and (not (backdrop-filter: blur(20px))) {
+    .glass-card {
+        -webkit-backdrop-filter: blur(20px);
+        background: linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.25) 0%,
+            rgba(255, 255, 255, 0.1) 100%
+        );
+    }
+}
+
+/* Mobile performance optimization - reduce blur intensity */
+@media (max-width: 768px) {
+    @supports (backdrop-filter: blur(10px)) {
+        .glass-card {
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+    }
+    
+    /* Further optimization for low-end mobile devices */
+    @media (max-width: 480px) {
+        @supports (backdrop-filter: blur(5px)) {
+            .glass-card {
+                backdrop-filter: blur(5px);
+                -webkit-backdrop-filter: blur(5px);
+                /* Reduce transparency for better readability on small screens */
+                background: linear-gradient(
+                    135deg,
+                    rgba(255, 255, 255, 0.35) 0%,
+                    rgba(255, 255, 255, 0.2) 100%
+                );
+            }
+        }
+    }
+}
+
+/* Performance optimization for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .glass-card {
+        will-change: auto; /* Remove will-change for better performance */
+        transform: none; /* Remove hardware acceleration */
+    }
 }
 
 .glass-card:hover {
     transform: translateY(-4px) scale(1.02);  /* Enhanced hover with scale */
-    box-shadow: 
-        0 25px 50px rgba(0, 0, 0, 0.15),
-        inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    /* Optimize will-change only during hover */
+    will-change: transform, box-shadow, backdrop-filter;
+}
+
+/* Remove will-change after hover for performance */
+.glass-card:not(:hover) {
+    will-change: auto;
+}
+
+/* Enhanced hover effects for supporting browsers */
+@supports (backdrop-filter: blur(20px)) {
+    .glass-card:hover {
+        box-shadow: 
+            0 25px 50px rgba(0, 0, 0, 0.15),
+            inset 0 1px 0 rgba(255, 255, 255, 0.5);
+        backdrop-filter: blur(25px); /* Increase blur on hover */
+        -webkit-backdrop-filter: blur(25px);
+    }
+}
+
+/* Fallback hover effects for non-supporting browsers */
+@supports not (backdrop-filter: blur(20px)) {
+    .glass-card:hover {
+        box-shadow: var(--shadow-xl);
+        background: rgba(255, 255, 255, 0.95);
+    }
+}
+
+/* Disable hover effects on touch devices for better performance */
+@media (hover: none) and (pointer: coarse) {
+    .glass-card:hover {
+        transform: none;
+        will-change: auto;
+        backdrop-filter: inherit;
+        -webkit-backdrop-filter: inherit;
+    }
 }
 
 .glass-card:focus-visible {
@@ -4239,43 +4330,56 @@ body {
     outline-offset: 2px;
 }
 
-/* Glass card variants */
+/* Glass card variants with fallbacks */
 .glass-card--primary {
-    background: linear-gradient(
-        135deg,
-        var(--glass-primary) 0%,
-        rgba(99, 102, 241, 0.08) 100%
-    );
+    background: rgba(99, 102, 241, 0.1); /* Fallback */
     border-color: rgba(99, 102, 241, 0.3);
 }
 
+@supports (backdrop-filter: blur(20px)) {
+    .glass-card--primary {
+        background: linear-gradient(
+            135deg,
+            var(--glass-primary) 0%,
+            rgba(99, 102, 241, 0.08) 100%
+        );
+    }
+}
+
 .glass-card--secondary {
-    background: linear-gradient(
-        135deg,
-        var(--glass-secondary) 0%,
-        rgba(236, 72, 153, 0.06) 100%
-    );
+    background: rgba(236, 72, 153, 0.1); /* Fallback */
     border-color: rgba(236, 72, 153, 0.25);
 }
 
+@supports (backdrop-filter: blur(20px)) {
+    .glass-card--secondary {
+        background: linear-gradient(
+            135deg,
+            var(--glass-secondary) 0%,
+            rgba(236, 72, 153, 0.06) 100%
+        );
+    }
+}
+
 .glass-card--accent {
-    background: linear-gradient(
-        135deg,
-        var(--glass-accent) 0%,
-        rgba(20, 184, 166, 0.1) 100%
-    );
+    background: rgba(20, 184, 166, 0.1); /* Fallback */
     border-color: rgba(20, 184, 166, 0.3);
 }
 
-/* Fallback for browsers without backdrop-filter support */
-@supports not (backdrop-filter: blur(20px)) {
-    .glass-card {
-        background: rgba(255, 255, 255, 0.9);
-        box-shadow: var(--shadow-lg);
+@supports (backdrop-filter: blur(20px)) {
+    .glass-card--accent {
+        background: linear-gradient(
+            135deg,
+            var(--glass-accent) 0%,
+            rgba(20, 184, 166, 0.1) 100%
+        );
     }
-    
+}
+
+/* Fallback variants for browsers without backdrop-filter support */
+@supports not (backdrop-filter: blur(20px)) {
     .glass-card--primary {
-        background: rgba(99, 102, 241, 0.1);
+        background: rgba(99, 102, 241, 0.15);
     }
     
     .glass-card--secondary {
@@ -4289,9 +4393,7 @@ body {
 
 /* Glass Modal Overlay Components */
 .glass-modal-backdrop {
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: rgba(0, 0, 0, 0.6); /* Fallback background */
     position: fixed;
     top: 0;
     left: 0;
@@ -4305,11 +4407,63 @@ body {
     opacity: 0;
     visibility: hidden;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    /* Performance optimizations */
+    will-change: opacity, backdrop-filter;
+    transform: translateZ(0); /* Force hardware acceleration */
+    backface-visibility: hidden; /* Prevent flickering */
+}
+
+/* Enhanced backdrop blur for supporting browsers */
+@supports (backdrop-filter: blur(8px)) {
+    .glass-modal-backdrop {
+        background: rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+    }
+}
+
+/* Progressive enhancement for older webkit browsers */
+@supports (-webkit-backdrop-filter: blur(8px)) and (not (backdrop-filter: blur(8px))) {
+    .glass-modal-backdrop {
+        -webkit-backdrop-filter: blur(8px);
+        background: rgba(0, 0, 0, 0.4);
+    }
+}
+
+/* Mobile performance optimization - reduce blur intensity */
+@media (max-width: 768px) {
+    @supports (backdrop-filter: blur(4px)) {
+        .glass-modal-backdrop {
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+    }
+    
+    /* Ultra-low performance devices */
+    @media (max-width: 480px) {
+        @supports (backdrop-filter: blur(2px)) {
+            .glass-modal-backdrop {
+                backdrop-filter: blur(2px);
+                -webkit-backdrop-filter: blur(2px);
+                background: rgba(0, 0, 0, 0.5); /* Darker background for better contrast */
+            }
+        }
+    }
+}
+
+/* Performance optimization for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .glass-modal-backdrop {
+        will-change: auto;
+        transform: none;
+        transition: opacity 0.1s ease;
+    }
 }
 
 .glass-modal-backdrop.show {
     opacity: 1;
     visibility: visible;
+    will-change: backdrop-filter; /* Optimize during show state */
 }
 
 .glass-modal-content {
@@ -4331,10 +4485,47 @@ body {
     overflow-y: auto;
     transform: scale(0.9) translateY(20px);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    /* Performance optimizations */
+    will-change: transform, opacity;
+    transform-origin: center center;
+    backface-visibility: hidden;
 }
 
 .glass-modal-backdrop.show .glass-modal-content {
     transform: scale(1) translateY(0);
+}
+
+/* Mobile performance optimization for modal content */
+@media (max-width: 768px) {
+    @supports (backdrop-filter: blur(20px)) {
+        .glass-modal-content {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+    }
+}
+
+@media (max-width: 480px) {
+    @supports (backdrop-filter: blur(10px)) {
+        .glass-modal-content {
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            background: linear-gradient(
+                145deg,
+                rgba(255, 255, 255, 0.98) 0%,
+                rgba(255, 255, 255, 0.92) 100%
+            );
+        }
+    }
+}
+
+/* Remove will-change when modal is hidden for performance */
+.glass-modal-backdrop:not(.show) {
+    will-change: auto;
+}
+
+.glass-modal-backdrop:not(.show) .glass-modal-content {
+    will-change: auto;
 }
 
 /* Fallback for browsers without backdrop-filter support */
@@ -4367,6 +4558,41 @@ body {
     transition: all 0.3s ease;
     position: relative;
     overflow: hidden;
+    /* Performance optimizations */
+    will-change: transform, box-shadow;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+/* Progressive enhancement for older webkit browsers */
+@supports (-webkit-backdrop-filter: blur(25px)) and (not (backdrop-filter: blur(25px))) {
+    .search-container-glass {
+        -webkit-backdrop-filter: blur(25px);
+    }
+}
+
+/* Mobile performance optimization */
+@media (max-width: 768px) {
+    @supports (backdrop-filter: blur(15px)) {
+        .search-container-glass {
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+        }
+    }
+}
+
+@media (max-width: 480px) {
+    @supports (backdrop-filter: blur(8px)) {
+        .search-container-glass {
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            background: linear-gradient(
+                135deg,
+                rgba(255, 255, 255, 0.5) 0%,
+                rgba(255, 255, 255, 0.3) 100%
+            );
+        }
+    }
 }
 
 .search-container-glass::before {
@@ -4390,6 +4616,20 @@ body {
     box-shadow: 
         0 20px 40px rgba(0, 0, 0, 0.15),
         inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    will-change: transform, box-shadow, backdrop-filter;
+}
+
+/* Remove will-change after hover for performance */
+.search-container-glass:not(:hover) {
+    will-change: auto;
+}
+
+/* Disable hover effects on touch devices for better performance */
+@media (hover: none) and (pointer: coarse) {
+    .search-container-glass:hover {
+        transform: none;
+        will-change: auto;
+    }
 }
 
 .search-input-glass {
@@ -4487,6 +4727,8 @@ body {
     outline-offset: 2px;
 }
 
+/* Comprehensive browser fallbacks */
+
 /* Fallback for browsers without backdrop-filter support */
 @supports not (backdrop-filter: blur(25px)) {
     .search-container-glass {
@@ -4504,6 +4746,585 @@ body {
     
     .filter-btn-glass:hover {
         background: var(--bg-primary);
+    }
+}
+
+/* Fallback for browsers without CSS custom properties support */
+@supports not (--css: variables) {
+    .glass-card {
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 24px;
+        padding: 16px;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    }
+    
+    .neuro-button {
+        background: #f1f5f9;
+        border-radius: 16px;
+        padding: 12px 24px;
+        box-shadow: 6px 6px 12px rgba(148, 163, 184, 0.4), -6px -6px 12px rgba(255, 255, 255, 0.9);
+    }
+    
+    .search-container-glass {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 24px;
+        padding: 20px;
+    }
+}
+
+/* Fallback for browsers without CSS Grid support */
+@supports not (display: grid) {
+    .content-grid,
+    .featured-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+    
+    .content-grid > *,
+    .featured-grid > * {
+        flex: 1 1 280px;
+        min-width: 280px;
+    }
+    
+    .detail-info-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+    
+    .detail-info-grid > * {
+        flex: 1 1 250px;
+        min-width: 250px;
+    }
+}
+
+/* Fallback for browsers without Flexbox support */
+@supports not (display: flex) {
+    .filter-buttons,
+    .filter-buttons-glass,
+    .date-tabs,
+    .contact-methods,
+    .registration-actions {
+        display: block;
+        text-align: center;
+    }
+    
+    .filter-btn,
+    .filter-btn-glass,
+    .date-tab,
+    .date-tab-neuro,
+    .contact-method,
+    .detail-btn {
+        display: inline-block;
+        margin: 4px;
+        vertical-align: top;
+    }
+}
+
+/* Fallback for browsers without transform support */
+@supports not (transform: translateY(-4px)) {
+    .glass-card:hover,
+    .activity-card-hybrid:hover,
+    .neuro-button:hover,
+    .search-container-glass:hover {
+        margin-top: -4px;
+        margin-bottom: 4px;
+    }
+}
+
+/* Fallback for browsers without transition support */
+@supports not (transition: all 0.3s ease) {
+    .glass-card,
+    .activity-card-hybrid,
+    .neuro-button,
+    .search-container-glass,
+    .filter-btn,
+    .filter-btn-glass,
+    .date-tab,
+    .date-tab-neuro {
+        /* Provide immediate state changes */
+    }
+    
+    .glass-card:hover,
+    .activity-card-hybrid:hover,
+    .neuro-button:hover {
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+    }
+}
+
+/* Fallback for browsers without border-radius support */
+@supports not (border-radius: 24px) {
+    .glass-card,
+    .search-container-glass,
+    .glass-modal-content {
+        border-radius: 0;
+        border: 2px solid #e5e5e5;
+    }
+    
+    .neuro-button,
+    .filter-btn,
+    .filter-btn-glass {
+        border-radius: 0;
+        border: 1px solid #d4d4d4;
+    }
+}
+
+/* Fallback for browsers without box-shadow support */
+@supports not (box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1)) {
+    .glass-card,
+    .neuro-button,
+    .search-container-glass {
+        border: 2px solid #e5e5e5;
+    }
+    
+    .glass-card:hover,
+    .neuro-button:hover {
+        border-color: #6366f1;
+    }
+}
+
+/* Fallback for browsers without calc() support */
+@supports not (width: calc(100% - 32px)) {
+    .glass-modal-content {
+        width: 90%;
+        max-width: 800px;
+    }
+    
+    .detail-container {
+        width: 95%;
+        max-width: 800px;
+    }
+}
+
+/* Internet Explorer specific fallbacks */
+@media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
+    .glass-card,
+    .search-container-glass,
+    .glass-modal-content {
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid #e5e5e5;
+    }
+    
+    .neuro-button {
+        background: #f1f5f9;
+        border: 1px solid #d4d4d4;
+    }
+    
+    .filter-btn-glass {
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid #e5e5e5;
+    }
+}
+
+/* ========================================
+   CROSS-BROWSER TESTING AND VALIDATION
+   ======================================== */
+
+/* Browser-specific feature detection and fallbacks */
+
+/* Chrome/Chromium specific optimizations */
+@supports (-webkit-appearance: none) and (not (-moz-appearance: none)) {
+    .glass-card,
+    .search-container-glass {
+        /* Chrome handles backdrop-filter well, use full effects */
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+    }
+    
+    .glass-modal-backdrop {
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+    }
+}
+
+/* Firefox specific optimizations */
+@supports (-moz-appearance: none) {
+    .glass-card,
+    .search-container-glass {
+        /* Firefox has limited backdrop-filter support, use fallbacks */
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    
+    .glass-modal-backdrop {
+        background: rgba(0, 0, 0, 0.7);
+    }
+    
+    /* Firefox-specific neumorphic optimizations */
+    .neuro-button,
+    .date-tab-neuro {
+        /* Firefox handles box-shadow well */
+        box-shadow: 
+            6px 6px 12px rgba(148, 163, 184, 0.4),
+            -6px -6px 12px rgba(255, 255, 255, 0.9);
+    }
+}
+
+/* Safari specific optimizations */
+@supports (-webkit-backdrop-filter: blur(1px)) and (not (backdrop-filter: blur(1px))) {
+    .glass-card,
+    .search-container-glass {
+        /* Older Safari versions with webkit prefix only */
+        -webkit-backdrop-filter: blur(20px);
+        background: linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.25) 0%,
+            rgba(255, 255, 255, 0.1) 100%
+        );
+    }
+}
+
+/* Edge specific optimizations */
+@supports (-ms-ime-align: auto) {
+    .glass-card,
+    .search-container-glass {
+        /* Legacy Edge fallbacks */
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid #e5e5e5;
+    }
+}
+
+/* Mobile Safari specific optimizations */
+@supports (-webkit-touch-callout: none) {
+    /* iOS Safari optimizations */
+    .glass-card,
+    .activity-card-hybrid {
+        /* Prevent iOS zoom on double-tap */
+        touch-action: manipulation;
+        /* Optimize for iOS rendering */
+        -webkit-transform: translateZ(0);
+    }
+    
+    .neuro-input,
+    .search-input-glass {
+        /* Prevent iOS zoom on focus */
+        font-size: 16px;
+        /* Optimize iOS keyboard behavior */
+        -webkit-appearance: none;
+        border-radius: 0;
+    }
+}
+
+/* Android Chrome specific optimizations */
+@media screen and (max-width: 768px) and (-webkit-min-device-pixel-ratio: 1) {
+    .glass-card,
+    .search-container-glass {
+        /* Android performance optimizations */
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        /* Reduce transparency for better readability */
+        background: linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.4) 0%,
+            rgba(255, 255, 255, 0.25) 100%
+        );
+    }
+}
+
+/* Samsung Internet specific optimizations */
+@supports (-webkit-appearance: none) and (max-width: 768px) {
+    .glass-card:hover,
+    .activity-card-hybrid:hover {
+        /* Reduce hover effects on Samsung Internet */
+        transform: translateY(-2px) scale(1.01);
+    }
+}
+
+/* Browser capability testing utilities */
+.browser-test-backdrop-filter {
+    backdrop-filter: blur(1px);
+    -webkit-backdrop-filter: blur(1px);
+    opacity: 0;
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+}
+
+.browser-test-css-grid {
+    display: grid;
+    opacity: 0;
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+}
+
+.browser-test-flexbox {
+    display: flex;
+    opacity: 0;
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+}
+
+.browser-test-custom-properties {
+    --test-property: 1px;
+    width: var(--test-property);
+    opacity: 0;
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+    height: 1px;
+}
+
+/* Graceful degradation indicators */
+.no-backdrop-filter .glass-card,
+.no-backdrop-filter .search-container-glass,
+.no-backdrop-filter .glass-modal-content {
+    background: rgba(255, 255, 255, 0.95) !important;
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+.no-css-grid .content-grid,
+.no-css-grid .featured-grid {
+    display: flex !important;
+    flex-wrap: wrap !important;
+}
+
+.no-flexbox .filter-buttons,
+.no-flexbox .date-tabs {
+    display: block !important;
+    text-align: center !important;
+}
+
+.no-custom-properties .glass-card {
+    background: rgba(255, 255, 255, 0.9) !important;
+    border-radius: 24px !important;
+    padding: 16px !important;
+}
+
+/* Performance monitoring utilities */
+.perf-monitor {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 12px;
+    z-index: 9999;
+    display: none;
+}
+
+.perf-monitor.show {
+    display: block;
+}
+
+/* Browser-specific bug fixes */
+
+/* Fix for Chrome backdrop-filter rendering bug */
+@supports (backdrop-filter: blur(1px)) {
+    .glass-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        backdrop-filter: inherit;
+        -webkit-backdrop-filter: inherit;
+        z-index: -1;
+        border-radius: inherit;
+    }
+}
+
+/* Fix for Safari transform flickering */
+@supports (-webkit-backdrop-filter: blur(1px)) {
+    .glass-card,
+    .activity-card-hybrid {
+        -webkit-transform: translateZ(0);
+        -webkit-backface-visibility: hidden;
+        -webkit-perspective: 1000px;
+    }
+}
+
+/* Fix for Firefox box-shadow performance */
+@supports (-moz-appearance: none) {
+    .neuro-button:hover,
+    .date-tab-neuro:hover {
+        /* Simplified shadows for Firefox */
+        box-shadow: 
+            4px 4px 8px rgba(148, 163, 184, 0.3),
+            -4px -4px 8px rgba(255, 255, 255, 0.8);
+    }
+}
+
+/* Fix for Edge legacy grid issues */
+@supports (-ms-grid-columns: 1fr) {
+    .content-grid {
+        -ms-grid-columns: 1fr 1fr 1fr;
+        display: -ms-grid;
+    }
+    
+    .content-grid > *:nth-child(1) { -ms-grid-column: 1; }
+    .content-grid > *:nth-child(2) { -ms-grid-column: 2; }
+    .content-grid > *:nth-child(3) { -ms-grid-column: 3; }
+}
+
+/* Validation and testing classes */
+.test-glassmorphism {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0.1));
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 24px;
+    padding: 20px;
+    margin: 10px;
+}
+
+.test-neumorphism {
+    background: #f1f5f9;
+    box-shadow: 
+        6px 6px 12px rgba(148, 163, 184, 0.4),
+        -6px -6px 12px rgba(255, 255, 255, 0.9);
+    border-radius: 16px;
+    padding: 16px;
+    margin: 10px;
+}
+
+.test-hybrid {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.15));
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 24px;
+    padding: 20px;
+    margin: 10px;
+}
+
+.test-hybrid .test-neuro-button {
+    background: rgba(248, 250, 252, 0.8);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: none;
+    border-radius: 12px;
+    padding: 8px 16px;
+    box-shadow: 
+        4px 4px 8px rgba(148, 163, 184, 0.3),
+        -4px -4px 8px rgba(255, 255, 255, 0.7);
+}
+
+/* ========================================
+   PERFORMANCE OPTIMIZATIONS
+   ======================================== */
+
+/* GPU acceleration for smooth animations */
+.glass-card,
+.activity-card-hybrid,
+.glass-modal-backdrop,
+.glass-modal-content,
+.search-container-glass,
+.neuro-button,
+.date-tab-neuro,
+.filter-btn-glass {
+    /* Force hardware acceleration */
+    transform: translateZ(0);
+    /* Prevent text rendering issues during animations */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Prevent flickering */
+    backface-visibility: hidden;
+    /* Optimize for animations */
+    perspective: 1000px;
+}
+
+/* Optimize will-change usage - only during interactions */
+.glass-card:hover,
+.activity-card-hybrid:hover,
+.neuro-button:hover,
+.search-container-glass:hover,
+.filter-btn-glass:hover,
+.date-tab-neuro:hover {
+    will-change: transform, box-shadow, backdrop-filter;
+}
+
+/* Remove will-change when not needed for better performance */
+.glass-card:not(:hover):not(:focus),
+.activity-card-hybrid:not(:hover):not(:focus),
+.neuro-button:not(:hover):not(:focus):not(:active),
+.search-container-glass:not(:hover),
+.filter-btn-glass:not(:hover):not(:focus),
+.date-tab-neuro:not(:hover):not(:focus) {
+    will-change: auto;
+}
+
+/* Optimize backdrop-filter performance */
+@supports (backdrop-filter: blur(1px)) {
+    /* Use contain for better performance */
+    .glass-card,
+    .glass-modal-backdrop,
+    .search-container-glass {
+        contain: layout style paint;
+    }
+}
+
+/* Battery optimization for mobile devices */
+@media (max-width: 768px) {
+    /* Reduce animation complexity on mobile */
+    .glass-card:hover,
+    .activity-card-hybrid:hover {
+        transform: translateY(-2px) scale(1.01); /* Reduced scale */
+    }
+    
+    /* Simplify shadows on mobile for better performance */
+    .glass-card,
+    .neuro-button,
+    .search-container-glass {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* Simplified shadow */
+    }
+}
+
+/* Ultra-low performance device optimizations */
+@media (max-width: 480px) and (max-resolution: 150dpi) {
+    /* Disable complex effects on low-end devices */
+    .glass-card,
+    .search-container-glass,
+    .glass-modal-content {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        background: rgba(255, 255, 255, 0.95) !important;
+    }
+    
+    /* Simplify hover effects */
+    .glass-card:hover,
+    .activity-card-hybrid:hover,
+    .neuro-button:hover {
+        transform: none;
+        will-change: auto;
+    }
+}
+
+/* Optimize for high refresh rate displays */
+@media (min-resolution: 120dpi) {
+    .glass-card,
+    .activity-card-hybrid,
+    .neuro-button {
+        /* Use more precise timing for smooth animations */
+        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+}
+
+/* Memory optimization for large screens */
+@media (min-width: 1400px) {
+    /* Limit the number of elements with backdrop-filter */
+    .content-grid {
+        contain: layout style;
+    }
+    
+    /* Use transform3d for better GPU utilization */
+    .glass-card:hover,
+    .activity-card-hybrid:hover {
+        transform: translate3d(0, -4px, 0) scale3d(1.02, 1.02, 1);
     }
 }
 
@@ -4598,6 +5419,70 @@ body {
 /* ========================================
    NEUMORPHIC COMPONENT LIBRARY
    ======================================== */
+
+/* Base neumorphic performance optimizations */
+.neuro-button,
+.neuro-input,
+.neuro-select,
+.neuro-textarea,
+.date-tab-neuro,
+.date-nav-btn-neuro,
+.activity-card-hybrid__action-button {
+    /* Performance optimizations for neumorphic elements */
+    transform: translateZ(0); /* Force hardware acceleration */
+    backface-visibility: hidden; /* Prevent flickering */
+    will-change: auto; /* Default to auto, optimize during interactions */
+}
+
+/* Optimize will-change during hover states */
+.neuro-button:hover,
+.neuro-input:hover,
+.neuro-select:hover,
+.neuro-textarea:hover,
+.date-tab-neuro:hover,
+.date-nav-btn-neuro:hover,
+.activity-card-hybrid__action-button:hover {
+    will-change: transform, box-shadow;
+}
+
+/* Remove will-change after hover for performance */
+.neuro-button:not(:hover),
+.neuro-input:not(:hover),
+.neuro-select:not(:hover),
+.neuro-textarea:not(:hover),
+.date-tab-neuro:not(:hover),
+.date-nav-btn-neuro:not(:hover),
+.activity-card-hybrid__action-button:not(:hover) {
+    will-change: auto;
+}
+
+/* Disable hardware acceleration on touch devices for better battery life */
+@media (hover: none) and (pointer: coarse) {
+    .neuro-button,
+    .neuro-input,
+    .neuro-select,
+    .neuro-textarea,
+    .date-tab-neuro,
+    .date-nav-btn-neuro,
+    .activity-card-hybrid__action-button {
+        transform: none;
+        will-change: auto;
+    }
+}
+
+/* Performance optimization for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .neuro-button,
+    .neuro-input,
+    .neuro-select,
+    .neuro-textarea,
+    .date-tab-neuro,
+    .date-nav-btn-neuro,
+    .activity-card-hybrid__action-button {
+        will-change: auto;
+        transform: none;
+    }
+}
 
 /* Neumorphic Button Component (.neuro-button variants) */
 .neuro-button {
