@@ -97,6 +97,9 @@ mkdir -p ../testing/{temp,logs,data}  # Create test directories as needed
 
 ### Infrastructure
 ```bash
+# Ensure AWS credentials are valid before deployment
+aws sso login           # Run if credentials are missing or expired
+
 # Recommended: Use Makefile targets
 make infra-deploy        # Deploy to AWS
 make infra-diff         # View deployment differences
@@ -229,4 +232,37 @@ Use conventional commit format for all commits:
 The repository uses automated workflows that trigger on push to main:
 - **Frontend deployment**: Automatic GitHub Pages deployment
 - **Backend deployment**: CDK deployment via AWS OIDC authentication
-- **Testing**: Automated test runs and validation
+- **Testing**: Automated test runs and validation## AWS Auth
+entication
+
+### AWS SSO Login Requirements
+
+Before running any AWS operations (CDK deploy, integration tests, etc.), ensure valid AWS credentials:
+
+```bash
+# Check current AWS credentials status
+aws sts get-caller-identity
+
+# If credentials are missing or expired, login via SSO
+aws sso login
+
+# Verify successful authentication
+aws sts get-caller-identity
+```
+
+### When to Run AWS SSO Login
+
+Run `aws sso login` when you encounter:
+- `Unable to locate credentials` errors
+- `Token has expired` errors  
+- `Access denied` errors during AWS operations
+- CDK deployment failures related to authentication
+- Integration test failures due to AWS access
+
+### AWS Operations Requiring Authentication
+
+- `make infra-deploy` - CDK infrastructure deployment
+- `make infra-diff` - CDK deployment preview
+- `make test-integration` - Integration tests with AWS services
+- Manual CDK commands (`npm run deploy`, `npm run diff`)
+- Direct AWS CLI operations

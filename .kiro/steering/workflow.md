@@ -57,6 +57,10 @@ If GitHub Actions fails:
 
 2. **Common failure scenarios**:
    - **CDK deployment errors**: Check AWS credentials and permissions
+     ```bash
+     # If AWS credentials are missing or expired, run:
+     aws sso login
+     ```
    - **Build failures**: Verify Go compilation and dependencies
    - **Test failures**: Run tests locally first with `go test ./...`
    - **Infrastructure issues**: Check CDK diff before deployment
