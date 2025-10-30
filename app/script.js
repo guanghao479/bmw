@@ -137,14 +137,11 @@ class FamilyEventsApp {
             return;
         }
 
-        // No data available - show environment-specific error message
-        if (this.config.samLocal) {
-            this.showError('Local backend is not running. Please start the SAM local API server with: sam local start-api -t ../infrastructure/cdk.out/SeattleFamilyActivitiesMVPStack.template.json --env-vars env.json --port 3000');
-            this.showDataStatus('Local backend unavailable', 'error');
-        } else {
-            this.showError('Unable to load family activities from our database. Please check your internet connection and try refreshing the page.');
-            this.showDataStatus('Failed to load API data', 'error');
-        }
+        // No data available - use mock data for testing
+        console.log('No real data available, loading mock data for testing...');
+        const mockData = this.getMockData();
+        this.processData(mockData);
+        this.showDataStatus('Using mock data for testing', 'info');
     }
 
     // Fetch data from API endpoint
@@ -418,6 +415,200 @@ class FamilyEventsApp {
         return null;
     }
 
+    // Get mock data for testing the modernized cards
+    getMockData() {
+        const today = new Date();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+        const nextWeek = new Date(today);
+        nextWeek.setDate(today.getDate() + 7);
+
+        return {
+            activities: [
+                {
+                    id: 'mock-1',
+                    title: 'Seattle Children\'s Museum Interactive Exhibits',
+                    description: 'Hands-on learning experiences for kids of all ages with rotating exhibits, art studios, and STEM activities.',
+                    type: 'venue',
+                    category: 'educational-stem',
+                    featured: true,
+                    images: [{
+                        url: 'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=800&h=600&fit=crop&auto=format&q=80',
+                        altText: 'Children playing at interactive museum exhibit'
+                    }],
+                    schedule: {
+                        type: 'recurring',
+                        startDate: today.toISOString().split('T')[0],
+                        times: [{ startTime: '10:00 AM', endTime: '5:00 PM' }]
+                    },
+                    location: {
+                        name: 'Seattle Children\'s Museum',
+                        address: '305 Harrison St, Seattle, WA 98109',
+                        neighborhood: 'Seattle Center'
+                    },
+                    pricing: {
+                        type: 'paid',
+                        cost: 15,
+                        currency: 'USD',
+                        description: 'General admission'
+                    },
+                    ageGroups: [{ description: '0-10 years', category: 'toddler-elementary' }],
+                    registration: { required: false }
+                },
+                {
+                    id: 'mock-2',
+                    title: 'Woodland Park Zoo Animal Adventures',
+                    description: 'Explore wildlife from around the world and participate in educational programs and animal encounters.',
+                    type: 'activity',
+                    category: 'educational-stem',
+                    featured: false,
+                    images: [{
+                        url: 'https://images.unsplash.com/photo-1564349683136-77e08dba1ef7?w=800&h=600&fit=crop&auto=format&q=80',
+                        altText: 'Family watching animals at zoo'
+                    }],
+                    schedule: {
+                        type: 'recurring',
+                        startDate: today.toISOString().split('T')[0],
+                        times: [{ startTime: '9:30 AM', endTime: '4:00 PM' }]
+                    },
+                    location: {
+                        name: 'Woodland Park Zoo',
+                        address: '5500 Phinney Ave N, Seattle, WA 98103',
+                        neighborhood: 'Phinney Ridge'
+                    },
+                    pricing: {
+                        type: 'paid',
+                        cost: 22,
+                        currency: 'USD',
+                        description: 'Adult admission'
+                    },
+                    ageGroups: [{ description: 'All ages', category: 'all-ages' }],
+                    registration: { required: false }
+                },
+                {
+                    id: 'mock-3',
+                    title: 'Pike Place Market Family Food Tour',
+                    description: 'Discover the flavors of Seattle with a family-friendly walking tour through the famous Pike Place Market.',
+                    type: 'event',
+                    category: 'entertainment-events',
+                    featured: false,
+                    images: [{
+                        url: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&h=600&fit=crop&auto=format&q=80',
+                        altText: 'Family walking through Pike Place Market'
+                    }],
+                    schedule: {
+                        type: 'one-time',
+                        startDate: tomorrow.toISOString().split('T')[0],
+                        times: [{ startTime: '11:00 AM', endTime: '1:00 PM' }]
+                    },
+                    location: {
+                        name: 'Pike Place Market',
+                        address: '85 Pike St, Seattle, WA 98101',
+                        neighborhood: 'Downtown'
+                    },
+                    pricing: {
+                        type: 'paid',
+                        cost: 35,
+                        currency: 'USD',
+                        description: 'Per person (includes tastings)'
+                    },
+                    ageGroups: [{ description: '6+ years', category: 'elementary-teen' }],
+                    registration: { required: true, status: 'open' }
+                },
+                {
+                    id: 'mock-4',
+                    title: 'Discovery Park Nature Walk',
+                    description: 'Free guided nature walk through Seattle\'s largest park with opportunities to spot local wildlife.',
+                    type: 'activity',
+                    category: 'free-community',
+                    featured: true,
+                    images: [{
+                        url: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=600&fit=crop&auto=format&q=80',
+                        altText: 'Family hiking on forest trail'
+                    }],
+                    schedule: {
+                        type: 'recurring',
+                        startDate: nextWeek.toISOString().split('T')[0],
+                        times: [{ startTime: '10:00 AM', endTime: '11:30 AM' }]
+                    },
+                    location: {
+                        name: 'Discovery Park',
+                        address: '3801 Discovery Park Blvd, Seattle, WA 98199',
+                        neighborhood: 'Magnolia'
+                    },
+                    pricing: {
+                        type: 'free',
+                        description: 'Free for all participants'
+                    },
+                    ageGroups: [{ description: 'All ages', category: 'all-ages' }],
+                    registration: { required: false }
+                },
+                {
+                    id: 'mock-5',
+                    title: 'Seattle Art Museum Family Workshop',
+                    description: 'Creative art-making workshop inspired by current exhibitions, designed for families to create together.',
+                    type: 'event',
+                    category: 'arts-creativity',
+                    featured: false,
+                    images: [{
+                        url: 'https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?w=800&h=600&fit=crop&auto=format&q=80',
+                        altText: 'Children creating art in museum workshop'
+                    }],
+                    schedule: {
+                        type: 'one-time',
+                        startDate: nextWeek.toISOString().split('T')[0],
+                        times: [{ startTime: '2:00 PM', endTime: '4:00 PM' }]
+                    },
+                    location: {
+                        name: 'Seattle Art Museum',
+                        address: '1300 1st Ave, Seattle, WA 98101',
+                        neighborhood: 'Downtown'
+                    },
+                    pricing: {
+                        type: 'paid',
+                        cost: 12,
+                        currency: 'USD',
+                        description: 'Per participant (materials included)'
+                    },
+                    ageGroups: [{ description: '4-12 years with adult', category: 'preschool-elementary' }],
+                    registration: { required: true, status: 'open' }
+                },
+                {
+                    id: 'mock-6',
+                    title: 'Green Lake Family Bike Ride',
+                    description: 'Scenic bike ride around Green Lake with bike rentals available. Perfect for families with children.',
+                    type: 'activity',
+                    category: 'active-sports',
+                    featured: false,
+                    images: [{
+                        url: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=600&fit=crop&auto=format&q=80',
+                        altText: 'Family biking around lake'
+                    }],
+                    schedule: {
+                        type: 'recurring',
+                        startDate: today.toISOString().split('T')[0],
+                        times: [{ startTime: '9:00 AM', endTime: '12:00 PM' }]
+                    },
+                    location: {
+                        name: 'Green Lake Park',
+                        address: '7201 E Green Lake Dr N, Seattle, WA 98115',
+                        neighborhood: 'Green Lake'
+                    },
+                    pricing: {
+                        type: 'free',
+                        description: 'Free (bike rentals extra)'
+                    },
+                    ageGroups: [{ description: '5+ years', category: 'elementary-teen' }],
+                    registration: { required: false }
+                }
+            ],
+            metadata: {
+                lastUpdated: new Date().toISOString(),
+                total: 6,
+                source: 'mock_data'
+            }
+        };
+    }
 
     // Setup auto-refresh functionality
     setupAutoRefresh() {
@@ -832,7 +1023,10 @@ class FamilyEventsApp {
     // Show list view
     showListView() {
         this.currentView = 'list';
-        document.querySelector('.container').style.display = 'block';
+        const mainContainer = document.querySelector('.max-w-7xl');
+        if (mainContainer) {
+            mainContainer.style.display = 'block';
+        }
         document.getElementById('detailPage').classList.remove('show');
         setTimeout(() => {
             document.getElementById('detailPage').style.display = 'none';
@@ -853,7 +1047,10 @@ class FamilyEventsApp {
         this.renderDetailPage(item);
         
         // Hide list view and show detail page
-        document.querySelector('.container').style.display = 'none';
+        const mainContainer = document.querySelector('.max-w-7xl');
+        if (mainContainer) {
+            mainContainer.style.display = 'none';
+        }
         const detailPage = document.getElementById('detailPage');
         detailPage.style.display = 'block';
         setTimeout(() => detailPage.classList.add('show'), 10);
