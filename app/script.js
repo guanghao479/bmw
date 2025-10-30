@@ -672,36 +672,95 @@ class FamilyEventsApp {
 
     // Create HTML for a single card
     createCardHTML(item) {
-        const categoryClass = `category-${item.category}`;
+        const categoryClass = this.getCategoryTailwindClasses(item.category);
+        const isFeatured = item.featured;
+        
+        // Enhanced classes for featured cards
+        const cardClasses = isFeatured 
+            ? "bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group cursor-pointer transform hover:-translate-y-1 border border-blue-100"
+            : "bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden group cursor-pointer transform hover:-translate-y-1";
+            
+        const imageClasses = isFeatured
+            ? "w-full h-56 object-cover group-hover:scale-110 transition-transform duration-500"
+            : "w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300";
+            
+        const titleClasses = isFeatured
+            ? "text-xl font-bold text-gray-900 mb-3 line-clamp-2 leading-tight"
+            : "text-lg font-semibold text-gray-900 mb-2 line-clamp-2 leading-tight";
+            
+        const descriptionClasses = isFeatured
+            ? "text-gray-600 text-base mb-4 line-clamp-3 leading-relaxed"
+            : "text-gray-600 text-sm mb-4 line-clamp-2 leading-relaxed";
         
         return `
-            <div class="card" data-id="${item.id}" role="button" tabindex="0" aria-label="View details for ${item.title}">
-                <img src="${item.image}" alt="${item.title} activity" class="card-image" loading="lazy" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0xNzUgMTI1SDE0MFYxNzVIMTc1VjE1MEgyMjVWMTc1SDI2MFYxMjVIMjI1VjEwMEgxNzVWMTI1WiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4K'; this.onerror=null;">
-                <div class="card-content">
-                    <span class="card-category ${categoryClass}">${this.formatCategory(item.category)}</span>
-                    <h3 class="card-title">${item.title}</h3>
-                    <p class="card-description">${item.description}</p>
-                    <div class="card-meta">
-                        <div>
-                            <div class="card-date">${this.formatDate(this.getActivityDate(item))} • ${item.time}</div>
-                            <div class="card-location">📍 ${item.location}</div>
-                            ${item.age_range ? `<div class="card-age">👶 ${item.age_range}</div>` : ''}
+            <div class="${cardClasses}" 
+                 data-id="${item.id}" role="button" tabindex="0" aria-label="View details for ${item.title}">
+                <div class="relative overflow-hidden">
+                    <img src="${item.image}" 
+                         alt="${item.title} activity" 
+                         class="${imageClasses}" 
+                         loading="lazy" 
+                         onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0xNzUgMTI1SDE0MFYxNzVIMTc1VjE1MEgyMjVWMTc1SDI2MFYxMjVIMjI1VjEwMEgxNzVWMTI1WiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4K'; this.onerror=null;">
+                    ${isFeatured ? '<div class="absolute top-3 left-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white px-2 py-1 rounded-full text-xs font-semibold">Featured</div>' : ''}
+                </div>
+                <div class="p-6">
+                    <span class="inline-flex items-center gap-1 px-3 py-1.5 ${categoryClass} text-xs font-semibold rounded-full mb-3 transition-all duration-200 group-hover:scale-105 shadow-sm">
+                        ${this.formatCategory(item.category)}
+                    </span>
+                    <h3 class="${titleClasses} group-hover:text-blue-600 transition-colors duration-200">
+                        ${item.title}
+                    </h3>
+                    <p class="${descriptionClasses}">
+                        ${item.description}
+                    </p>
+                    <div class="flex justify-between items-start pt-4 border-t border-gray-100">
+                        <div class="space-y-2 flex-1">
+                            <div class="flex items-center gap-1 text-xs font-medium text-gray-600">
+                                <span class="text-blue-500">📅</span>
+                                <span>${this.formatDate(this.getActivityDate(item))}</span>
+                                <span class="text-gray-400">•</span>
+                                <span>${item.time}</span>
+                            </div>
+                            <div class="flex items-center gap-1 text-xs text-gray-600">
+                                <span class="text-green-500">📍</span>
+                                <span class="truncate">${item.location}</span>
+                            </div>
+                            ${item.age_range ? `
+                            <div class="flex items-center gap-1 text-xs text-gray-600">
+                                <span class="text-purple-500">👶</span>
+                                <span>${item.age_range}</span>
+                            </div>` : ''}
                         </div>
-                        <div class="card-price">${item.price}</div>
+                        <div class="ml-4 text-right">
+                            <div class="font-bold text-lg text-blue-600 group-hover:text-blue-700 transition-colors duration-200">
+                                ${item.price}
+                            </div>
+                            ${item.price !== 'Free' ? '<div class="text-xs text-gray-500">per person</div>' : ''}
+                        </div>
                     </div>
                 </div>
             </div>
         `;
     }
 
-    // Format category for display
+    // Format category for display with modern icons
     formatCategory(category) {
         const categoryMap = {
-            'event': '🎉 Event',
-            'activity': '⚽ Activity',
-            'venue': '🏛️ Venue'
+            'event': '🎪 Event',
+            'activity': '🎯 Activity',
+            'venue': '🏢 Venue'
         };
-        return categoryMap[category] || category;
+        return categoryMap[category] || '📋 ' + category;
+    }
+
+    // Get Tailwind classes for category badges with modern color schemes
+    getCategoryTailwindClasses(category) {
+        const categoryClasses = {
+            'event': 'bg-gradient-to-r from-pink-100 to-rose-100 text-pink-800 border border-pink-200',
+            'activity': 'bg-gradient-to-r from-emerald-100 to-teal-100 text-emerald-800 border border-emerald-200', 
+            'venue': 'bg-gradient-to-r from-amber-100 to-orange-100 text-amber-800 border border-amber-200'
+        };
+        return categoryClasses[category] || 'bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 border border-blue-200';
     }
 
     // Date utility functions - centralized and DRY
