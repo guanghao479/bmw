@@ -1,3 +1,8 @@
+/* Tailwind CSS Base Directives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* Modern UI Design System */
 
 /* Accessibility - Screen Reader Only */
@@ -88,7 +93,7 @@
     --compact-space-6: 16px;
     
     /* Typography */
-    --font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
     --font-size-xs: 12px;
     --font-size-sm: 14px;
     --font-size-base: 16px;
@@ -128,119 +133,17 @@ body {
     font-size: var(--font-size-base);
     line-height: var(--leading-normal);
     color: var(--text-primary);
-    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
 
-/* Container */
-.container {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: var(--space-4);
-}
+/* Container styles are now handled by Tailwind utilities */
 
-/* Header */
-.header {
-    text-align: center;
-    margin-bottom: var(--space-12);
-    padding: var(--space-8) var(--space-4);
-}
+/* Header styles are now handled by Tailwind utilities */
 
-.header-title {
-    font-size: var(--font-size-4xl);
-    font-weight: var(--font-weight-bold);
-    color: var(--text-primary);
-    margin-bottom: var(--space-2);
-    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    letter-spacing: -0.025em;
-    line-height: var(--leading-tight);
-}
-
-.header-subtitle {
-    font-size: var(--font-size-xl);
-    color: var(--text-secondary);
-    font-weight: var(--font-weight-normal);
-    max-width: 600px;
-    margin: 0 auto;
-    line-height: var(--leading-relaxed);
-}
-
-/* Search Section */
-.search-section {
-    margin-bottom: var(--space-8);
-}
-
-.search-container {
-    background: var(--bg-primary);
-    border-radius: var(--radius-xl);
-    padding: var(--space-5);
-    box-shadow: var(--shadow-md);
-    border: 1px solid var(--neutral-200);
-}
-
-.search-input {
-    width: 100%;
-    padding: var(--space-3) var(--space-4);
-    border: 1px solid var(--neutral-300);
-    border-radius: var(--radius-lg);
-    font-size: var(--font-size-base);
-    font-weight: var(--font-weight-medium);
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-    margin-bottom: var(--space-4);
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.search-input:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgb(99 102 241 / 0.1);
-    background: var(--bg-primary);
-}
-
-.search-input::placeholder {
-    color: var(--text-muted);
-}
-
-/* Filter Buttons */
-.filter-buttons {
-    display: flex;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-    justify-content: center;
-}
-
-.filter-btn {
-    padding: var(--compact-space-3) var(--space-3);
-    border: 1px solid var(--neutral-300);
-    border-radius: var(--radius-full);
-    background: var(--bg-primary);
-    color: var(--text-secondary);
-    font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-medium);
-    cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    white-space: nowrap;
-}
-
-.filter-btn:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-sm);
-}
-
-.filter-btn.active {
-    background: var(--primary);
-    color: var(--text-inverse);
-    border-color: var(--primary);
-    box-shadow: var(--shadow-md);
-}
+/* Search and Filter sections now use Tailwind classes */
 
 /* Section Titles */
 .section-title {
@@ -452,14 +355,7 @@ body {
         grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     }
     
-    .search-container {
-        padding: var(--space-4);
-    }
-    
-    .filter-buttons {
-        justify-content: center;
-        gap: var(--compact-space-4);
-    }
+    /* Search container responsive styles now handled by Tailwind */
     
     .card-meta {
         flex-direction: column;
@@ -490,12 +386,7 @@ body {
     }
 }
 
-/* Focus states for accessibility */
-.filter-btn:focus-visible,
-.search-input:focus-visible {
-    outline: 2px solid var(--primary);
-    outline-offset: 2px;
-}
+/* Focus states for accessibility now handled by Tailwind */
 
 .card:focus-visible {
     outline: 2px solid var(--primary);

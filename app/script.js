@@ -519,14 +519,22 @@ class FamilyEventsApp {
         const filterButtons = document.querySelectorAll('.filter-btn');
         filterButtons.forEach(btn => {
             btn.addEventListener('click', (e) => {
-                // Remove active class and set aria-pressed to false for all buttons
+                // Remove active styling from all buttons
                 filterButtons.forEach(button => {
+                    // Remove active class
                     button.classList.remove('active');
                     button.setAttribute('aria-pressed', 'false');
+                    
+                    // Reset to inactive Tailwind classes
+                    button.className = 'px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-full text-sm font-medium hover:bg-gray-50 hover:border-blue-500 hover:text-blue-600 active:bg-gray-100 transition-all duration-200 ease-in-out transform hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 filter-btn';
                 });
-                // Add active class and set aria-pressed to true for clicked button
+                
+                // Add active styling to clicked button
                 e.target.classList.add('active');
                 e.target.setAttribute('aria-pressed', 'true');
+                
+                // Apply active Tailwind classes
+                e.target.className = 'px-4 py-2 bg-blue-600 text-white rounded-full text-sm font-medium hover:bg-blue-700 active:bg-blue-800 transition-all duration-200 ease-in-out transform hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 filter-btn active';
                 
                 this.currentFilter = e.target.dataset.filter;
                 this.renderContent();
