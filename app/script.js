@@ -868,8 +868,8 @@ class FamilyEventsApp {
         
         // Enhanced classes for featured cards
         const cardClasses = isFeatured 
-            ? "bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group cursor-pointer transform hover:-translate-y-1 border border-blue-100"
-            : "bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden group cursor-pointer transform hover:-translate-y-1";
+            ? "card bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group cursor-pointer transform hover:-translate-y-1 border border-blue-100"
+            : "card bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden group cursor-pointer transform hover:-translate-y-1";
             
         const imageClasses = isFeatured
             ? "w-full h-56 object-cover group-hover:scale-110 transition-transform duration-500"
