@@ -710,25 +710,20 @@ class FamilyEventsApp {
         const filterButtons = document.querySelectorAll('.filter-btn');
         filterButtons.forEach(btn => {
             btn.addEventListener('click', (e) => {
-                // Remove active styling from all buttons
-                filterButtons.forEach(button => {
-                    // Remove active class
-                    button.classList.remove('active');
-                    button.setAttribute('aria-pressed', 'false');
-                    
-                    // Reset to inactive Tailwind classes
-                    button.className = 'px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-full text-sm font-medium hover:bg-gray-50 hover:border-blue-500 hover:text-blue-600 active:bg-gray-100 transition-all duration-200 ease-in-out transform hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 filter-btn';
-                });
-                
-                // Add active styling to clicked button
-                e.target.classList.add('active');
-                e.target.setAttribute('aria-pressed', 'true');
-                
-                // Apply active Tailwind classes
-                e.target.className = 'px-4 py-2 bg-blue-600 text-white rounded-full text-sm font-medium hover:bg-blue-700 active:bg-blue-800 transition-all duration-200 ease-in-out transform hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 filter-btn active';
-                
-                this.currentFilter = e.target.dataset.filter;
-                this.renderContent();
+                this.handleFilterChange(e.target, filterButtons);
+            });
+            
+            // Add keyboard support for filter buttons
+            btn.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    this.handleFilterChange(e.target, filterButtons);
+                }
+                // Arrow key navigation
+                else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    this.navigateFilterButtons(e.target, e.key === 'ArrowRight', filterButtons);
+                }
             });
         });
 
@@ -762,6 +757,134 @@ class FamilyEventsApp {
         
         // Setup date tabs
         this.setupDateTabs();
+        
+        // Setup accessibility features
+        this.setupAccessibilityFeatures();
+    }
+    
+    // Handle filter button changes with accessibility support
+    handleFilterChange(targetButton, allButtons) {
+        // Remove active styling from all buttons
+        allButtons.forEach(button => {
+            button.classList.remove('active');
+            button.setAttribute('aria-pressed', 'false');
+            button.className = 'px-3 sm:px-4 lg:px-6 py-2 sm:py-2 bg-white text-gray-700 border border-gray-300 rounded-full text-sm lg:text-base font-medium hover:bg-gray-50 hover:border-blue-500 hover:text-blue-600 active:bg-gray-100 transition-all duration-200 ease-in-out transform hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:ring-offset-white focus:shadow-lg focus:shadow-blue-500/25 filter-btn touch-manipulation min-h-[44px]';
+        });
+        
+        // Add active styling to clicked button
+        targetButton.classList.add('active');
+        targetButton.setAttribute('aria-pressed', 'true');
+        targetButton.className = 'px-3 sm:px-4 lg:px-6 py-2 sm:py-2 bg-blue-600 text-white rounded-full text-sm lg:text-base font-medium hover:bg-blue-700 active:bg-blue-800 transition-all duration-200 ease-in-out transform hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:ring-offset-white focus:shadow-lg focus:shadow-blue-500/25 filter-btn active touch-manipulation min-h-[44px]';
+        
+        this.currentFilter = targetButton.dataset.filter;
+        this.renderContent();
+        
+        // Announce filter change to screen readers
+        this.announceToScreenReader(`Filter changed to ${targetButton.textContent}`);
+    }
+    
+    // Navigate filter buttons with arrow keys
+    navigateFilterButtons(currentButton, moveRight, allButtons) {
+        const buttons = Array.from(allButtons);
+        const currentIndex = buttons.indexOf(currentButton);
+        let nextIndex;
+        
+        if (moveRight) {
+            nextIndex = currentIndex + 1 >= buttons.length ? 0 : currentIndex + 1;
+        } else {
+            nextIndex = currentIndex - 1 < 0 ? buttons.length - 1 : currentIndex - 1;
+        }
+        
+        buttons[nextIndex].focus();
+    }
+    
+    // Setup additional accessibility features
+    setupAccessibilityFeatures() {
+        // Create ARIA live region for announcements
+        this.createAriaLiveRegion();
+        
+        // Add keyboard navigation for cards
+        this.setupCardKeyboardNavigation();
+        
+        // Setup focus management for detail page
+        this.setupDetailPageFocusManagement();
+        
+        // Add escape key handler for detail page
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.currentView === 'detail') {
+                this.router.navigate('');
+            }
+        });
+    }
+    
+    // Create ARIA live region for screen reader announcements
+    createAriaLiveRegion() {
+        if (document.getElementById('aria-live-region')) return;
+        
+        const liveRegion = document.createElement('div');
+        liveRegion.id = 'aria-live-region';
+        liveRegion.setAttribute('aria-live', 'polite');
+        liveRegion.setAttribute('aria-atomic', 'true');
+        liveRegion.className = 'sr-only';
+        document.body.appendChild(liveRegion);
+    }
+    
+    // Announce messages to screen readers
+    announceToScreenReader(message) {
+        const liveRegion = document.getElementById('aria-live-region');
+        if (liveRegion) {
+            liveRegion.textContent = message;
+            // Clear after announcement
+            setTimeout(() => {
+                liveRegion.textContent = '';
+            }, 1000);
+        }
+    }
+    
+    // Setup keyboard navigation for activity cards
+    setupCardKeyboardNavigation() {
+        document.addEventListener('keydown', (e) => {
+            if (this.currentView !== 'list') return;
+            
+            const cards = Array.from(document.querySelectorAll('.card[tabindex="0"]'));
+            const focusedCard = document.activeElement.closest('.card');
+            
+            if (!focusedCard || !cards.includes(focusedCard)) return;
+            
+            const currentIndex = cards.indexOf(focusedCard);
+            let nextIndex = -1;
+            
+            switch (e.key) {
+                case 'ArrowDown':
+                case 'ArrowRight':
+                    e.preventDefault();
+                    nextIndex = currentIndex + 1 >= cards.length ? 0 : currentIndex + 1;
+                    break;
+                case 'ArrowUp':
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    nextIndex = currentIndex - 1 < 0 ? cards.length - 1 : currentIndex - 1;
+                    break;
+                case 'Home':
+                    e.preventDefault();
+                    nextIndex = 0;
+                    break;
+                case 'End':
+                    e.preventDefault();
+                    nextIndex = cards.length - 1;
+                    break;
+            }
+            
+            if (nextIndex >= 0) {
+                cards[nextIndex].focus();
+            }
+        });
+    }
+    
+    // Setup focus management for detail page
+    setupDetailPageFocusManagement() {
+        // Store the last focused element before opening detail page
+        this.lastFocusedElement = null;
     }
 
     // Add manual refresh button
@@ -848,17 +971,26 @@ class FamilyEventsApp {
         
         if (items.length === 0) {
             contentGrid.innerHTML = `
-                <div class="no-results">
-                    <h3>No items found</h3>
-                    <p>Try adjusting your search or filter criteria.</p>
+                <div class="no-results col-span-full text-center py-12">
+                    <div class="max-w-md mx-auto">
+                        <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6-4h6m2 5.291A7.962 7.962 0 0112 15c-2.34 0-4.47-.881-6.08-2.33" />
+                        </svg>
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">No activities found</h3>
+                        <p class="text-gray-600">Try adjusting your search or filter criteria to find more activities.</p>
+                    </div>
                 </div>
             `;
+            this.announceToScreenReader(`No activities found. ${items.length} results.`);
             return;
         }
 
         contentGrid.innerHTML = items
             .map(item => this.createCardHTML(item, false))
             .join('');
+            
+        // Announce results to screen readers
+        this.announceToScreenReader(`${items.length} activities found.`);
     }
 
     // Create HTML for a single card
@@ -883,19 +1015,25 @@ class FamilyEventsApp {
             ? "text-gray-600 text-base mb-4 line-clamp-3 leading-relaxed"
             : "text-gray-600 text-sm mb-4 line-clamp-2 leading-relaxed";
         
+        const cardDescription = `${item.title}. ${item.description.substring(0, 100)}${item.description.length > 100 ? '...' : ''}. Location: ${item.location}. Price: ${item.price}. ${item.date}`;
+        
         return `
-            <div class="${cardClasses}" 
-                 data-id="${item.id}" role="button" tabindex="0" aria-label="View details for ${item.title}">
+            <article class="${cardClasses}" 
+                 data-id="${item.id}" 
+                 role="button" 
+                 tabindex="0" 
+                 aria-label="${cardDescription}"
+                 aria-describedby="card-${item.id}-desc">
                 <div class="relative overflow-hidden">
                     <img src="${item.image}" 
-                         alt="${item.title} activity" 
+                         alt="${item.title} activity image" 
                          class="${imageClasses}" 
                          loading="lazy" 
                          onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0xNzUgMTI1SDE0MFYxNzVIMTc1VjE1MEgyMjVWMTc1SDI2MFYxMjVIMjI1VjEwMEgxNzVWMTI1WiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4K'; this.onerror=null;">
-                    ${isFeatured ? '<div class="absolute top-3 left-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white px-2 py-1 rounded-full text-xs font-semibold">Featured</div>' : ''}
+                    ${isFeatured ? '<div class="absolute top-3 left-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white px-2 py-1 rounded-full text-xs font-semibold" aria-label="Featured activity">Featured</div>' : ''}
                 </div>
                 <div class="p-6">
-                    <span class="inline-flex items-center gap-1 px-3 py-1.5 ${categoryClass} text-xs font-semibold rounded-full mb-3 transition-all duration-200 group-hover:scale-105 shadow-sm">
+                    <span class="inline-flex items-center gap-1 px-3 py-1.5 ${categoryClass} text-xs font-semibold rounded-full mb-3 transition-all duration-200 group-hover:scale-105 shadow-sm" aria-label="Category: ${this.formatCategory(item.category)}">
                         ${this.formatCategory(item.category)}
                     </span>
                     <h3 class="${titleClasses} group-hover:text-blue-600 transition-colors duration-200">
@@ -1027,9 +1165,29 @@ class FamilyEventsApp {
         if (mainContainer) {
             mainContainer.style.display = 'block';
         }
-        document.getElementById('detailPage').classList.remove('show');
+        
+        const detailPage = document.getElementById('detailPage');
+        detailPage.classList.remove('show');
+        detailPage.removeAttribute('aria-modal');
+        detailPage.removeAttribute('role');
+        detailPage.removeAttribute('aria-labelledby');
+        
         setTimeout(() => {
-            document.getElementById('detailPage').style.display = 'none';
+            detailPage.style.display = 'none';
+            
+            // Restore focus to the previously focused element
+            if (this.lastFocusedElement && this.lastFocusedElement.isConnected) {
+                this.lastFocusedElement.focus();
+            } else {
+                // Fallback: focus the search input
+                const searchInput = document.getElementById('searchInput');
+                if (searchInput) {
+                    searchInput.focus();
+                }
+            }
+            
+            // Announce return to list view
+            this.announceToScreenReader('Returned to activities list');
         }, 300);
     }
     
@@ -1043,6 +1201,9 @@ class FamilyEventsApp {
             return;
         }
         
+        // Store the currently focused element for restoration later
+        this.lastFocusedElement = document.activeElement;
+        
         this.currentView = 'detail';
         this.renderDetailPage(item);
         
@@ -1053,7 +1214,20 @@ class FamilyEventsApp {
         }
         const detailPage = document.getElementById('detailPage');
         detailPage.style.display = 'block';
-        setTimeout(() => detailPage.classList.add('show'), 10);
+        detailPage.setAttribute('aria-modal', 'true');
+        detailPage.setAttribute('role', 'dialog');
+        detailPage.setAttribute('aria-labelledby', 'detailTitle');
+        
+        setTimeout(() => {
+            detailPage.classList.add('show');
+            // Focus the back button for keyboard navigation
+            const backButton = document.getElementById('breadcrumbBack');
+            if (backButton) {
+                backButton.focus();
+            }
+            // Announce page change to screen readers
+            this.announceToScreenReader(`Viewing details for ${item.title}`);
+        }, 10);
     }
     
     // Render the detail page content

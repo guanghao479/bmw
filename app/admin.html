@@ -28,40 +28,17 @@
     <link rel="stylesheet" href="styles.css">
     <style>
         /* Admin-specific styles */
-        .admin-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 2rem;
-        }
 
-        .admin-header {
-            text-align: center;
-            margin-bottom: 3rem;
-            padding-bottom: 2rem;
-            border-bottom: 2px solid var(--primary-color);
-        }
-
-        .admin-tabs {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 2rem;
-            border-bottom: 1px solid var(--border-color);
-        }
 
         .tab-button {
-            padding: 1rem 2rem;
             background: none;
             border: none;
-            border-bottom: 3px solid transparent;
             cursor: pointer;
-            font-weight: 600;
-            color: var(--text-secondary);
-            transition: all 0.3s ease;
         }
 
         .tab-button.active {
-            color: var(--primary-color);
-            border-bottom-color: var(--primary-color);
+            color: #2563eb !important;
+            border-bottom-color: #2563eb !important;
         }
 
         .tab-content {
@@ -72,54 +49,7 @@
             display: block;
         }
 
-        .form-section {
-            background: var(--card-background);
-            border-radius: 12px;
-            padding: 2rem;
-            margin-bottom: 2rem;
-            box-shadow: var(--shadow);
-        }
 
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        .form-group input,
-        .form-group textarea,
-        .form-group select {
-            width: 100%;
-            padding: 0.75rem;
-            border: 2px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 1rem;
-            transition: border-color 0.3s ease;
-            box-sizing: border-box;
-        }
-
-        .form-group input:focus,
-        .form-group textarea:focus,
-        .form-group select:focus {
-            outline: none;
-            border-color: var(--primary-color);
-        }
-
-        .form-group textarea {
-            min-height: 100px;
-            resize: vertical;
-        }
-
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-        }
 
         .hint-urls {
             margin-top: 1rem;
@@ -136,17 +66,22 @@
         }
 
         .btn-remove {
-            background: var(--error-color);
+            background: #dc2626;
             color: white;
             border: none;
             border-radius: 6px;
             padding: 0.5rem 1rem;
             cursor: pointer;
             font-size: 0.9rem;
+            transition: background-color 0.2s;
+        }
+
+        .btn-remove:hover {
+            background: #b91c1c;
         }
 
         .btn-add {
-            background: var(--primary-color);
+            background: #2563eb;
             color: white;
             border: none;
             border-radius: 6px;
@@ -154,88 +89,69 @@
             cursor: pointer;
             font-size: 0.9rem;
             margin-top: 0.5rem;
+            transition: background-color 0.2s;
         }
 
-        .btn-primary {
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 1rem 2rem;
-            font-size: 1.1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            min-width: 200px;
-        }
-
-        .btn-primary:hover {
-            background: var(--primary-dark);
-            transform: translateY(-2px);
-        }
-
-        .btn-primary:disabled {
-            background: var(--text-secondary);
-            cursor: not-allowed;
-            transform: none;
+        .btn-add:hover {
+            background: #1d4ed8;
         }
 
         .status-badge {
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
             padding: 0.25rem 0.75rem;
-            border-radius: 16px;
-            font-size: 0.85rem;
-            font-weight: 600;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
 
         .status-pending {
-            background: #fef3c7;
+            background-color: #fef3c7;
             color: #92400e;
         }
 
         .status-analyzing {
-            background: #dbeafe;
+            background-color: #dbeafe;
             color: #1d4ed8;
         }
 
         .status-complete {
-            background: #d1fae5;
+            background-color: #d1fae5;
             color: #065f46;
         }
 
         .status-rejected {
-            background: #fee2e2;
+            background-color: #fee2e2;
             color: #dc2626;
         }
 
-        .sources-grid {
-            display: grid;
-            gap: 1rem;
-        }
-
         .source-card {
-            background: var(--card-background);
-            border-radius: 12px;
+            background: white;
+            border-radius: 0.75rem;
             padding: 1.5rem;
-            box-shadow: var(--shadow);
-            transition: transform 0.3s ease;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            transition: all 0.3s ease;
+            border: 1px solid #e5e7eb;
         }
 
         .source-card:hover {
             transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
 
         .source-header {
             display: flex;
-            justify-content: between;
+            justify-content: space-between;
             align-items: center;
             margin-bottom: 1rem;
         }
 
         .source-title {
-            font-size: 1.2rem;
+            font-size: 1.125rem;
             font-weight: 600;
-            color: var(--text-primary);
+            color: #111827;
         }
 
         .source-meta {
@@ -246,188 +162,282 @@
         }
 
         .meta-item {
-            font-size: 0.9rem;
-            color: var(--text-secondary);
+            font-size: 0.875rem;
+            color: #6b7280;
         }
 
         .meta-label {
             font-weight: 600;
-            color: var(--text-primary);
+            color: #374151;
         }
 
         .alert {
             padding: 1rem;
-            border-radius: 8px;
+            border-radius: 0.5rem;
             margin-bottom: 1rem;
+            border: 1px solid;
         }
 
         .alert-success {
-            background: #d1fae5;
+            background-color: #d1fae5;
             color: #065f46;
-            border: 1px solid #a7f3d0;
+            border-color: #a7f3d0;
         }
 
         .alert-error {
-            background: #fee2e2;
+            background-color: #fee2e2;
             color: #dc2626;
-            border: 1px solid #fca5a5;
+            border-color: #fca5a5;
         }
 
         .alert-info {
-            background: #dbeafe;
+            background-color: #dbeafe;
             color: #1d4ed8;
-            border: 1px solid #93c5fd;
+            border-color: #93c5fd;
         }
 
-        .form-group input.error,
-        .form-group textarea.error,
-        .form-group select.error {
-            border-color: var(--error-color);
-            background-color: #fef2f2;
+        .alert-warning {
+            background-color: #fef3c7;
+            color: #92400e;
+            border-color: #fcd34d;
+        }
+
+        .form-input.error {
+            border-color: #dc2626 !important;
+            background-color: #fef2f2 !important;
         }
 
         .field-error {
-            color: var(--error-color);
-            font-size: 0.85rem;
+            color: #dc2626;
+            font-size: 0.875rem;
             margin-top: 0.25rem;
         }
 
-        @media (max-width: 768px) {
-            .admin-container {
-                padding: 1rem;
-            }
-
-            .form-row {
-                grid-template-columns: 1fr;
-            }
-
-            .admin-tabs {
+        /* Mobile-first responsive design for admin interface */
+        @media (max-width: 640px) {
+            .max-w-7xl nav {
                 flex-direction: column;
             }
 
             .tab-button {
                 text-align: left;
-                border-bottom: none;
+                border-bottom: none !important;
                 border-left: 3px solid transparent;
+                padding-left: 1rem;
             }
 
             .tab-button.active {
-                border-left-color: var(--primary-color);
-                border-bottom: none;
+                border-left-color: #2563eb !important;
+                border-bottom: none !important;
+            }
+        }
+
+        /* Enhanced layouts for larger screens */
+        @media (min-width: 1024px) {
+            .source-card {
+                transition: all 0.3s ease;
+            }
+            
+            .source-card:hover {
+                transform: translateY(-4px);
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            }
+            
+            .source-meta {
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 1.5rem;
+            }
+        }
+
+        @media (min-width: 1280px) {
+            .source-meta {
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: 2rem;
             }
         }
     </style>
 </head>
 <body>
-    <div class="admin-container">
-        <header class="admin-header">
-            <h1>Seattle Family Activities</h1>
-            <h2>Source Management Admin</h2>
-            <p>Submit and manage Seattle family activity sources for automated scraping</p>
+    <!-- Skip Links for Keyboard Navigation -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <a href="#tab-navigation" class="skip-link">Skip to navigation</a>
+    <a href="#form-section" class="skip-link">Skip to form</a>
+    
+    <div>
+        <header class="bg-white shadow-sm border-b border-gray-200">
+            <div class="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6">
+                <div class="text-center">
+                    <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Seattle Family Activities</h1>
+                    <h2 class="text-lg sm:text-xl font-semibold text-blue-600 mb-2 sm:mb-3">Source Management Admin</h2>
+                    <p class="text-sm sm:text-base text-gray-600 max-w-2xl mx-auto px-2 sm:px-0">Submit and manage Seattle family activity sources for automated scraping</p>
+                </div>
+            </div>
         </header>
 
-        <div class="admin-tabs">
-            <button class="tab-button active" data-tab="sources">Source Management</button>
-            <button class="tab-button" data-tab="crawling">Event Crawling</button>
+        <div class="bg-white border-b border-gray-200">
+            <div class="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
+                <nav id="tab-navigation" class="flex flex-col sm:flex-row sm:space-x-8" aria-label="Tabs" role="tablist">
+                    <button class="tab-button py-3 sm:py-4 px-1 border-b-2 sm:border-b-2 border-blue-500 text-blue-600 font-medium text-sm whitespace-nowrap touch-manipulation min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:ring-offset-white focus:shadow-lg focus:shadow-blue-500/25" data-tab="sources" role="tab" aria-selected="true" aria-controls="sources-tab" tabindex="0">
+                        Source Management
+                    </button>
+                    <button class="tab-button py-3 sm:py-4 px-1 border-b-2 sm:border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm whitespace-nowrap transition-colors duration-200 touch-manipulation min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:ring-offset-white focus:shadow-lg focus:shadow-blue-500/25" data-tab="crawling" role="tab" aria-selected="false" aria-controls="crawling-tab" tabindex="-1">
+                        Event Crawling
+                    </button>
+                </nav>
+            </div>
         </div>
 
         <!-- Tab 1: Source Management -->
-        <div class="tab-content active" id="sources-tab">
-            <div class="form-section">
-                <h3>Source Management & Analytics</h3>
-                <p>Monitor and manage active sources with real-time performance metrics.</p>
+        <div class="tab-content active" id="sources-tab" role="tabpanel" aria-labelledby="sources-tab-button">
+            <div id="main-content" class="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+                <div class="bg-white shadow rounded-lg p-4 sm:p-6 mb-6 sm:mb-8">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Source Management & Analytics</h3>
+                    <p class="text-gray-600 mb-6">Monitor and manage active sources with real-time performance metrics.</p>
 
-                <!-- Analytics Overview -->
-                <div id="analytics-overview">
-                    <div class="alert alert-info">
-                        Loading analytics overview...
+                    <!-- Analytics Overview -->
+                    <div id="analytics-overview">
+                        <div class="bg-blue-50 border border-blue-200 rounded-md p-4 mb-6">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm text-blue-700">Loading analytics overview...</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Active Sources with Enhanced Data -->
-                <div id="active-sources" class="sources-grid">
-                    <div class="alert alert-info">
-                        Loading active sources...
+                    <!-- Active Sources with Enhanced Data -->
+                    <div id="active-sources" class="space-y-4">
+                        <div class="bg-blue-50 border border-blue-200 rounded-md p-4">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm text-blue-700">Loading active sources...</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Tab 2: Event Crawling -->
-        <div class="tab-content" id="crawling-tab">
-            <div class="form-section">
-                <h3>Extract Events from Websites</h3>
-                <p>Submit any website URL to extract events, activities, or venues using Firecrawl's AI-powered extraction.</p>
+        <div class="tab-content" id="crawling-tab" role="tabpanel" aria-labelledby="crawling-tab-button">
+            <div class="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+                <div class="bg-white shadow rounded-lg p-4 sm:p-6 mb-6 sm:mb-8">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Extract Events from Websites</h3>
+                    <p class="text-gray-600 mb-6">Submit any website URL to extract events, activities, or venues using Firecrawl's AI-powered extraction.</p>
 
-                <form id="crawling-form">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="crawl-url">Website URL *</label>
-                            <input type="url" id="crawl-url" name="url" required
-                                   placeholder="https://example.com/events">
+                    <form id="crawling-form" class="space-y-6" role="form" aria-label="Event extraction form">
+                        <fieldset id="form-section" class="space-y-6">
+                            <legend class="sr-only">Event extraction form fields</legend>
+                        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
+                            <div>
+                                <label for="crawl-url" class="block text-sm font-medium text-gray-700 mb-2">Website URL *</label>
+                                <input type="url" id="crawl-url" name="url" required
+                                       placeholder="https://example.com/events"
+                                       class="w-full px-3 py-3 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-600 focus:border-blue-600 focus:shadow-lg focus:shadow-blue-500/25 transition-colors touch-manipulation text-base"
+                                       aria-describedby="crawl-url-help">
+                                <div id="crawl-url-help" class="sr-only">Enter the full URL of the website you want to extract events from</div>
+                            </div>
+                            <div>
+                                <label for="schema-type" class="block text-sm font-medium text-gray-700 mb-2">Extraction Schema *</label>
+                                <select id="schema-type" name="schema_type" required
+                                        class="w-full px-3 py-3 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-600 focus:border-blue-600 focus:shadow-lg focus:shadow-blue-500/25 transition-colors touch-manipulation text-base"
+                                        aria-describedby="schema-type-help">
+                                    <option value="">Select extraction type...</option>
+                                    <option value="events">Events (title, date, location, price)</option>
+                                    <option value="activities">Activities (name, age groups, duration)</option>
+                                    <option value="venues">Venues (name, address, facilities)</option>
+                                    <option value="custom">Custom Schema (provide JSON)</option>
+                                </select>
+                                <div id="schema-type-help" class="sr-only">Choose the type of content you want to extract from the website</div>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="schema-type">Extraction Schema *</label>
-                            <select id="schema-type" name="schema_type" required>
-                                <option value="">Select extraction type...</option>
-                                <option value="events">Events (title, date, location, price)</option>
-                                <option value="activities">Activities (name, age groups, duration)</option>
-                                <option value="venues">Venues (name, address, facilities)</option>
-                                <option value="custom">Custom Schema (provide JSON)</option>
-                            </select>
+
+                        <div id="schema-preview" style="display: none;">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Schema Preview</label>
+                            <div id="schema-preview-content" class="bg-gray-50 p-4 rounded-md font-mono text-sm text-gray-700 border">
+                                Select a schema type to see what fields will be extracted...
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="form-group" id="schema-preview" style="display: none;">
-                        <label>Schema Preview</label>
-                        <div id="schema-preview-content" style="background: #f8f9fa; padding: 1rem; border-radius: 8px; font-family: monospace; font-size: 0.9rem; color: #495057;">
-                            Select a schema type to see what fields will be extracted...
+                        <div id="custom-schema-group" style="display: none;">
+                            <label for="custom-schema" class="block text-sm font-medium text-gray-700 mb-2">Custom Extraction Schema</label>
+                            <p class="text-sm text-gray-600 mb-2">
+                                Provide a JSON Schema for custom extraction. Must include 'type' and 'properties' fields.
+                            </p>
+                            <textarea id="custom-schema" name="custom_schema" rows="8" 
+                                      placeholder='{"type": "object", "properties": {"items": {"type": "array", "items": {"type": "object", "properties": {"title": {"type": "string"}, "description": {"type": "string"}}}}}}'
+                                      class="w-full px-3 py-3 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-600 focus:border-blue-600 focus:shadow-lg focus:shadow-blue-500/25 transition-colors font-mono text-sm touch-manipulation"
+                                      aria-describedby="custom-schema-help"></textarea>
+                            <div id="custom-schema-help" class="sr-only">Enter a valid JSON schema for custom data extraction</div>
                         </div>
-                    </div>
 
-                    <div class="form-group" id="custom-schema-group" style="display: none;">
-                        <label for="custom-schema">Custom Extraction Schema</label>
-                        <p style="margin-bottom: 0.5rem; color: var(--text-secondary); font-size: 0.9rem;">
-                            Provide a JSON Schema for custom extraction. Must include 'type' and 'properties' fields.
-                        </p>
-                        <textarea id="custom-schema" name="custom_schema" rows="10"
-                                  placeholder='{"type": "object", "properties": {"items": {"type": "array", "items": {"type": "object", "properties": {"title": {"type": "string"}, "description": {"type": "string"}}}}}}'></textarea>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="crawl-user">Your Email *</label>
-                            <input type="email" id="crawl-user" name="extracted_by_user" required
-                                   placeholder="admin@seattlefamilyactivities.com">
+                        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
+                            <div>
+                                <label for="crawl-user" class="block text-sm font-medium text-gray-700 mb-2">Your Email *</label>
+                                <input type="email" id="crawl-user" name="extracted_by_user" required
+                                       placeholder="admin@seattlefamilyactivities.com"
+                                       class="w-full px-3 py-3 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-600 focus:border-blue-600 focus:shadow-lg focus:shadow-blue-500/25 transition-colors touch-manipulation text-base"
+                                       aria-describedby="crawl-user-help">
+                                <div id="crawl-user-help" class="sr-only">Enter your email address for tracking extraction requests</div>
+                            </div>
+                            <div>
+                                <label for="crawl-notes" class="block text-sm font-medium text-gray-700 mb-2">Notes (Optional)</label>
+                                <input type="text" id="crawl-notes" name="admin_notes"
+                                       placeholder="Quick extraction for testing..."
+                                       class="w-full px-3 py-3 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-600 focus:border-blue-600 focus:shadow-lg focus:shadow-blue-500/25 transition-colors touch-manipulation text-base"
+                                       aria-describedby="crawl-notes-help">
+                                <div id="crawl-notes-help" class="sr-only">Optional notes about this extraction request</div>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="crawl-notes">Notes (Optional)</label>
-                            <input type="text" id="crawl-notes" name="admin_notes"
-                                   placeholder="Quick extraction for testing...">
+
+                        <div class="flex justify-start">
+                            <button type="submit" class="bg-blue-600 text-white px-6 py-3 rounded-md font-medium hover:bg-blue-700 focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:ring-offset-white focus:shadow-lg focus:shadow-blue-500/25 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed touch-manipulation min-h-[44px]" id="crawl-submit-btn" aria-describedby="submit-help">
+                                Extract Events
+                            </button>
+                            <div id="submit-help" class="sr-only">Submit the form to start extracting events from the specified website</div>
                         </div>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary" id="crawl-submit-btn">
-                        Extract Events
-                    </button>
-                </form>
-            </div>
-
-            <!-- Pending Events Review Section -->
-            <div class="form-section">
-                <h3>Pending Events Review</h3>
-                <p>Review and approve extracted events before they appear on the frontend.</p>
-
-                <div style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center;">
-                    <button class="btn btn-secondary" onclick="loadPendingEvents()">Refresh</button>
-                    <span id="pending-count" style="color: var(--text-secondary); font-size: 0.9rem;">
-                        Loading pending events...
-                    </span>
+                        </fieldset>
+                    </form>
                 </div>
 
-                <div id="pending-events-container">
-                    <div class="alert alert-info">
-                        Loading pending events...
+                <!-- Pending Events Review Section -->
+                <div class="bg-white shadow rounded-lg p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Pending Events Review</h3>
+                    <p class="text-gray-600 mb-6">Review and approve extracted events before they appear on the frontend.</p>
+
+                    <div class="flex items-center gap-4 mb-6">
+                        <button class="bg-gray-600 text-white px-4 py-3 rounded-md font-medium hover:bg-gray-700 focus:ring-2 focus:ring-gray-600 focus:ring-offset-2 focus:ring-offset-white focus:shadow-lg focus:shadow-gray-500/25 transition-colors touch-manipulation min-h-[44px]" onclick="loadPendingEvents()" aria-label="Refresh pending events list">
+                            Refresh
+                        </button>
+                        <span id="pending-count" class="text-sm text-gray-600">
+                            Loading pending events...
+                        </span>
+                    </div>
+
+                    <div id="pending-events-container">
+                        <div class="bg-blue-50 border border-blue-200 rounded-md p-4">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm text-blue-700">Loading pending events...</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

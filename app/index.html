@@ -59,37 +59,47 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Skip Links for Keyboard Navigation -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <a href="#search-section" class="skip-link">Skip to search</a>
+    <a href="#filter-section" class="skip-link">Skip to filters</a>
+    
+    <div class="max-w-7xl xl:max-w-8xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8 xl:py-12">
         <!-- Header -->
-        <header class="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-16 px-4 text-center rounded-2xl mb-8 shadow-lg">
+        <header class="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-8 sm:py-12 md:py-16 px-3 sm:px-4 text-center rounded-xl sm:rounded-2xl mb-6 sm:mb-8 shadow-lg">
             <div class="max-w-4xl mx-auto">
-                <h1 class="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 leading-tight">Local Family Events</h1>
-                <p class="text-xl md:text-2xl text-blue-100 max-w-2xl mx-auto leading-relaxed">Discover amazing activities and venues for your family</p>
+                <h1 class="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-3 sm:mb-4 leading-tight">Local Family Events</h1>
+                <p class="text-lg sm:text-xl md:text-2xl text-blue-100 max-w-2xl mx-auto leading-relaxed px-2 sm:px-0">Discover amazing activities and venues for your family</p>
             </div>
         </header>
 
         <!-- Search and Filter Bar -->
-        <section class="bg-white shadow-lg rounded-2xl p-6 -mt-8 relative z-10 max-w-4xl mx-auto mb-8" aria-label="Search and filter activities">
-            <div class="space-y-4">
+        <section id="search-section" class="bg-white shadow-lg rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 -mt-4 sm:-mt-6 md:-mt-8 relative z-10 max-w-4xl lg:max-w-5xl xl:max-w-6xl mx-auto mb-6 sm:mb-8 lg:mb-12" aria-label="Search and filter activities">
+            <div class="space-y-3 sm:space-y-4">
                 <label for="searchInput" class="sr-only">Search activities</label>
                 <input type="text" id="searchInput" placeholder="Search events, activities..." 
-                       class="w-full px-4 py-3 border border-gray-300 rounded-lg text-base font-medium bg-gray-50 text-gray-900 placeholder-gray-500 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white focus:shadow-sm" 
-                       aria-label="Search events, activities, and venues">
-                <div class="flex flex-wrap gap-2 justify-center" role="group" aria-label="Filter activities by category">
-                    <button class="px-4 py-2 bg-blue-600 text-white rounded-full text-sm font-medium hover:bg-blue-700 active:bg-blue-800 transition-all duration-200 ease-in-out transform hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 filter-btn active" data-filter="all" aria-pressed="true">All</button>
-                    <button class="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-full text-sm font-medium hover:bg-gray-50 hover:border-blue-500 hover:text-blue-600 active:bg-gray-100 transition-all duration-200 ease-in-out transform hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 filter-btn" data-filter="events" aria-pressed="false">Events</button>
-                    <button class="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-full text-sm font-medium hover:bg-gray-50 hover:border-blue-500 hover:text-blue-600 active:bg-gray-100 transition-all duration-200 ease-in-out transform hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 filter-btn" data-filter="activities" aria-pressed="false">Activities</button>
-                    <button class="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-full text-sm font-medium hover:bg-gray-50 hover:border-blue-500 hover:text-blue-600 active:bg-gray-100 transition-all duration-200 ease-in-out transform hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 filter-btn" data-filter="venues" aria-pressed="false">Venues</button>
+                       class="w-full px-3 sm:px-4 py-3 sm:py-3 border border-gray-300 rounded-lg text-base font-medium bg-gray-50 text-gray-900 placeholder-gray-500 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 focus:bg-white focus:shadow-lg focus:shadow-blue-500/25 touch-manipulation" 
+                       aria-label="Search events, activities, and venues"
+                       role="searchbox"
+                       aria-describedby="search-help">
+                <div id="filter-section" class="flex flex-wrap gap-2 justify-center lg:justify-start xl:justify-center" role="group" aria-label="Filter activities by category">
+                    <button class="px-3 sm:px-4 lg:px-6 py-2 sm:py-2 bg-blue-600 text-white rounded-full text-sm lg:text-base font-medium hover:bg-blue-700 active:bg-blue-800 transition-all duration-200 ease-in-out transform hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:ring-offset-white focus:shadow-lg focus:shadow-blue-500/25 filter-btn active touch-manipulation min-h-[44px]" data-filter="all" aria-pressed="true">All</button>
+                    <button class="px-3 sm:px-4 lg:px-6 py-2 sm:py-2 bg-white text-gray-700 border border-gray-300 rounded-full text-sm lg:text-base font-medium hover:bg-gray-50 hover:border-blue-500 hover:text-blue-600 active:bg-gray-100 transition-all duration-200 ease-in-out transform hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:ring-offset-white focus:shadow-lg focus:shadow-blue-500/25 filter-btn touch-manipulation min-h-[44px]" data-filter="events" aria-pressed="false">Events</button>
+                    <button class="px-3 sm:px-4 lg:px-6 py-2 sm:py-2 bg-white text-gray-700 border border-gray-300 rounded-full text-sm lg:text-base font-medium hover:bg-gray-50 hover:border-blue-500 hover:text-blue-600 active:bg-gray-100 transition-all duration-200 ease-in-out transform hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:ring-offset-white focus:shadow-lg focus:shadow-blue-500/25 filter-btn touch-manipulation min-h-[44px]" data-filter="activities" aria-pressed="false">Activities</button>
+                    <button class="px-3 sm:px-4 lg:px-6 py-2 sm:py-2 bg-white text-gray-700 border border-gray-300 rounded-full text-sm lg:text-base font-medium hover:bg-gray-50 hover:border-blue-500 hover:text-blue-600 active:bg-gray-100 transition-all duration-200 ease-in-out transform hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:ring-offset-white focus:shadow-lg focus:shadow-blue-500/25 filter-btn touch-manipulation min-h-[44px]" data-filter="venues" aria-pressed="false">Venues</button>
                 </div>
+                <div id="search-help" class="sr-only">Use the search box to find specific activities, or use the filter buttons to browse by category</div>
             </div>
         </section>
 
         <!-- Date Tabs Navigation -->
-        <section class="my-6 mb-4" aria-label="Filter activities by date">
-            <div class="flex items-center gap-2 max-w-full relative">
-                <button class="flex-shrink-0 bg-white border border-gray-200 rounded-lg px-3 py-2 text-lg text-gray-600 cursor-pointer transition-all duration-200 hover:bg-gray-100 hover:text-gray-900 hover:-translate-y-0.5 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 z-10" 
+        <section class="my-4 sm:my-6 lg:my-8 mb-3 sm:mb-4 lg:mb-6" aria-label="Filter activities by date">
+            <div class="flex items-center gap-1 sm:gap-2 lg:gap-3 max-w-full relative">
+                <button class="flex-shrink-0 bg-white border border-gray-200 rounded-lg px-2 sm:px-3 py-2 text-lg text-gray-600 cursor-pointer transition-all duration-200 hover:bg-gray-100 hover:text-gray-900 hover:-translate-y-0.5 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:ring-offset-white focus:shadow-lg focus:shadow-blue-500/25 z-10 touch-manipulation min-h-[44px] min-w-[44px]" 
                        id="datePrevBtn" 
-                       aria-label="Previous dates">‹</button>
+                       aria-label="Previous dates"
+                       role="button"
+                       tabindex="0">‹</button>
                 <div class="flex-1 overflow-x-auto overflow-y-hidden scrollbar-hide" 
                      id="dateTabsScroll" 
                      role="tablist" 
@@ -99,15 +109,17 @@
                         <!-- Date tabs will be generated dynamically -->
                     </div>
                 </div>
-                <button class="flex-shrink-0 bg-white border border-gray-200 rounded-lg px-3 py-2 text-lg text-gray-600 cursor-pointer transition-all duration-200 hover:bg-gray-100 hover:text-gray-900 hover:-translate-y-0.5 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 z-10" 
+                <button class="flex-shrink-0 bg-white border border-gray-200 rounded-lg px-2 sm:px-3 py-2 text-lg text-gray-600 cursor-pointer transition-all duration-200 hover:bg-gray-100 hover:text-gray-900 hover:-translate-y-0.5 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:ring-offset-white focus:shadow-lg focus:shadow-blue-500/25 z-10 touch-manipulation min-h-[44px] min-w-[44px]" 
                        id="dateNextBtn" 
-                       aria-label="Next dates">›</button>
+                       aria-label="Next dates"
+                       role="button"
+                       tabindex="0">›</button>
             </div>
         </section>
 
         <!-- Main Content Grid -->
-        <main class="main-content" role="main" aria-label="Family activities and events">
-            <div class="content-grid" id="contentGrid">
+        <main id="main-content" class="main-content" role="main" aria-label="Family activities and events">
+            <div class="content-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6" id="contentGrid">
                 <!-- Dynamic content will be loaded here -->
             </div>
         </main>
@@ -121,11 +133,11 @@
 
     <!-- Activity Detail Page -->
     <div class="detail-page" id="detailPage" style="display: none;" role="dialog" aria-labelledby="detailTitle" aria-modal="true">
-        <div class="detail-container">
+        <div class="detail-container px-3 sm:px-4 md:px-6 lg:px-8">
             <!-- Modern Breadcrumb Navigation -->
-            <nav class="mb-6" aria-label="Breadcrumb navigation">
-                <button class="inline-flex items-center gap-2 px-4 py-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all duration-200 ease-in-out font-medium text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 group" id="breadcrumbBack" aria-label="Go back to activities list">
-                    <svg class="w-4 h-4 transition-transform duration-200 group-hover:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <nav class="mb-4 sm:mb-6" aria-label="Breadcrumb navigation">
+                <button class="inline-flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all duration-200 ease-in-out font-medium text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:ring-offset-white focus:shadow-lg focus:shadow-blue-500/25 group touch-manipulation min-h-[44px]" id="breadcrumbBack" aria-label="Go back to activities list" role="button" tabindex="0">
+                    <svg class="w-4 h-4 transition-transform duration-200 group-hover:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                     </svg>
                     <span>Back to Activities</span>
@@ -140,7 +152,7 @@
     </div>
 
     <!-- Admin Link -->
-    <a href="admin.html" class="admin-link" title="Admin Dashboard">⚙️</a>
+    <a href="admin.html" class="admin-link touch-manipulation focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:ring-offset-white focus:shadow-lg focus:shadow-blue-500/25" title="Admin Dashboard" aria-label="Go to admin dashboard">⚙️</a>
 
     <script src="script.js"></script>
 </body>
