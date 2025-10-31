@@ -1068,7 +1068,7 @@ class FamilyEventsApp {
                         </div>
                     </div>
                 </div>
-            </div>
+            </article>
         `;
     }
 
