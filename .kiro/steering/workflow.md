@@ -90,6 +90,59 @@ The repository uses these automated workflows:
 - **Backend deployment**: CDK deployment via AWS OIDC authentication
 - **Testing**: Automated test runs on pull requests and main branch
 
+## Visual Testing Guidelines
+
+When implementing frontend changes or features that affect the user interface, perform visual testing using local development servers:
+
+### When to Perform Visual Testing
+
+- **UI/UX changes**: Any modifications to HTML, CSS, or JavaScript that affect visual appearance
+- **Responsive design**: Changes that impact mobile, tablet, or desktop layouts
+- **Interactive features**: New buttons, forms, navigation, or user interactions
+- **Cross-browser compatibility**: Ensuring consistent behavior across different browsers
+- **Admin interface changes**: Updates to admin.html or admin.js functionality
+
+### Visual Testing Process
+
+1. **Start Development Servers**:
+   ```bash
+   # Start both frontend and backend for full functionality testing
+   make dev
+   
+   # Or start individually if needed
+   make dev-frontend  # Frontend only (port 8000)
+   make dev-backend   # Backend only (for API testing)
+   ```
+
+2. **Test Scenarios**:
+   - **Main Application**: Navigate to `http://localhost:8000` to test the main interface
+   - **Admin Interface**: Navigate to `http://localhost:8000/admin.html` to test admin functionality
+   - **Mobile Responsiveness**: Use browser dev tools to test different screen sizes
+   - **Cross-browser Testing**: Test in Chrome, Firefox, Safari, and Edge when possible
+
+3. **Validation Checklist**:
+   - [ ] Layout renders correctly on desktop (1920x1080)
+   - [ ] Mobile layout works properly (375x667 iPhone SE)
+   - [ ] Tablet layout functions correctly (768x1024 iPad)
+   - [ ] All interactive elements respond appropriately
+   - [ ] Forms submit and validate correctly
+   - [ ] Navigation works as expected
+   - [ ] Loading states display properly
+   - [ ] Error states are handled gracefully
+
+4. **Stop Development Servers**:
+   ```bash
+   # Stop servers when testing is complete
+   # Use Ctrl+C in the terminal where make dev is running
+   ```
+
+### Integration with Development Workflow
+
+- **Before committing**: Always perform visual testing for UI-related changes
+- **After backend changes**: Test admin interface functionality if API changes affect it
+- **Before deployment**: Final visual verification using local servers
+- **Post-deployment**: Verify changes on GitHub Pages URL
+
 ## Emergency Procedures
 
 If deployment is completely broken:
