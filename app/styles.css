@@ -101,31 +101,12 @@
     transform: translateX(0);
 }
 
-/* Admin Link */
-.admin-link {
-    position: fixed;
-    bottom: 16px;
-    right: 16px;
-    width: 48px;
-    height: 48px;
-    background: #6366f1;
-    color: white;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-decoration: none;
-    font-size: 18px;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-    transition: all 0.3s ease;
-    z-index: 1000;
-    opacity: 0.8;
-    touch-action: manipulation;
+/* Scrollbar hide utility for filter navigation */
+.scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
 
-.admin-link:hover {
-    background: #4f46e5;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
-    opacity: 1;
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
 }
