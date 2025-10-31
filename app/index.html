@@ -43,6 +43,13 @@
                             display: '-webkit-box',
                             '-webkit-box-orient': 'vertical',
                             '-webkit-line-clamp': '3',
+                        },
+                        '.scrollbar-hide': {
+                            'scrollbar-width': 'none',
+                            '-ms-overflow-style': 'none',
+                        },
+                        '.scrollbar-hide::-webkit-scrollbar': {
+                            display: 'none',
                         }
                     })
                 }
@@ -78,15 +85,23 @@
         </section>
 
         <!-- Date Tabs Navigation -->
-        <section class="date-tabs-section" aria-label="Filter activities by date">
-            <div class="date-tabs-container">
-                <button class="date-nav-btn prev" id="datePrevBtn" aria-label="Previous dates">‹</button>
-                <div class="date-tabs-scroll" id="dateTabsScroll" role="tablist" aria-label="Select date to filter activities">
-                    <div class="date-tabs" id="dateTabs">
+        <section class="my-6 mb-4" aria-label="Filter activities by date">
+            <div class="flex items-center gap-2 max-w-full relative">
+                <button class="flex-shrink-0 bg-white border border-gray-200 rounded-lg px-3 py-2 text-lg text-gray-600 cursor-pointer transition-all duration-200 hover:bg-gray-100 hover:text-gray-900 hover:-translate-y-0.5 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 z-10" 
+                       id="datePrevBtn" 
+                       aria-label="Previous dates">‹</button>
+                <div class="flex-1 overflow-x-auto overflow-y-hidden scrollbar-hide" 
+                     id="dateTabsScroll" 
+                     role="tablist" 
+                     aria-label="Select date to filter activities"
+                     style="scroll-behavior: smooth; scrollbar-width: none; -ms-overflow-style: none;">
+                    <div class="flex gap-1 py-1 min-w-min" id="dateTabs">
                         <!-- Date tabs will be generated dynamically -->
                     </div>
                 </div>
-                <button class="date-nav-btn next" id="dateNextBtn" aria-label="Next dates">›</button>
+                <button class="flex-shrink-0 bg-white border border-gray-200 rounded-lg px-3 py-2 text-lg text-gray-600 cursor-pointer transition-all duration-200 hover:bg-gray-100 hover:text-gray-900 hover:-translate-y-0.5 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 z-10" 
+                       id="dateNextBtn" 
+                       aria-label="Next dates">›</button>
             </div>
         </section>
 
@@ -107,10 +122,13 @@
     <!-- Activity Detail Page -->
     <div class="detail-page" id="detailPage" style="display: none;" role="dialog" aria-labelledby="detailTitle" aria-modal="true">
         <div class="detail-container">
-            <!-- Breadcrumb Navigation -->
-            <nav class="breadcrumb" aria-label="Breadcrumb navigation">
-                <button class="breadcrumb-back" id="breadcrumbBack" aria-label="Go back to activities list">
-                    ← Back to Activities
+            <!-- Modern Breadcrumb Navigation -->
+            <nav class="mb-6" aria-label="Breadcrumb navigation">
+                <button class="inline-flex items-center gap-2 px-4 py-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all duration-200 ease-in-out font-medium text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 group" id="breadcrumbBack" aria-label="Go back to activities list">
+                    <svg class="w-4 h-4 transition-transform duration-200 group-hover:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                    </svg>
+                    <span>Back to Activities</span>
                 </button>
             </nav>
 
