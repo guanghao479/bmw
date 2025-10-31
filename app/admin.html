@@ -276,19 +276,19 @@
 
         <div class="bg-white border-b border-gray-200">
             <div class="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
-                <nav id="tab-navigation" class="flex flex-col sm:flex-row sm:space-x-8" aria-label="Tabs" role="tablist">
+                <div id="tab-navigation" class="flex flex-col sm:flex-row sm:space-x-8" aria-label="Tabs" role="tablist">
                     <button class="tab-button py-3 sm:py-4 px-1 border-b-2 sm:border-b-2 border-blue-500 text-blue-600 font-medium text-sm whitespace-nowrap touch-manipulation min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:ring-offset-white focus:shadow-lg focus:shadow-blue-500/25" data-tab="sources" role="tab" aria-selected="true" aria-controls="sources-tab" tabindex="0">
                         Source Management
                     </button>
                     <button class="tab-button py-3 sm:py-4 px-1 border-b-2 sm:border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm whitespace-nowrap transition-colors duration-200 touch-manipulation min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:ring-offset-white focus:shadow-lg focus:shadow-blue-500/25" data-tab="crawling" role="tab" aria-selected="false" aria-controls="crawling-tab" tabindex="-1">
                         Event Crawling
                     </button>
-                </nav>
+                </div>
             </div>
         </div>
 
         <!-- Tab 1: Source Management -->
-        <div class="tab-content active" id="sources-tab" role="tabpanel" aria-labelledby="sources-tab-button">
+        <div class="tab-content active" id="sources-tab" role="tabpanel">
             <div id="main-content" class="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
                 <div class="bg-white shadow rounded-lg p-4 sm:p-6 mb-6 sm:mb-8">
                     <h3 class="text-lg font-semibold text-gray-900 mb-2">Source Management & Analytics</h3>
@@ -330,7 +330,7 @@
         </div>
 
         <!-- Tab 2: Event Crawling -->
-        <div class="tab-content" id="crawling-tab" role="tabpanel" aria-labelledby="crawling-tab-button">
+        <div class="tab-content" id="crawling-tab" role="tabpanel">
             <div class="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
                 <div class="bg-white shadow rounded-lg p-4 sm:p-6 mb-6 sm:mb-8">
                     <h3 class="text-lg font-semibold text-gray-900 mb-2">Extract Events from Websites</h3>
