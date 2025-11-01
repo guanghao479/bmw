@@ -47,6 +47,24 @@ class FamilyEventsApp {
         this.dateTabs = [];
         this.currentTabIndex = 0;
         
+        // Two-row filter state management
+        this.activeCategory = 'all'; // Top row: 'all', 'events', 'activities', 'venues'
+        this.expandedBottomFilter = 'none'; // Bottom row: 'none', 'search', 'date'
+        this.searchQuery = '';
+        this.dateRange = { start: null, end: null };
+        
+        // Category-specific filter configurations
+        this.categoryFilters = {
+            all: ['search', 'dates', 'ageGroup', 'price'],
+            events: ['search', 'dates', 'eventType', 'ageGroup'],
+            activities: ['search', 'dates', 'activityType', 'duration'],
+            venues: ['search', 'location', 'amenities', 'ageGroup']
+        };
+        
+        // Legacy compatibility
+        this.currentFilter = 'all';
+        this.expandedFilter = 'none';
+        
         this.init();
     }
 
@@ -252,10 +270,7 @@ class FamilyEventsApp {
         // Convert API response activities to legacy format for existing UI compatibility
         this.allData = data.activities.map(activity => this.convertToLegacyFormat(activity));
         
-        // Update date tabs when data changes
-        if (this.dateTabs && this.dateTabs.length > 0) {
-            this.updateDateTabsDisplay();
-        }
+        // Date filtering is now handled by the two-row filter system
     }
 
     // Convert new activity schema to legacy format
@@ -283,7 +298,8 @@ class FamilyEventsApp {
             'camp': 'activity', 
             'event': 'event',
             'performance': 'event',
-            'free-activity': 'activity'
+            'free-activity': 'activity',
+            'venue': 'venue'
         };
         return typeMap[type] || 'activity';
     }
@@ -697,35 +713,19 @@ class FamilyEventsApp {
 
     // Setup event listeners for interactivity
     setupEventListeners() {
-        // Search input
-        const searchInput = document.getElementById('searchInput');
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => {
-                this.searchTerm = e.target.value.toLowerCase();
-                this.renderContent();
-            });
-        }
+        // Search functionality is now handled by the two-row filter system
 
-        // Filter buttons
-        const filterButtons = document.querySelectorAll('.filter-btn');
-        filterButtons.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                this.handleFilterChange(e.target, filterButtons);
-            });
-            
-            // Add keyboard support for filter buttons
-            btn.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    this.handleFilterChange(e.target, filterButtons);
-                }
-                // Arrow key navigation
-                else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-                    e.preventDefault();
-                    this.navigateFilterButtons(e.target, e.key === 'ArrowRight', filterButtons);
-                }
-            });
-        });
+        // Setup two-row filter navigation
+        this.setupTwoRowFilterNavigation();
+        
+        // Setup category filter listeners (top row)
+        this.setupCategoryFilterListeners();
+        
+        // Setup bottom row filters
+        this.setupBottomRowFilters();
+        
+        // Initialize bottom row content
+        this.updateBottomRowFilters();
 
         // Card click interactions
         document.addEventListener('click', (e) => {
@@ -755,32 +755,48 @@ class FamilyEventsApp {
         // Add manual refresh button
         this.addRefreshButton();
         
-        // Setup date tabs
-        this.setupDateTabs();
+        // Date filtering is now handled by the two-row filter system
         
         // Setup accessibility features
         this.setupAccessibilityFeatures();
     }
     
-    // Handle filter button changes with accessibility support
+    // Handle filter button changes with accessibility support (Legacy compatibility)
     handleFilterChange(targetButton, allButtons) {
+        // This function maintains compatibility with any legacy filter buttons
+        // The new two-row system uses handleCategoryChange instead
+        
         // Remove active styling from all buttons
         allButtons.forEach(button => {
             button.classList.remove('active');
             button.setAttribute('aria-pressed', 'false');
-            button.className = 'inline-flex items-center px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-gray-100 text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 filter-btn touch-manipulation min-h-[44px] whitespace-nowrap';
+            button.className = 'inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 bg-gray-100 text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 filter-btn touch-manipulation min-h-[36px] whitespace-nowrap';
         });
         
         // Add active styling to clicked button
         targetButton.classList.add('active');
         targetButton.setAttribute('aria-pressed', 'true');
-        targetButton.className = 'inline-flex items-center px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-gray-900 text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 filter-btn active touch-manipulation min-h-[44px] whitespace-nowrap';
+        targetButton.className = 'inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 bg-gray-900 text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 filter-btn active touch-manipulation min-h-[36px] whitespace-nowrap';
         
+        // Update both legacy and new state
         this.currentFilter = targetButton.dataset.filter;
+        this.activeCategory = targetButton.dataset.filter; // Sync with two-row system
+        
+        // Update bottom row filters if using two-row system
+        if (document.getElementById('bottom-row-filters')) {
+            this.updateBottomRowFilters();
+        }
+        
+        // Update search placeholder if search filter is currently expanded
+        if (this.expandedFilter === 'search' || this.expandedBottomFilter === 'search') {
+            this.updateExpandedSearchPlaceholder();
+        }
+        
         this.renderContent();
         
-        // Announce filter change to screen readers
-        this.announceToScreenReader(`Filter changed to ${targetButton.textContent}`);
+        // Announce filter change to screen readers with category context
+        const categoryText = targetButton.textContent;
+        this.announceToScreenReader(`Filter changed to ${categoryText}. Search and date filters will now apply to ${categoryText.toLowerCase()}.`);
     }
     
     // Navigate filter buttons with arrow keys
@@ -796,6 +812,1228 @@ class FamilyEventsApp {
         }
         
         buttons[nextIndex].focus();
+        
+        // Scroll the focused button into view
+        this.scrollFilterButtonIntoView(buttons[nextIndex]);
+    }
+    
+    // Setup enhanced filter navigation with scroll indicators and smooth scrolling
+    setupFilterNavigation() {
+        const filterContainer = document.getElementById('filterScrollContainer');
+        const scrollFadeLeft = document.getElementById('scrollFadeLeft');
+        const scrollFadeRight = document.getElementById('scrollFadeRight');
+        
+        if (!filterContainer || !scrollFadeLeft || !scrollFadeRight) return;
+        
+        // Update scroll indicators based on scroll position
+        const updateScrollIndicators = () => {
+            const { scrollLeft, scrollWidth, clientWidth } = filterContainer;
+            const maxScroll = scrollWidth - clientWidth;
+            
+            // Show/hide left fade indicator
+            if (scrollLeft > 10) {
+                scrollFadeLeft.style.opacity = '1';
+            } else {
+                scrollFadeLeft.style.opacity = '0';
+            }
+            
+            // Show/hide right fade indicator
+            if (scrollLeft < maxScroll - 10) {
+                scrollFadeRight.style.opacity = '1';
+            } else {
+                scrollFadeRight.style.opacity = '0';
+            }
+        };
+        
+        // Add scroll event listener with throttling for performance
+        let scrollTimeout;
+        filterContainer.addEventListener('scroll', () => {
+            if (scrollTimeout) {
+                clearTimeout(scrollTimeout);
+            }
+            scrollTimeout = setTimeout(updateScrollIndicators, 10);
+        });
+        
+        // Initial update of scroll indicators
+        setTimeout(updateScrollIndicators, 100);
+        
+        // Update indicators on window resize
+        window.addEventListener('resize', () => {
+            setTimeout(updateScrollIndicators, 100);
+        });
+        
+        // Add touch-friendly scrolling behavior
+        let isScrolling = false;
+        let startX = 0;
+        let scrollStartLeft = 0;
+        
+        filterContainer.addEventListener('touchstart', (e) => {
+            isScrolling = true;
+            startX = e.touches[0].clientX;
+            scrollStartLeft = filterContainer.scrollLeft;
+        }, { passive: true });
+        
+        filterContainer.addEventListener('touchmove', (e) => {
+            if (!isScrolling) return;
+            
+            const currentX = e.touches[0].clientX;
+            const deltaX = startX - currentX;
+            filterContainer.scrollLeft = scrollStartLeft + deltaX;
+        }, { passive: true });
+        
+        filterContainer.addEventListener('touchend', () => {
+            isScrolling = false;
+        }, { passive: true });
+    }
+    
+    // Scroll a filter button into view smoothly
+    scrollFilterButtonIntoView(button) {
+        const container = document.getElementById('filterScrollContainer');
+        if (!container || !button) return;
+        
+        const containerRect = container.getBoundingClientRect();
+        const buttonRect = button.getBoundingClientRect();
+        
+        // Calculate if button is outside visible area
+        const isLeftOutside = buttonRect.left < containerRect.left;
+        const isRightOutside = buttonRect.right > containerRect.right;
+        
+        if (isLeftOutside || isRightOutside) {
+            // Calculate scroll position to center the button
+            const buttonCenter = button.offsetLeft + (button.offsetWidth / 2);
+            const containerCenter = container.clientWidth / 2;
+            const targetScroll = buttonCenter - containerCenter;
+            
+            container.scrollTo({
+                left: Math.max(0, targetScroll),
+                behavior: 'smooth'
+            });
+        }
+    }
+    
+    // Setup expandable filters (search and date)
+    setupExpandableFilters() {
+        const searchBtn = document.getElementById('searchFilterBtn');
+        const dateBtn = document.getElementById('dateFilterBtn');
+        
+        if (searchBtn) {
+            searchBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.toggleSearchFilter();
+            });
+        }
+        
+        if (dateBtn) {
+            dateBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.toggleDateFilter();
+            });
+        }
+        
+        // Handle clicks outside expanded filters to collapse them
+        document.addEventListener('click', (e) => {
+            if (this.expandedFilter !== 'none') {
+                const filterContainer = document.getElementById('filterScrollContainer');
+                if (filterContainer && !filterContainer.contains(e.target)) {
+                    this.collapseAllFilters();
+                }
+            }
+        });
+        
+        // Handle escape key to collapse filters
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.expandedFilter !== 'none') {
+                this.collapseAllFilters();
+            }
+        });
+    }
+    
+    // Toggle search filter expansion
+    toggleSearchFilter() {
+        if (this.expandedFilter === 'search') {
+            this.collapseAllFilters();
+        } else {
+            this.expandFilter('search');
+        }
+    }
+    
+    // Toggle date filter expansion
+    toggleDateFilter() {
+        if (this.expandedFilter === 'date') {
+            this.collapseAllFilters();
+        } else {
+            this.expandFilter('date');
+        }
+    }
+    
+    // Expand a specific filter
+    expandFilter(filterType) {
+        this.expandedFilter = filterType;
+        this.renderExpandedFilter();
+        this.announceToScreenReader(`${filterType} filter expanded`);
+    }
+    
+    // Collapse all filters
+    collapseAllFilters() {
+        this.expandedFilter = 'none';
+        this.renderCollapsedFilters();
+        this.announceToScreenReader('Filters collapsed');
+    }
+    
+    // Render expanded filter interface
+    renderExpandedFilter() {
+        const filterSection = document.getElementById('filter-section');
+        if (!filterSection) return;
+        
+        if (this.expandedFilter === 'search') {
+            this.renderExpandedSearchFilter(filterSection);
+        } else if (this.expandedFilter === 'date') {
+            this.renderExpandedDateFilter(filterSection);
+        }
+    }
+    
+    // Render expanded date filter
+    renderExpandedDateFilter(container) {
+        const today = new Date();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+        const thisWeekend = new Date(today);
+        thisWeekend.setDate(today.getDate() + (6 - today.getDay())); // Next Saturday
+        
+        container.innerHTML = `
+            <div class="flex items-center w-full max-w-2xl mx-auto bg-white border-2 border-blue-500 rounded-full shadow-lg transition-all duration-300 ease-in-out">
+                <div class="flex items-center pl-4 pr-2">
+                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                </div>
+                
+                <!-- Quick date options -->
+                <div class="flex items-center gap-2 px-2 py-2 flex-1">
+                    <button class="px-3 py-2 text-sm font-medium rounded-full transition-all duration-200 ${this.selectedDate === 'all' ? 'bg-blue-100 text-blue-800' : 'text-gray-600 hover:bg-gray-100'} whitespace-nowrap" 
+                            data-quick-date="all">
+                        Any date
+                    </button>
+                    <button class="px-3 py-2 text-sm font-medium rounded-full transition-all duration-200 ${this.selectedDate === this.getTodayDateString() ? 'bg-blue-100 text-blue-800' : 'text-gray-600 hover:bg-gray-100'} whitespace-nowrap" 
+                            data-quick-date="today">
+                        Today
+                    </button>
+                    <button class="px-3 py-2 text-sm font-medium rounded-full transition-all duration-200 ${this.selectedDate === tomorrow.toISOString().split('T')[0] ? 'bg-blue-100 text-blue-800' : 'text-gray-600 hover:bg-gray-100'} whitespace-nowrap" 
+                            data-quick-date="tomorrow">
+                        Tomorrow
+                    </button>
+                    <button class="px-3 py-2 text-sm font-medium rounded-full transition-all duration-200 text-gray-600 hover:bg-gray-100 whitespace-nowrap" 
+                            data-quick-date="weekend">
+                        This Weekend
+                    </button>
+                </div>
+                
+                <!-- Date range inputs -->
+                <div class="flex items-center gap-2 px-2 border-l border-gray-200">
+                    <input type="date" 
+                           id="startDateInput"
+                           class="px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                           value="${this.dateRange.start || ''}"
+                           title="Start date">
+                    <span class="text-gray-400 text-sm">to</span>
+                    <input type="date" 
+                           id="endDateInput"
+                           class="px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                           value="${this.dateRange.end || ''}"
+                           title="End date">
+                </div>
+                
+                <button class="px-4 py-3 text-gray-500 hover:text-gray-700 border-l border-gray-200 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset rounded-r-full" 
+                        id="closeDateBtn"
+                        title="Close date filter">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+        `;
+        
+        // Setup event listeners for expanded date filter
+        this.setupExpandedDateListeners();
+    }
+    
+    // Generate expanded search filter for bottom row
+    generateExpandedSearchFilter() {
+        const placeholder = this.getSearchPlaceholder();
+        
+        return `
+            <div class="flex items-center w-full max-w-md bg-white border-2 border-blue-500 rounded-full shadow-lg transition-all duration-300 ease-in-out">
+                <div class="flex items-center pl-3 pr-2">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </div>
+                <input type="text" 
+                       id="expandedBottomSearchInput"
+                       class="flex-1 px-2 py-2 text-xs bg-transparent border-0 rounded-l-full focus:outline-none focus:ring-0 placeholder-gray-500"
+                       placeholder="${placeholder}"
+                       value="${this.searchQuery}"
+                       autocomplete="off">
+                <button class="px-2 py-2 text-gray-400 hover:text-gray-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset rounded-full" 
+                        id="clearBottomSearchBtn"
+                        title="Clear search"
+                        ${this.searchQuery ? '' : 'style="opacity: 0.5; pointer-events: none;"'}>
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+                <button class="px-3 py-2 text-gray-500 hover:text-gray-700 border-l border-gray-200 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset rounded-r-full" 
+                        id="closeBottomSearchBtn"
+                        title="Close search">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+        `;
+    }
+    
+    // Generate expanded date filter for bottom row
+    generateExpandedDateFilter() {
+        const today = new Date();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+        const thisWeekend = new Date(today);
+        thisWeekend.setDate(today.getDate() + (6 - today.getDay())); // Next Saturday
+        
+        return `
+            <div class="flex items-center w-full max-w-2xl bg-white border-2 border-blue-500 rounded-full shadow-lg transition-all duration-300 ease-in-out">
+                <div class="flex items-center pl-3 pr-2">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                </div>
+                
+                <!-- Quick date options -->
+                <div class="flex items-center gap-1 px-2 py-1 flex-1">
+                    <button class="px-2 py-1 text-xs font-medium rounded-full transition-all duration-200 ${this.selectedDate === 'all' ? 'bg-blue-100 text-blue-800' : 'text-gray-600 hover:bg-gray-100'} whitespace-nowrap" 
+                            data-quick-date="all">
+                        Any date
+                    </button>
+                    <button class="px-2 py-1 text-xs font-medium rounded-full transition-all duration-200 ${this.selectedDate === this.getTodayDateString() ? 'bg-blue-100 text-blue-800' : 'text-gray-600 hover:bg-gray-100'} whitespace-nowrap" 
+                            data-quick-date="today">
+                        Today
+                    </button>
+                    <button class="px-2 py-1 text-xs font-medium rounded-full transition-all duration-200 ${this.selectedDate === tomorrow.toISOString().split('T')[0] ? 'bg-blue-100 text-blue-800' : 'text-gray-600 hover:bg-gray-100'} whitespace-nowrap" 
+                            data-quick-date="tomorrow">
+                        Tomorrow
+                    </button>
+                    <button class="px-2 py-1 text-xs font-medium rounded-full transition-all duration-200 text-gray-600 hover:bg-gray-100 whitespace-nowrap" 
+                            data-quick-date="weekend">
+                        Weekend
+                    </button>
+                </div>
+                
+                <!-- Date range inputs -->
+                <div class="flex items-center gap-1 px-2 border-l border-gray-200">
+                    <input type="date" 
+                           id="bottomStartDateInput"
+                           class="px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                           value="${this.dateRange.start || ''}"
+                           title="Start date">
+                    <span class="text-gray-400 text-xs">to</span>
+                    <input type="date" 
+                           id="bottomEndDateInput"
+                           class="px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                           value="${this.dateRange.end || ''}"
+                           title="End date">
+                </div>
+                
+                <button class="px-3 py-2 text-gray-500 hover:text-gray-700 border-l border-gray-200 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset rounded-r-full" 
+                        id="closeBottomDateBtn"
+                        title="Close date filter">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+        `;
+    }
+    
+    // Setup event listeners for expanded search filter
+    setupExpandedSearchListeners() {
+        const searchInput = document.getElementById('expandedSearchInput');
+        const clearBtn = document.getElementById('clearSearchBtn');
+        const closeBtn = document.getElementById('closeSearchBtn');
+        
+        if (searchInput) {
+            // Focus the input
+            setTimeout(() => searchInput.focus(), 100);
+            
+            // Handle input changes with debouncing
+            let searchTimeout;
+            searchInput.addEventListener('input', (e) => {
+                this.searchQuery = e.target.value;
+                
+                // Update clear button visibility
+                const clearBtn = document.getElementById('clearSearchBtn');
+                if (clearBtn) {
+                    if (this.searchQuery) {
+                        clearBtn.style.opacity = '1';
+                        clearBtn.style.pointerEvents = 'auto';
+                    } else {
+                        clearBtn.style.opacity = '0.5';
+                        clearBtn.style.pointerEvents = 'none';
+                    }
+                }
+                
+                // Debounced search
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    this.performSearch();
+                }, 300);
+            });
+            
+            // Handle enter key
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.performSearch();
+                }
+            });
+        }
+        
+        if (clearBtn) {
+            clearBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.clearSearch();
+            });
+        }
+        
+        if (closeBtn) {
+            closeBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.collapseAllFilters();
+            });
+        }
+    }
+    
+    // Perform search with current query
+    performSearch() {
+        this.searchTerm = this.searchQuery.toLowerCase();
+        this.renderContent();
+        
+        if (this.searchQuery) {
+            this.announceToScreenReader(`Searching for ${this.searchQuery}`);
+        } else {
+            this.announceToScreenReader('Search cleared');
+        }
+    }
+    
+    // Clear search
+    clearSearch() {
+        this.searchQuery = '';
+        this.searchTerm = '';
+        
+        const searchInput = document.getElementById('expandedSearchInput');
+        if (searchInput) {
+            searchInput.value = '';
+            searchInput.focus();
+        }
+        
+        const clearBtn = document.getElementById('clearSearchBtn');
+        if (clearBtn) {
+            clearBtn.style.opacity = '0.5';
+            clearBtn.style.pointerEvents = 'none';
+        }
+        
+        this.renderContent();
+        this.announceToScreenReader('Search cleared');
+    }
+    
+    // Render collapsed filters (back to normal state)
+    renderCollapsedFilters() {
+        const filterSection = document.getElementById('filter-section');
+        if (!filterSection) return;
+        
+        filterSection.innerHTML = `
+            <!-- Category filter buttons -->
+            <button class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${this.currentFilter === 'all' ? 'bg-gray-900 text-white hover:bg-gray-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 filter-btn touch-manipulation min-h-[44px] whitespace-nowrap shadow-sm" data-filter="all" aria-pressed="${this.currentFilter === 'all'}">
+                All
+            </button>
+            <button class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${this.currentFilter === 'events' ? 'bg-gray-900 text-white hover:bg-gray-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 filter-btn touch-manipulation min-h-[44px] whitespace-nowrap shadow-sm" data-filter="events" aria-pressed="${this.currentFilter === 'events'}">
+                Events
+            </button>
+            <button class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${this.currentFilter === 'activities' ? 'bg-gray-900 text-white hover:bg-gray-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 filter-btn touch-manipulation min-h-[44px] whitespace-nowrap shadow-sm" data-filter="activities" aria-pressed="${this.currentFilter === 'activities'}">
+                Activities
+            </button>
+            <button class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${this.currentFilter === 'venues' ? 'bg-gray-900 text-white hover:bg-gray-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 filter-btn touch-manipulation min-h-[44px] whitespace-nowrap shadow-sm" data-filter="venues" aria-pressed="${this.currentFilter === 'venues'}">
+                Venues
+            </button>
+            
+            <!-- Search filter button -->
+            <button class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${this.searchQuery ? 'bg-blue-100 text-blue-800 border-2 border-blue-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 filter-btn touch-manipulation min-h-[44px] whitespace-nowrap shadow-sm" id="searchFilterBtn" aria-pressed="false">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+                ${this.searchQuery ? `"${this.searchQuery.substring(0, 10)}${this.searchQuery.length > 10 ? '...' : ''}"` : 'Search'}
+            </button>
+            
+            <!-- Date filter button -->
+            <button class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${this.selectedDate !== 'all' ? 'bg-blue-100 text-blue-800 border-2 border-blue-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 filter-btn touch-manipulation min-h-[44px] whitespace-nowrap shadow-sm" id="dateFilterBtn" aria-pressed="false">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+                <span id="dateFilterText">${this.getDateFilterDisplayText()}</span>
+            </button>
+        `;
+        
+        // Re-setup event listeners for filter buttons
+        this.setupFilterButtonListeners();
+        this.setupExpandableFilters();
+    }
+    
+    // Setup event listeners for expanded date filter
+    setupExpandedDateListeners() {
+        const quickDateButtons = document.querySelectorAll('[data-quick-date]');
+        const startDateInput = document.getElementById('startDateInput');
+        const endDateInput = document.getElementById('endDateInput');
+        const closeDateBtn = document.getElementById('closeDateBtn');
+        
+        // Quick date button handlers
+        quickDateButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const quickDate = e.target.dataset.quickDate;
+                this.handleQuickDateSelection(quickDate);
+            });
+        });
+        
+        // Date range input handlers
+        if (startDateInput) {
+            startDateInput.addEventListener('change', (e) => {
+                this.dateRange.start = e.target.value;
+                this.applyDateRangeFilter();
+            });
+        }
+        
+        if (endDateInput) {
+            endDateInput.addEventListener('change', (e) => {
+                this.dateRange.end = e.target.value;
+                this.applyDateRangeFilter();
+            });
+        }
+        
+        if (closeDateBtn) {
+            closeDateBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.collapseAllFilters();
+            });
+        }
+    }
+    
+    // Handle quick date selection
+    handleQuickDateSelection(quickDate) {
+        const today = new Date();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+        
+        switch (quickDate) {
+            case 'all':
+                this.selectedDate = 'all';
+                this.dateRange = { start: null, end: null };
+                break;
+            case 'today':
+                this.selectedDate = this.getTodayDateString();
+                this.dateRange = { start: null, end: null };
+                break;
+            case 'tomorrow':
+                this.selectedDate = tomorrow.toISOString().split('T')[0];
+                this.dateRange = { start: null, end: null };
+                break;
+            case 'weekend':
+                // Set to next Saturday
+                const nextSaturday = new Date(today);
+                nextSaturday.setDate(today.getDate() + (6 - today.getDay()));
+                this.selectedDate = nextSaturday.toISOString().split('T')[0];
+                this.dateRange = { start: null, end: null };
+                break;
+        }
+        
+        // Update the visual state and filter results
+        this.renderExpandedFilter(); // Re-render to update button states
+        this.renderContent();
+        
+        this.announceToScreenReader(`Date filter set to ${quickDate}`);
+    }
+    
+    // Get search placeholder text based on selected category
+    getSearchPlaceholder() {
+        const placeholders = {
+            'all': 'Search activities, events, venues...',
+            'events': 'Search events...',
+            'activities': 'Search activities...',
+            'venues': 'Search venues...'
+        };
+        
+        // Use activeCategory from two-row system, with fallback to legacy currentFilter
+        const categoryFilter = this.activeCategory || this.currentFilter;
+        return placeholders[categoryFilter] || placeholders['all'];
+    }
+    
+    // Update search placeholder when category changes while search is expanded
+    updateExpandedSearchPlaceholder() {
+        const searchInput = document.getElementById('expandedSearchInput');
+        if (searchInput) {
+            searchInput.placeholder = this.getSearchPlaceholder();
+        }
+    }
+    
+    // Get display text for date filter button
+    getDateFilterDisplayText() {
+        if (this.selectedDate === 'all') {
+            return 'Any date';
+        }
+        
+        const today = this.getTodayDateString();
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowString = tomorrow.toISOString().split('T')[0];
+        
+        if (this.selectedDate === today) {
+            return 'Today';
+        } else if (this.selectedDate === tomorrowString) {
+            return 'Tomorrow';
+        } else if (this.dateRange.start && this.dateRange.end) {
+            return `${this.formatDate(this.dateRange.start)} - ${this.formatDate(this.dateRange.end)}`;
+        } else if (this.selectedDate) {
+            return this.formatDate(this.selectedDate);
+        }
+        
+        return 'Any date';
+    }
+    
+    // Apply date range filter
+    applyDateRangeFilter() {
+        if (this.dateRange.start && this.dateRange.end) {
+            // For range filtering, we'll need to modify the filtering logic
+            // For now, just use the start date
+            this.selectedDate = this.dateRange.start;
+        } else if (this.dateRange.start) {
+            this.selectedDate = this.dateRange.start;
+        }
+        
+        this.renderContent();
+        
+        const rangeText = this.dateRange.start && this.dateRange.end 
+            ? `${this.dateRange.start} to ${this.dateRange.end}`
+            : this.dateRange.start || 'date range';
+        this.announceToScreenReader(`Date filter set to ${rangeText}`);
+    }
+    
+    // Setup two-row filter navigation with scroll indicators and smooth scrolling
+    setupTwoRowFilterNavigation() {
+        // Setup top row navigation
+        this.setupRowNavigation('topRow');
+        // Setup bottom row navigation  
+        this.setupRowNavigation('bottomRow');
+    }
+    
+    // Setup navigation for a specific row (topRow or bottomRow)
+    setupRowNavigation(rowType) {
+        const containerId = rowType === 'topRow' ? 'topRowFilterContainer' : 'bottomRowFilterContainer';
+        const leftFadeId = rowType === 'topRow' ? 'topRowScrollFadeLeft' : 'bottomRowScrollFadeLeft';
+        const rightFadeId = rowType === 'topRow' ? 'topRowScrollFadeRight' : 'bottomRowScrollFadeRight';
+        
+        const filterContainer = document.getElementById(containerId);
+        const scrollFadeLeft = document.getElementById(leftFadeId);
+        const scrollFadeRight = document.getElementById(rightFadeId);
+        
+        if (!filterContainer || !scrollFadeLeft || !scrollFadeRight) return;
+        
+        // Update scroll indicators based on scroll position
+        const updateScrollIndicators = () => {
+            const { scrollLeft, scrollWidth, clientWidth } = filterContainer;
+            const maxScroll = scrollWidth - clientWidth;
+            
+            // Show/hide left fade indicator
+            if (scrollLeft > 10) {
+                scrollFadeLeft.style.opacity = '1';
+            } else {
+                scrollFadeLeft.style.opacity = '0';
+            }
+            
+            // Show/hide right fade indicator
+            if (scrollLeft < maxScroll - 10) {
+                scrollFadeRight.style.opacity = '1';
+            } else {
+                scrollFadeRight.style.opacity = '0';
+            }
+        };
+        
+        // Add scroll event listener with throttling for performance
+        let scrollTimeout;
+        filterContainer.addEventListener('scroll', () => {
+            if (scrollTimeout) {
+                clearTimeout(scrollTimeout);
+            }
+            scrollTimeout = setTimeout(updateScrollIndicators, 10);
+        });
+        
+        // Initial update of scroll indicators
+        setTimeout(updateScrollIndicators, 100);
+        
+        // Update indicators on window resize
+        window.addEventListener('resize', () => {
+            setTimeout(updateScrollIndicators, 100);
+        });
+        
+        // Add touch-friendly scrolling behavior
+        let isScrolling = false;
+        let startX = 0;
+        let scrollStartLeft = 0;
+        
+        filterContainer.addEventListener('touchstart', (e) => {
+            isScrolling = true;
+            startX = e.touches[0].clientX;
+            scrollStartLeft = filterContainer.scrollLeft;
+        }, { passive: true });
+        
+        filterContainer.addEventListener('touchmove', (e) => {
+            if (!isScrolling) return;
+            
+            const currentX = e.touches[0].clientX;
+            const deltaX = startX - currentX;
+            filterContainer.scrollLeft = scrollStartLeft + deltaX;
+        }, { passive: true });
+        
+        filterContainer.addEventListener('touchend', () => {
+            isScrolling = false;
+        }, { passive: true });
+    }
+    
+    // Setup category filter listeners (top row)
+    setupCategoryFilterListeners() {
+        const categoryButtons = document.querySelectorAll('.category-filter-btn[data-category]');
+        categoryButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                this.handleCategoryChange(e.target, categoryButtons);
+            });
+            
+            // Add keyboard support for category buttons
+            btn.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    this.handleCategoryChange(e.target, categoryButtons);
+                }
+                // Arrow key navigation
+                else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    this.navigateFilterButtons(e.target, e.key === 'ArrowRight', categoryButtons);
+                }
+            });
+        });
+    }
+    
+    // Handle category filter changes (top row)
+    handleCategoryChange(targetButton, allButtons) {
+        // Remove active styling from all category buttons
+        allButtons.forEach(button => {
+            button.classList.remove('active');
+            button.setAttribute('aria-pressed', 'false');
+            button.className = 'inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 bg-gray-100 text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 category-filter-btn touch-manipulation min-h-[36px] whitespace-nowrap shadow-sm';
+        });
+        
+        // Add active styling to clicked button
+        targetButton.classList.add('active');
+        targetButton.setAttribute('aria-pressed', 'true');
+        targetButton.className = 'inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 bg-gray-900 text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 category-filter-btn active touch-manipulation min-h-[36px] whitespace-nowrap shadow-sm';
+        
+        // Update active category
+        this.activeCategory = targetButton.dataset.category;
+        
+        // Update legacy compatibility
+        this.currentFilter = this.activeCategory;
+        
+        // Update bottom row filters based on selected category
+        this.updateBottomRowFilters();
+        
+        // Collapse any expanded bottom row filters when category changes
+        this.collapseBottomRowFilters();
+        
+        // Update search placeholder if search filter is currently expanded
+        if (this.expandedBottomFilter === 'search') {
+            this.updateExpandedSearchPlaceholder();
+        }
+        
+        // Re-render content with new category filter
+        this.renderContent();
+        
+        // Announce category change to screen readers
+        const categoryText = targetButton.textContent;
+        this.announceToScreenReader(`Category changed to ${categoryText}. Bottom row filters updated for ${categoryText.toLowerCase()}.`);
+    }
+    
+    // Update bottom row filters based on selected category
+    updateBottomRowFilters() {
+        const bottomRowContainer = document.getElementById('bottom-row-filters');
+        if (!bottomRowContainer) return;
+        
+        const categoryFilters = this.categoryFilters[this.activeCategory] || this.categoryFilters.all;
+        
+        // Generate bottom row filter buttons
+        let filtersHTML = '';
+        
+        categoryFilters.forEach(filterType => {
+            switch (filterType) {
+                case 'search':
+                    filtersHTML += this.generateSearchFilterButton();
+                    break;
+                case 'dates':
+                    filtersHTML += this.generateDateFilterButton();
+                    break;
+                case 'ageGroup':
+                    filtersHTML += this.generateAgeGroupFilterButton();
+                    break;
+                case 'price':
+                    filtersHTML += this.generatePriceFilterButton();
+                    break;
+                case 'eventType':
+                    filtersHTML += this.generateEventTypeFilterButton();
+                    break;
+                case 'activityType':
+                    filtersHTML += this.generateActivityTypeFilterButton();
+                    break;
+                case 'duration':
+                    filtersHTML += this.generateDurationFilterButton();
+                    break;
+                case 'location':
+                    filtersHTML += this.generateLocationFilterButton();
+                    break;
+                case 'amenities':
+                    filtersHTML += this.generateAmenitiesFilterButton();
+                    break;
+            }
+        });
+        
+        bottomRowContainer.innerHTML = filtersHTML;
+        
+        // Setup event listeners for new bottom row filters
+        this.setupBottomRowFilterListeners();
+        
+        // Setup expanded filter listeners if any filter is expanded
+        if (this.expandedBottomFilter === 'search') {
+            this.setupExpandedBottomSearchListeners();
+        } else if (this.expandedBottomFilter === 'date') {
+            this.setupExpandedBottomDateListeners();
+        }
+    }
+    
+    // Generate search filter button for bottom row
+    generateSearchFilterButton() {
+        const isActive = this.searchQuery && this.searchQuery.length > 0;
+        const isExpanded = this.expandedBottomFilter === 'search';
+        
+        if (isExpanded) {
+            return this.generateExpandedSearchFilter();
+        }
+        
+        return `
+            <button class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${isActive ? 'bg-blue-100 text-blue-800 border-2 border-blue-300' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bottom-row-filter-btn touch-manipulation min-h-[36px] whitespace-nowrap shadow-sm" 
+                    id="bottomSearchFilterBtn" 
+                    data-filter-type="search"
+                    aria-pressed="false">
+                <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+                ${isActive ? `"${this.searchQuery.substring(0, 8)}${this.searchQuery.length > 8 ? '...' : ''}"` : 'Search'}
+            </button>
+        `;
+    }
+    
+    // Generate date filter button for bottom row
+    generateDateFilterButton() {
+        const isActive = this.selectedDate !== 'all' || (this.dateRange.start || this.dateRange.end);
+        const isExpanded = this.expandedBottomFilter === 'date';
+        
+        if (isExpanded) {
+            return this.generateExpandedDateFilter();
+        }
+        
+        return `
+            <button class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${isActive ? 'bg-blue-100 text-blue-800 border-2 border-blue-300' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bottom-row-filter-btn touch-manipulation min-h-[36px] whitespace-nowrap shadow-sm" 
+                    id="bottomDateFilterBtn" 
+                    data-filter-type="date"
+                    aria-pressed="false">
+                <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+                <span>${this.getDateFilterDisplayText()}</span>
+            </button>
+        `;
+    }
+    
+    // Generate other filter buttons (placeholder implementations)
+    generateAgeGroupFilterButton() {
+        return `
+            <button class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bottom-row-filter-btn touch-manipulation min-h-[36px] whitespace-nowrap shadow-sm" 
+                    data-filter-type="ageGroup">
+                <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                </svg>
+                Age Group
+            </button>
+        `;
+    }
+    
+    generatePriceFilterButton() {
+        return `
+            <button class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bottom-row-filter-btn touch-manipulation min-h-[36px] whitespace-nowrap shadow-sm" 
+                    data-filter-type="price">
+                <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+                </svg>
+                Price
+            </button>
+        `;
+    }
+    
+    generateEventTypeFilterButton() {
+        return `
+            <button class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bottom-row-filter-btn touch-manipulation min-h-[36px] whitespace-nowrap shadow-sm" 
+                    data-filter-type="eventType">
+                <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2h4a1 1 0 011 1v2a1 1 0 01-1 1h-1v12a2 2 0 01-2 2H6a2 2 0 01-2-2V8H3a1 1 0 01-1-1V5a1 1 0 011-1h4z"></path>
+                </svg>
+                Event Type
+            </button>
+        `;
+    }
+    
+    generateActivityTypeFilterButton() {
+        return `
+            <button class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bottom-row-filter-btn touch-manipulation min-h-[36px] whitespace-nowrap shadow-sm" 
+                    data-filter-type="activityType">
+                <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+                Activity Type
+            </button>
+        `;
+    }
+    
+    generateDurationFilterButton() {
+        return `
+            <button class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bottom-row-filter-btn touch-manipulation min-h-[36px] whitespace-nowrap shadow-sm" 
+                    data-filter-type="duration">
+                <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Duration
+            </button>
+        `;
+    }
+    
+    generateLocationFilterButton() {
+        return `
+            <button class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bottom-row-filter-btn touch-manipulation min-h-[36px] whitespace-nowrap shadow-sm" 
+                    data-filter-type="location">
+                <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+                Location
+            </button>
+        `;
+    }
+    
+    generateAmenitiesFilterButton() {
+        return `
+            <button class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bottom-row-filter-btn touch-manipulation min-h-[36px] whitespace-nowrap shadow-sm" 
+                    data-filter-type="amenities">
+                <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                </svg>
+                Amenities
+            </button>
+        `;
+    }
+    
+    // Setup bottom row filters
+    setupBottomRowFilters() {
+        // Initial setup will be done by updateBottomRowFilters()
+        // This function handles global bottom row behavior
+        
+        // Handle clicks outside expanded filters to collapse them
+        document.addEventListener('click', (e) => {
+            if (this.expandedBottomFilter !== 'none') {
+                const bottomRowContainer = document.getElementById('bottomRowFilterContainer');
+                if (bottomRowContainer && !bottomRowContainer.contains(e.target)) {
+                    this.collapseBottomRowFilters();
+                }
+            }
+        });
+        
+        // Handle escape key to collapse filters
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.expandedBottomFilter !== 'none') {
+                this.collapseBottomRowFilters();
+            }
+        });
+    }
+    
+    // Setup event listeners for bottom row filter buttons
+    setupBottomRowFilterListeners() {
+        const bottomRowButtons = document.querySelectorAll('.bottom-row-filter-btn[data-filter-type]');
+        bottomRowButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                this.handleBottomRowFilterClick(e.target);
+            });
+            
+            // Add keyboard support
+            btn.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    this.handleBottomRowFilterClick(e.target);
+                }
+            });
+        });
+    }
+    
+    // Handle bottom row filter clicks
+    handleBottomRowFilterClick(button) {
+        const filterType = button.dataset.filterType;
+        
+        if (filterType === 'search') {
+            this.toggleBottomRowSearchFilter();
+        } else if (filterType === 'date') {
+            this.toggleBottomRowDateFilter();
+        } else {
+            // For other filter types, show a placeholder message
+            this.announceToScreenReader(`${filterType} filter not yet implemented`);
+        }
+    }
+    
+    // Toggle search filter in bottom row
+    toggleBottomRowSearchFilter() {
+        if (this.expandedBottomFilter === 'search') {
+            this.collapseBottomRowFilters();
+        } else {
+            this.expandBottomRowFilter('search');
+        }
+    }
+    
+    // Toggle date filter in bottom row
+    toggleBottomRowDateFilter() {
+        if (this.expandedBottomFilter === 'date') {
+            this.collapseBottomRowFilters();
+        } else {
+            this.expandBottomRowFilter('date');
+        }
+    }
+    
+    // Expand a specific bottom row filter
+    expandBottomRowFilter(filterType) {
+        this.expandedBottomFilter = filterType;
+        
+        // Update legacy compatibility
+        this.expandedFilter = filterType;
+        
+        // Re-render bottom row with expanded filter
+        this.updateBottomRowFilters();
+        
+        this.announceToScreenReader(`${filterType} filter expanded in bottom row`);
+    }
+    
+    // Collapse all bottom row filters
+    collapseBottomRowFilters() {
+        this.expandedBottomFilter = 'none';
+        
+        // Update legacy compatibility
+        this.expandedFilter = 'none';
+        
+        // Re-render bottom row in collapsed state
+        this.updateBottomRowFilters();
+        
+        this.announceToScreenReader('Bottom row filters collapsed');
+    }
+    
+    // Setup event listeners for expanded bottom row search filter
+    setupExpandedBottomSearchListeners() {
+        const searchInput = document.getElementById('expandedBottomSearchInput');
+        const clearBtn = document.getElementById('clearBottomSearchBtn');
+        const closeBtn = document.getElementById('closeBottomSearchBtn');
+        
+        if (searchInput) {
+            // Focus the input
+            setTimeout(() => searchInput.focus(), 100);
+            
+            // Handle input changes with debouncing
+            let searchTimeout;
+            searchInput.addEventListener('input', (e) => {
+                this.searchQuery = e.target.value;
+                
+                // Update clear button visibility
+                const clearBtn = document.getElementById('clearBottomSearchBtn');
+                if (clearBtn) {
+                    if (this.searchQuery) {
+                        clearBtn.style.opacity = '1';
+                        clearBtn.style.pointerEvents = 'auto';
+                    } else {
+                        clearBtn.style.opacity = '0.5';
+                        clearBtn.style.pointerEvents = 'none';
+                    }
+                }
+                
+                // Debounced search
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    this.performBottomRowSearch();
+                }, 300);
+            });
+            
+            // Handle enter key
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.performBottomRowSearch();
+                }
+            });
+        }
+        
+        if (clearBtn) {
+            clearBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.clearBottomRowSearch();
+            });
+        }
+        
+        if (closeBtn) {
+            closeBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.collapseBottomRowFilters();
+            });
+        }
+    }
+    
+    // Setup event listeners for expanded bottom row date filter
+    setupExpandedBottomDateListeners() {
+        const quickDateButtons = document.querySelectorAll('[data-quick-date]');
+        const startDateInput = document.getElementById('bottomStartDateInput');
+        const endDateInput = document.getElementById('bottomEndDateInput');
+        const closeDateBtn = document.getElementById('closeBottomDateBtn');
+        
+        // Quick date button handlers
+        quickDateButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const quickDate = e.target.dataset.quickDate;
+                this.handleBottomRowQuickDateSelection(quickDate);
+            });
+        });
+        
+        // Date range input handlers
+        if (startDateInput) {
+            startDateInput.addEventListener('change', (e) => {
+                this.dateRange.start = e.target.value;
+                this.applyBottomRowDateRangeFilter();
+            });
+        }
+        
+        if (endDateInput) {
+            endDateInput.addEventListener('change', (e) => {
+                this.dateRange.end = e.target.value;
+                this.applyBottomRowDateRangeFilter();
+            });
+        }
+        
+        if (closeDateBtn) {
+            closeDateBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.collapseBottomRowFilters();
+            });
+        }
+    }
+    
+    // Perform search with current query in bottom row context
+    performBottomRowSearch() {
+        this.searchTerm = this.searchQuery.toLowerCase();
+        this.renderContent();
+        
+        if (this.searchQuery) {
+            this.announceToScreenReader(`Searching for ${this.searchQuery} in ${this.activeCategory}`);
+        } else {
+            this.announceToScreenReader('Search cleared');
+        }
+    }
+    
+    // Clear search in bottom row
+    clearBottomRowSearch() {
+        this.searchQuery = '';
+        this.searchTerm = '';
+        
+        const searchInput = document.getElementById('expandedBottomSearchInput');
+        if (searchInput) {
+            searchInput.value = '';
+            searchInput.focus();
+        }
+        
+        const clearBtn = document.getElementById('clearBottomSearchBtn');
+        if (clearBtn) {
+            clearBtn.style.opacity = '0.5';
+            clearBtn.style.pointerEvents = 'none';
+        }
+        
+        this.renderContent();
+        this.announceToScreenReader('Search cleared');
+    }
+    
+    // Handle quick date selection in bottom row
+    handleBottomRowQuickDateSelection(quickDate) {
+        const today = new Date();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+        
+        switch (quickDate) {
+            case 'all':
+                this.selectedDate = 'all';
+                this.dateRange = { start: null, end: null };
+                break;
+            case 'today':
+                this.selectedDate = this.getTodayDateString();
+                this.dateRange = { start: null, end: null };
+                break;
+            case 'tomorrow':
+                this.selectedDate = tomorrow.toISOString().split('T')[0];
+                this.dateRange = { start: null, end: null };
+                break;
+            case 'weekend':
+                // Set to next Saturday
+                const nextSaturday = new Date(today);
+                nextSaturday.setDate(today.getDate() + (6 - today.getDay()));
+                this.selectedDate = nextSaturday.toISOString().split('T')[0];
+                this.dateRange = { start: null, end: null };
+                break;
+        }
+        
+        // Update the visual state and filter results
+        this.updateBottomRowFilters(); // Re-render to update button states
+        this.renderContent();
+        
+        this.announceToScreenReader(`Date filter set to ${quickDate} in ${this.activeCategory} category`);
+    }
+    
+    // Apply date range filter in bottom row
+    applyBottomRowDateRangeFilter() {
+        if (this.dateRange.start && this.dateRange.end) {
+            // For range filtering, we'll need to modify the filtering logic
+            // For now, just use the start date
+            this.selectedDate = this.dateRange.start;
+        } else if (this.dateRange.start) {
+            this.selectedDate = this.dateRange.start;
+        }
+        
+        this.renderContent();
+        
+        const rangeText = this.dateRange.start && this.dateRange.end 
+            ? `${this.dateRange.start} to ${this.dateRange.end}`
+            : this.dateRange.start || 'date range';
+        this.announceToScreenReader(`Date filter set to ${rangeText} in ${this.activeCategory} category`);
     }
     
     // Setup additional accessibility features
@@ -933,30 +2171,77 @@ class FamilyEventsApp {
         document.body.appendChild(refreshBtn);
     }
 
-    // Filter and search data
+    // Filter and search data with category-specific filtering pipeline
     getFilteredData() {
         return this.allData.filter(item => {
-            // Filter by category
-            const matchesFilter = this.currentFilter === 'all' || 
-                                item.category === this.currentFilter.slice(0, -1); // Remove 's' from 'events', etc.
-
-            // Filter by search term
-            const matchesSearch = this.searchTerm === '' ||
-                                item.title.toLowerCase().includes(this.searchTerm) ||
-                                item.description.toLowerCase().includes(this.searchTerm) ||
-                                item.location.toLowerCase().includes(this.searchTerm);
+            // Step 1: Apply category filter first (All, Events, Activities, Venues)
+            const matchesCategory = this.applyCategoryFilter(item);
+            if (!matchesCategory) return false;
             
-            // Filter by selected date
-            const activityDate = this.getActivityDate(item);
-            const matchesDate = this.selectedDate === 'all' || activityDate === this.selectedDate;
+            // Step 2: Apply search filter within selected category context
+            const matchesSearch = this.applySearchFilter(item);
+            if (!matchesSearch) return false;
             
-            // Debug logging for date filtering
-            if (this.config.debugMode && this.selectedDate !== 'all' && activityDate) {
-                console.log(`Filtering: activity "${item.title}" has date "${activityDate}", selected "${this.selectedDate}", matches: ${matchesDate}`);
-            }
-
-            return matchesFilter && matchesSearch && matchesDate;
+            // Step 3: Apply date filter within category and search context
+            const matchesDate = this.applyDateFilter(item);
+            
+            return matchesDate;
         });
+    }
+    
+    // Apply category filter (All, Events, Activities, Venues) - Updated for two-row system
+    applyCategoryFilter(item) {
+        // Use activeCategory from two-row system, with fallback to legacy currentFilter
+        const categoryFilter = this.activeCategory || this.currentFilter;
+        
+        if (categoryFilter === 'all') {
+            return true;
+        }
+        
+        // Map filter names to item categories
+        const categoryMap = {
+            'events': ['event'],
+            'activities': ['activity'],
+            'venues': ['venue']
+        };
+        
+        const allowedCategories = categoryMap[categoryFilter] || [];
+        return allowedCategories.includes(item.category);
+    }
+    
+    // Apply search filter within selected category context
+    applySearchFilter(item) {
+        // If no search term, include all items that passed category filter
+        if (!this.searchTerm || this.searchTerm === '') {
+            return true;
+        }
+        
+        // Search within title, description, and location
+        const searchableText = [
+            item.title,
+            item.description,
+            item.location
+        ].join(' ').toLowerCase();
+        
+        return searchableText.includes(this.searchTerm);
+    }
+    
+    // Apply date filter within category and search context
+    applyDateFilter(item) {
+        // If no date filter selected, include all items that passed previous filters
+        if (this.selectedDate === 'all') {
+            return true;
+        }
+        
+        const activityDate = this.getActivityDate(item);
+        const matchesDate = activityDate === this.selectedDate;
+        
+        // Debug logging for date filtering
+        if (this.config.debugMode && this.selectedDate !== 'all' && activityDate) {
+            console.log(`Date filtering: activity "${item.title}" has date "${activityDate}", selected "${this.selectedDate}", matches: ${matchesDate}`);
+        }
+        
+        return matchesDate;
     }
 
     // Render all content
@@ -1179,10 +2464,10 @@ class FamilyEventsApp {
             if (this.lastFocusedElement && this.lastFocusedElement.isConnected) {
                 this.lastFocusedElement.focus();
             } else {
-                // Fallback: focus the search input
-                const searchInput = document.getElementById('searchInput');
-                if (searchInput) {
-                    searchInput.focus();
+                // Fallback: focus the first category filter button
+                const firstCategoryBtn = document.querySelector('.category-filter-btn');
+                if (firstCategoryBtn) {
+                    firstCategoryBtn.focus();
                 }
             }
             

@@ -61,33 +61,90 @@
 <body>
     <!-- Skip Links for Keyboard Navigation -->
     <a href="#main-content" class="skip-link">Skip to main content</a>
-    <a href="#search-section" class="skip-link">Skip to search</a>
-    <a href="#filter-section" class="skip-link">Skip to filters</a>
+    <a href="#top-row-filters" class="skip-link">Skip to filters</a>
     
     <!-- New Airbnb-inspired Header -->
     <header class="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-16">
+            <div class="flex items-center justify-between py-4 min-h-[88px]">
                 <!-- Left Section: Logo/Branding -->
                 <div class="flex items-center">
                     <div class="flex-shrink-0">
-                        <h1 class="text-xl sm:text-2xl font-bold text-gray-900">
-                            <span class="hidden sm:inline">Seattle Family Activities</span>
-                            <span class="sm:hidden">SFA</span>
-                        </h1>
-                        <p class="hidden md:block text-sm text-gray-600">Discover amazing activities</p>
+                        <!-- Platform Title with Modern Typography and Responsive Behavior -->
+                        <div class="flex flex-col justify-center">
+                            <!-- Full branding for desktop, condensed for mobile -->
+                            <h1 class="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 leading-tight tracking-tight transition-all duration-200">
+                                <!-- Desktop: Full branding (sm and up) -->
+                                <span class="hidden sm:inline">Seattle Family Activities</span>
+                                <!-- Mobile: Condensed version (below sm) -->
+                                <span class="sm:hidden font-extrabold text-xl">SFA</span>
+                            </h1>
+                            <!-- Tagline - progressive disclosure based on screen size -->
+                            <p class="hidden md:block text-xs lg:text-sm text-gray-600 font-medium mt-0.5 leading-tight transition-all duration-200">
+                                Discover amazing activities
+                            </p>
+                            <!-- Optional: Very small screens get minimal branding -->
+                            <p class="hidden xs:block sm:hidden text-xs text-gray-500 font-normal mt-0.5 leading-tight">
+                                Family Activities
+                            </p>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Center Section: Filter Navigation -->
+                <!-- Center Section: Two-Row Airbnb-style Filter Navigation -->
                 <div class="flex-1 max-w-2xl mx-4 sm:mx-8">
                     <div class="relative">
-                        <div class="flex overflow-x-auto scrollbar-hide" id="filterScrollContainer" role="group" aria-label="Filter activities by category">
-                            <div class="flex gap-2 px-1 py-1" id="filter-section">
-                                <button class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-gray-900 text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 filter-btn active touch-manipulation min-h-[44px] whitespace-nowrap" data-filter="all" aria-pressed="true">All</button>
-                                <button class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-gray-100 text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 filter-btn touch-manipulation min-h-[44px] whitespace-nowrap" data-filter="events" aria-pressed="false">Events</button>
-                                <button class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-gray-100 text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 filter-btn touch-manipulation min-h-[44px] whitespace-nowrap" data-filter="activities" aria-pressed="false">Activities</button>
-                                <button class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-gray-100 text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 filter-btn touch-manipulation min-h-[44px] whitespace-nowrap" data-filter="venues" aria-pressed="false">Venues</button>
+                        <!-- Two-Row Filter Container -->
+                        <div class="space-y-1.5">
+                            <!-- Top Row: Category Filters -->
+                            <div class="relative">
+                                <!-- Scroll fade indicators for top row -->
+                                <div class="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none opacity-0 transition-opacity duration-200" id="topRowScrollFadeLeft"></div>
+                                <div class="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none opacity-0 transition-opacity duration-200" id="topRowScrollFadeRight"></div>
+                                
+                                <!-- Top row filter container -->
+                                <div class="flex overflow-x-auto scrollbar-hide scroll-smooth" 
+                                     id="topRowFilterContainer" 
+                                     role="group" 
+                                     aria-label="Filter activities by category"
+                                     style="scroll-behavior: smooth; -webkit-overflow-scrolling: touch;">
+                                    
+                                    <!-- Top row category filter buttons -->
+                                    <div class="flex gap-1.5 px-2 py-2 min-w-max" id="top-row-filters">
+                                        <button class="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 bg-gray-900 text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 category-filter-btn active touch-manipulation min-h-[36px] whitespace-nowrap shadow-sm" data-category="all" aria-pressed="true">
+                                            All
+                                        </button>
+                                        <button class="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 bg-gray-100 text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 category-filter-btn touch-manipulation min-h-[36px] whitespace-nowrap shadow-sm" data-category="events" aria-pressed="false">
+                                            Events
+                                        </button>
+                                        <button class="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 bg-gray-100 text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 category-filter-btn touch-manipulation min-h-[36px] whitespace-nowrap shadow-sm" data-category="activities" aria-pressed="false">
+                                            Activities
+                                        </button>
+                                        <button class="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 bg-gray-100 text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 category-filter-btn touch-manipulation min-h-[36px] whitespace-nowrap shadow-sm" data-category="venues" aria-pressed="false">
+                                            Venues
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Bottom Row: Category-Specific Filters -->
+                            <div class="relative">
+                                <!-- Scroll fade indicators for bottom row -->
+                                <div class="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none opacity-0 transition-opacity duration-200" id="bottomRowScrollFadeLeft"></div>
+                                <div class="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none opacity-0 transition-opacity duration-200" id="bottomRowScrollFadeRight"></div>
+                                
+                                <!-- Bottom row filter container -->
+                                <div class="flex overflow-x-auto scrollbar-hide scroll-smooth" 
+                                     id="bottomRowFilterContainer" 
+                                     role="group" 
+                                     aria-label="Category-specific filters"
+                                     style="scroll-behavior: smooth; -webkit-overflow-scrolling: touch;">
+                                    
+                                    <!-- Bottom row category-specific filters (dynamic content) -->
+                                    <div class="flex gap-1.5 px-2 py-2 min-w-max" id="bottom-row-filters">
+                                        <!-- Dynamic content will be populated by JavaScript -->
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -107,43 +164,9 @@
     </header>
 
     <div class="max-w-7xl xl:max-w-8xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 py-2 sm:py-4 lg:py-6 xl:py-8">
-        <!-- Search Section -->
-        <section id="search-section" class="bg-white shadow-lg rounded-xl sm:rounded-2xl p-3 sm:p-4 lg:p-6 mt-2 sm:mt-3 md:mt-4 relative z-10 max-w-4xl lg:max-w-5xl xl:max-w-6xl mx-auto mb-3 sm:mb-4 lg:mb-6" aria-label="Search activities">
-            <div class="space-y-2 sm:space-y-3">
-                <label for="searchInput" class="sr-only">Search activities</label>
-                <input type="text" id="searchInput" placeholder="Search events, activities..." 
-                       class="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg text-base font-medium bg-gray-50 text-gray-900 placeholder-gray-500 transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 focus:bg-white focus:shadow-lg focus:shadow-blue-500/25 touch-manipulation" 
-                       aria-label="Search events, activities, and venues"
-                       role="searchbox"
-                       aria-describedby="search-help">
-                <div id="search-help" class="sr-only">Use the search box to find specific activities</div>
-            </div>
-        </section>
 
-        <!-- Date Tabs Navigation -->
-        <section class="my-2 sm:my-3 lg:my-4 mb-2 sm:mb-3 lg:mb-4" aria-label="Filter activities by date">
-            <div class="flex items-center gap-1 sm:gap-2 lg:gap-3 max-w-full relative">
-                <button class="flex-shrink-0 bg-white border border-gray-200 rounded-lg px-2 sm:px-3 py-2 text-lg text-gray-600 cursor-pointer transition-all duration-200 hover:bg-gray-100 hover:text-gray-900 hover:-translate-y-0.5 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:ring-offset-white focus:shadow-lg focus:shadow-blue-500/25 z-10 touch-manipulation min-h-[44px] min-w-[44px]" 
-                       id="datePrevBtn" 
-                       aria-label="Previous dates"
-                       role="button"
-                       tabindex="0">‹</button>
-                <div class="flex-1 overflow-x-auto overflow-y-hidden scrollbar-hide" 
-                     id="dateTabsScroll" 
-                     role="tablist" 
-                     aria-label="Select date to filter activities"
-                     style="scroll-behavior: smooth; scrollbar-width: none; -ms-overflow-style: none;">
-                    <div class="flex gap-1 py-1 min-w-min" id="dateTabs">
-                        <!-- Date tabs will be generated dynamically -->
-                    </div>
-                </div>
-                <button class="flex-shrink-0 bg-white border border-gray-200 rounded-lg px-2 sm:px-3 py-2 text-lg text-gray-600 cursor-pointer transition-all duration-200 hover:bg-gray-100 hover:text-gray-900 hover:-translate-y-0.5 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:ring-offset-white focus:shadow-lg focus:shadow-blue-500/25 z-10 touch-manipulation min-h-[44px] min-w-[44px]" 
-                       id="dateNextBtn" 
-                       aria-label="Next dates"
-                       role="button"
-                       tabindex="0">›</button>
-            </div>
-        </section>
+
+
 
         <!-- Main Content Grid -->
         <main id="main-content" class="main-content" role="main" aria-label="Family activities and events">

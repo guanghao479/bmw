@@ -110,3 +110,83 @@
 .scrollbar-hide::-webkit-scrollbar {
     display: none;
 }
+
+/* Enhanced two-row filter navigation styles */
+#topRowFilterContainer,
+#bottomRowFilterContainer {
+    /* Smooth momentum scrolling on iOS */
+    -webkit-overflow-scrolling: touch;
+    /* Snap to filter buttons on scroll */
+    scroll-snap-type: x proximity;
+}
+
+#topRowFilterContainer .category-filter-btn,
+#bottomRowFilterContainer .bottom-row-filter-btn {
+    /* Snap points for smooth scrolling */
+    scroll-snap-align: center;
+    /* Prevent text selection during touch scrolling */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* Fade indicators for scroll overflow - Top Row */
+#topRowScrollFadeLeft,
+#topRowScrollFadeRight {
+    transition: opacity 0.2s ease-in-out;
+}
+
+/* Fade indicators for scroll overflow - Bottom Row */
+#bottomRowScrollFadeLeft,
+#bottomRowScrollFadeRight {
+    transition: opacity 0.2s ease-in-out;
+}
+
+/* Enhanced touch targets for mobile */
+@media (max-width: 768px) {
+    #topRowFilterContainer .category-filter-btn {
+        min-height: 36px;
+        min-width: 36px;
+        padding: 8px 12px;
+    }
+    
+    #bottomRowFilterContainer .bottom-row-filter-btn {
+        min-height: 32px;
+        min-width: 32px;
+        padding: 6px 10px;
+    }
+}
+
+/* Legacy filter navigation styles for compatibility */
+#filterScrollContainer {
+    /* Smooth momentum scrolling on iOS */
+    -webkit-overflow-scrolling: touch;
+    /* Snap to filter buttons on scroll */
+    scroll-snap-type: x proximity;
+}
+
+#filterScrollContainer .filter-btn {
+    /* Snap points for smooth scrolling */
+    scroll-snap-align: center;
+    /* Prevent text selection during touch scrolling */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* Fade indicators for scroll overflow */
+#scrollFadeLeft,
+#scrollFadeRight {
+    transition: opacity 0.2s ease-in-out;
+}
+
+/* Enhanced touch targets for mobile */
+@media (max-width: 768px) {
+    #filterScrollContainer .filter-btn {
+        min-height: 44px;
+        min-width: 44px;
+        padding: 12px 16px;
+    }
+}

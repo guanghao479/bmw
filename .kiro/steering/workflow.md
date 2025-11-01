@@ -94,6 +94,11 @@ The repository uses these automated workflows:
 
 When implementing frontend changes or features that affect the user interface, perform visual testing using local development servers:
 
+### CRITICAL: Always Use Makefile Targets
+- **NEVER** use `python -m http.server` or `npx serve` directly
+- **ALWAYS** use `make dev-frontend`, `make dev-backend`, or `make dev`
+- The Makefile targets provide proper environment setup, validation, and process management
+
 ### When to Perform Visual Testing
 
 - **UI/UX changes**: Any modifications to HTML, CSS, or JavaScript that affect visual appearance
@@ -106,12 +111,14 @@ When implementing frontend changes or features that affect the user interface, p
 
 1. **Start Development Servers**:
    ```bash
+   # ALWAYS use Makefile targets - NEVER use python -m http.server directly
+   
    # Start both frontend and backend for full functionality testing
    make dev
    
    # Or start individually if needed
-   make dev-frontend  # Frontend only (port 8000)
-   make dev-backend   # Backend only (for API testing)
+   make dev-frontend  # Frontend only (port 8000) - uses proper script with validation
+   make dev-backend   # Backend only (for API testing) - uses AWS SAM CLI
    ```
 
 2. **Test Scenarios**:
@@ -134,6 +141,7 @@ When implementing frontend changes or features that affect the user interface, p
    ```bash
    # Stop servers when testing is complete
    # Use Ctrl+C in the terminal where make dev is running
+   # The scripts handle proper cleanup of both frontend and backend processes
    ```
 
 ### Integration with Development Workflow
