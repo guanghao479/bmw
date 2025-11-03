@@ -66,7 +66,7 @@
     - **Visual Verification**: Test search functionality across different categories and verify category-specific filtering
     - _Requirements: 3.4, 3.5, 5.1, 5.2, 5.3, 5.4_
 
-  - [-] 3.6 Implement date filter popover in bottom row
+  - [x] 3.6 Implement date filter popover in bottom row
     - Create date filter button in bottom row that triggers small popover below the button
     - Implement positioned popover with calendar/date picker interface that doesn't cover entire page
     - Add smart positioning logic to adapt popover placement based on screen edges
