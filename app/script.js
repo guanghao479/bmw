@@ -1916,20 +1916,61 @@ class FamilyEventsApp {
     
     // Setup event listeners for bottom row filter buttons
     setupBottomRowFilterListeners() {
-        const bottomRowButtons = document.querySelectorAll('.bottom-row-filter-btn[data-filter-type]');
-        bottomRowButtons.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                this.handleBottomRowFilterClick(e.target);
-            });
+        // Use event delegation to avoid issues with dynamically generated content
+        const bottomRowContainer = document.getElementById('bottom-row-filters');
+        if (!bottomRowContainer) return;
+
+        // Remove any existing event listeners to prevent duplicates
+        const existingHandler = bottomRowContainer._bottomRowClickHandler;
+        if (existingHandler) {
+            bottomRowContainer.removeEventListener('click', existingHandler);
+            bottomRowContainer.removeEventListener('keydown', existingHandler);
+        }
+
+        // Create new event handler
+        const clickHandler = (e) => {
+            // Check if the clicked element or its parent is a filter button
+            let button = e.target.closest('.bottom-row-filter-btn[data-filter-type]');
             
-            // Add keyboard support
-            btn.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    this.handleBottomRowFilterClick(e.target);
+            // If not found, check if the target itself has the data attribute
+            if (!button && e.target.dataset && e.target.dataset.filterType) {
+                button = e.target;
+            }
+            
+            // Also check if the target is inside a button with the data attribute
+            if (!button) {
+                const parentButton = e.target.parentElement;
+                if (parentButton && parentButton.dataset && parentButton.dataset.filterType) {
+                    button = parentButton;
                 }
-            });
-        });
+            }
+            
+            if (button) {
+                e.preventDefault();
+                console.log('Bottom row filter clicked:', button.dataset.filterType);
+                this.handleBottomRowFilterClick(button);
+            } else {
+                console.log('Click not on filter button:', e.target);
+            }
+        };
+
+        const keyHandler = (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                const button = e.target.closest('.bottom-row-filter-btn[data-filter-type]');
+                if (button) {
+                    e.preventDefault();
+                    this.handleBottomRowFilterClick(button);
+                }
+            }
+        };
+
+        // Add event listeners using delegation
+        bottomRowContainer.addEventListener('click', clickHandler);
+        bottomRowContainer.addEventListener('keydown', keyHandler);
+
+        // Store handlers for cleanup
+        bottomRowContainer._bottomRowClickHandler = clickHandler;
+        bottomRowContainer._bottomRowKeyHandler = keyHandler;
     }
     
     // Handle bottom row filter clicks
