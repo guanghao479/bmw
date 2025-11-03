@@ -752,13 +752,150 @@ class FamilyEventsApp {
             });
         }
 
-        // Add manual refresh button
-        this.addRefreshButton();
+        // Setup action buttons
+        this.setupActionButtons();
+
+        // Manual refresh functionality removed - using auto-refresh only
         
         // Date filtering is now handled by the two-row filter system
         
         // Setup accessibility features
         this.setupAccessibilityFeatures();
+    }
+
+    // Setup action buttons functionality
+    setupActionButtons() {
+        const actionButtonsGroup = document.getElementById('actionButtonsGroup');
+        const adminButton = document.getElementById('adminButton');
+        const menuButton = document.getElementById('menuButton');
+
+        if (!actionButtonsGroup) return;
+
+        // Admin button functionality
+        if (adminButton) {
+            // Enhanced hover and focus states
+            adminButton.addEventListener('mouseenter', () => {
+                this.announceToScreenReader('Admin Dashboard button');
+            });
+
+            // Keyboard navigation support
+            adminButton.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    // Let the default link behavior handle navigation
+                    adminButton.click();
+                }
+            });
+
+            // Track admin button clicks for analytics (if needed)
+            adminButton.addEventListener('click', () => {
+                if (this.config.debugMode) {
+                    console.log('Admin dashboard accessed');
+                }
+            });
+        }
+
+        // Menu button functionality (for future expansion)
+        if (menuButton) {
+            menuButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.toggleMenu();
+            });
+
+            menuButton.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    this.toggleMenu();
+                }
+            });
+        }
+
+        // Responsive behavior - show/hide menu button based on screen size
+        this.updateActionButtonsResponsive();
+        
+        // Update on window resize
+        window.addEventListener('resize', () => {
+            this.updateActionButtonsResponsive();
+        });
+
+        // Touch interaction improvements for mobile
+        if ('ontouchstart' in window) {
+            this.setupActionButtonsTouchBehavior();
+        }
+    }
+
+    // Update action buttons based on screen size
+    updateActionButtonsResponsive() {
+        const menuButton = document.getElementById('menuButton');
+        const screenWidth = window.innerWidth;
+
+        // Show menu button on smaller screens if needed (currently hidden)
+        // This can be expanded in the future for mobile menu functionality
+        if (menuButton) {
+            if (screenWidth < 640) {
+                // Keep menu button hidden for now - can be shown in future updates
+                menuButton.style.display = 'none';
+            } else {
+                menuButton.style.display = 'none'; // Keep hidden for now
+            }
+        }
+
+        // Ensure proper touch targets on mobile
+        const actionButtons = document.querySelectorAll('#actionButtonsGroup a, #actionButtonsGroup button');
+        actionButtons.forEach(button => {
+            if (screenWidth < 640) {
+                // Ensure minimum 44px touch targets on mobile
+                button.style.minWidth = '44px';
+                button.style.minHeight = '44px';
+            }
+        });
+    }
+
+    // Setup touch behavior for action buttons
+    setupActionButtonsTouchBehavior() {
+        const actionButtons = document.querySelectorAll('#actionButtonsGroup a, #actionButtonsGroup button');
+        
+        actionButtons.forEach(button => {
+            let touchStartTime = 0;
+            
+            button.addEventListener('touchstart', (e) => {
+                touchStartTime = Date.now();
+                button.classList.add('touch-active');
+            }, { passive: true });
+
+            button.addEventListener('touchend', (e) => {
+                const touchDuration = Date.now() - touchStartTime;
+                
+                // Remove touch active state after a short delay
+                setTimeout(() => {
+                    button.classList.remove('touch-active');
+                }, 150);
+
+                // Prevent double-tap zoom on buttons
+                if (touchDuration < 300) {
+                    e.preventDefault();
+                }
+            });
+
+            button.addEventListener('touchcancel', () => {
+                button.classList.remove('touch-active');
+            });
+        });
+    }
+
+    // Toggle menu functionality (for future expansion)
+    toggleMenu() {
+        // This method is prepared for future menu functionality
+        // Currently just logs the action
+        if (this.config.debugMode) {
+            console.log('Menu toggle requested - functionality to be implemented');
+        }
+        
+        // Future implementation could include:
+        // - Show/hide mobile menu
+        // - Display user options
+        // - Show additional navigation items
+        this.announceToScreenReader('Menu functionality coming soon');
     }
     
     // Handle filter button changes with accessibility support (Legacy compatibility)
@@ -2125,51 +2262,7 @@ class FamilyEventsApp {
         this.lastFocusedElement = null;
     }
 
-    // Add manual refresh button
-    addRefreshButton() {
-        // Check if refresh button already exists
-        if (document.getElementById('refresh-btn')) return;
 
-        const refreshBtn = document.createElement('button');
-        refreshBtn.id = 'refresh-btn';
-        refreshBtn.innerHTML = '🔄 Refresh';
-        refreshBtn.style.cssText = `
-            position: fixed;
-            top: 80px;
-            right: 20px;
-            background: rgba(255, 255, 255, 0.9);
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 8px 16px;
-            font-size: 14px;
-            cursor: pointer;
-            z-index: 999;
-            backdrop-filter: blur(10px);
-            transition: all 0.2s ease;
-        `;
-
-        refreshBtn.addEventListener('click', async () => {
-            refreshBtn.disabled = true;
-            refreshBtn.innerHTML = '🔄 Refreshing...';
-            
-            await this.refreshData();
-            
-            refreshBtn.disabled = false;
-            refreshBtn.innerHTML = '🔄 Refresh';
-        });
-
-        refreshBtn.addEventListener('mouseenter', () => {
-            refreshBtn.style.background = 'rgba(255, 255, 255, 1)';
-            refreshBtn.style.transform = 'translateY(-1px)';
-        });
-
-        refreshBtn.addEventListener('mouseleave', () => {
-            refreshBtn.style.background = 'rgba(255, 255, 255, 0.9)';
-            refreshBtn.style.transform = 'translateY(0)';
-        });
-
-        document.body.appendChild(refreshBtn);
-    }
 
     // Filter and search data with category-specific filtering pipeline
     getFilteredData() {
