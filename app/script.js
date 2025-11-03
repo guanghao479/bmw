@@ -53,6 +53,12 @@ class FamilyEventsApp {
         this.searchQuery = '';
         this.dateRange = { start: null, end: null };
         
+        // State management for preventing race conditions
+        this.isUpdatingBottomRow = false;
+        this.updateBottomRowDebounceTimer = null;
+        this.lastExpandedBottomFilter = 'none';
+        this.expandedBottomFilterLockTimer = null;
+        
         // Category-specific filter configurations
         this.categoryFilters = {
             all: ['search', 'dates', 'ageGroup', 'price'],
@@ -921,6 +927,7 @@ class FamilyEventsApp {
         
         // Update bottom row filters if using two-row system
         if (document.getElementById('bottom-row-filters')) {
+            console.log('handleCategoryChange calling updateBottomRowFilters, activeCategory:', this.activeCategory);
             this.updateBottomRowFilters();
         }
         
@@ -1708,10 +1715,39 @@ class FamilyEventsApp {
     
     // Update bottom row filters based on selected category
     updateBottomRowFilters() {
-        console.log('updateBottomRowFilters called, expandedBottomFilter:', this.expandedBottomFilter);
+        // Add stack trace to identify caller
+        console.log('updateBottomRowFilters called from:', new Error().stack.split('\n')[2].trim());
+        
+        // Prevent race conditions by debouncing rapid calls
+        if (this.updateBottomRowDebounceTimer) {
+            clearTimeout(this.updateBottomRowDebounceTimer);
+        }
+        
+        this.updateBottomRowDebounceTimer = setTimeout(() => {
+            this.performBottomRowUpdate();
+        }, 10); // Small delay to prevent race conditions
+    }
+    
+    performBottomRowUpdate() {
+        // Prevent concurrent updates
+        if (this.isUpdatingBottomRow) {
+            console.log('Bottom row update already in progress, skipping...');
+            return;
+        }
+        
+        // Check if state is locked and prevent unwanted changes
+        if (this._expandedBottomFilterLocked && this.expandedBottomFilter === 'none') {
+            console.log('State is locked, preventing reset to none. Restoring to:', this.lastExpandedBottomFilter);
+            this.expandedBottomFilter = this.lastExpandedBottomFilter;
+        }
+        
+        this.isUpdatingBottomRow = true;
+        console.log('performBottomRowUpdate called, expandedBottomFilter:', this.expandedBottomFilter);
+        
         const bottomRowContainer = document.getElementById('bottom-row-filters');
         if (!bottomRowContainer) {
             console.error('Bottom row container not found!');
+            this.isUpdatingBottomRow = false;
             return;
         }
         console.log('Bottom row container found:', bottomRowContainer);
@@ -1768,6 +1804,10 @@ class FamilyEventsApp {
         } else if (this.expandedBottomFilter === 'date') {
             this.setupExpandedBottomDateListeners();
         }
+        
+        // Clear the updating flag
+        this.isUpdatingBottomRow = false;
+        console.log('performBottomRowUpdate completed');
     }
     
     // Generate search filter button for bottom row
@@ -1930,10 +1970,14 @@ class FamilyEventsApp {
         if (!bottomRowContainer) return;
 
         // Remove any existing event listeners to prevent duplicates
-        const existingHandler = bottomRowContainer._bottomRowClickHandler;
-        if (existingHandler) {
-            bottomRowContainer.removeEventListener('click', existingHandler);
-            bottomRowContainer.removeEventListener('keydown', existingHandler);
+        const existingClickHandler = bottomRowContainer._bottomRowClickHandler;
+        const existingKeyHandler = bottomRowContainer._bottomRowKeyHandler;
+        
+        if (existingClickHandler) {
+            bottomRowContainer.removeEventListener('click', existingClickHandler);
+        }
+        if (existingKeyHandler) {
+            bottomRowContainer.removeEventListener('keydown', existingKeyHandler);
         }
 
         // Create new event handler with proper context binding
@@ -2036,7 +2080,30 @@ class FamilyEventsApp {
     // Expand a specific bottom row filter
     expandBottomRowFilter(filterType) {
         console.log('expandBottomRowFilter called with:', filterType);
+        
+        // Store the original value
+        const originalValue = this.expandedBottomFilter;
         this.expandedBottomFilter = filterType;
+        this.lastExpandedBottomFilter = filterType;
+        
+        // Create a temporary property descriptor to prevent state changes
+        const self = this;
+        let lockedValue = filterType;
+        
+        // Override the property temporarily to prevent external changes
+        Object.defineProperty(this, '_expandedBottomFilterLocked', {
+            value: true,
+            writable: true,
+            configurable: true
+        });
+        
+        // Set up a timer to unlock after DOM update
+        setTimeout(() => {
+            if (this._expandedBottomFilterLocked) {
+                delete this._expandedBottomFilterLocked;
+                console.log('State lock released');
+            }
+        }, 200); // Lock for 200ms
         
         // Update legacy compatibility
         this.expandedFilter = filterType;
@@ -2051,7 +2118,16 @@ class FamilyEventsApp {
     
     // Collapse all bottom row filters
     collapseBottomRowFilters() {
+        console.log('collapseBottomRowFilters called explicitly');
+        
+        // Clear any lock timer since this is an intentional collapse
+        if (this.expandedBottomFilterLockTimer) {
+            clearTimeout(this.expandedBottomFilterLockTimer);
+            this.expandedBottomFilterLockTimer = null;
+        }
+        
         this.expandedBottomFilter = 'none';
+        this.lastExpandedBottomFilter = 'none';
         
         // Update legacy compatibility
         this.expandedFilter = 'none';
