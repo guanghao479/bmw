@@ -1708,8 +1708,13 @@ class FamilyEventsApp {
     
     // Update bottom row filters based on selected category
     updateBottomRowFilters() {
+        console.log('updateBottomRowFilters called, expandedBottomFilter:', this.expandedBottomFilter);
         const bottomRowContainer = document.getElementById('bottom-row-filters');
-        if (!bottomRowContainer) return;
+        if (!bottomRowContainer) {
+            console.error('Bottom row container not found!');
+            return;
+        }
+        console.log('Bottom row container found:', bottomRowContainer);
         
         const categoryFilters = this.categoryFilters[this.activeCategory] || this.categoryFilters.all;
         
@@ -1748,9 +1753,13 @@ class FamilyEventsApp {
             }
         });
         
+        console.log('Generated filtersHTML:', filtersHTML);
+        console.log('Setting bottomRowContainer.innerHTML...');
         bottomRowContainer.innerHTML = filtersHTML;
+        console.log('DOM updated, new innerHTML length:', bottomRowContainer.innerHTML.length);
         
         // Setup event listeners for new bottom row filters
+        console.log('Setting up bottom row filter listeners...');
         this.setupBottomRowFilterListeners();
         
         // Setup expanded filter listeners if any filter is expanded
@@ -1927,7 +1936,7 @@ class FamilyEventsApp {
             bottomRowContainer.removeEventListener('keydown', existingHandler);
         }
 
-        // Create new event handler
+        // Create new event handler with proper context binding
         const clickHandler = (e) => {
             // Check if the clicked element or its parent is a filter button
             let button = e.target.closest('.bottom-row-filter-btn[data-filter-type]');
@@ -1948,7 +1957,13 @@ class FamilyEventsApp {
             if (button) {
                 e.preventDefault();
                 console.log('Bottom row filter clicked:', button.dataset.filterType);
-                this.handleBottomRowFilterClick(button);
+                console.log('Calling handleBottomRowFilterClick with this context:', this);
+                try {
+                    this.handleBottomRowFilterClick(button);
+                    console.log('handleBottomRowFilterClick completed successfully');
+                } catch (error) {
+                    console.error('Error in handleBottomRowFilterClick:', error);
+                }
             } else {
                 console.log('Click not on filter button:', e.target);
             }
@@ -1959,7 +1974,11 @@ class FamilyEventsApp {
                 const button = e.target.closest('.bottom-row-filter-btn[data-filter-type]');
                 if (button) {
                     e.preventDefault();
-                    this.handleBottomRowFilterClick(button);
+                    try {
+                        this.handleBottomRowFilterClick(button);
+                    } catch (error) {
+                        console.error('Error in keyHandler:', error);
+                    }
                 }
             }
         };
@@ -1976,24 +1995,33 @@ class FamilyEventsApp {
     // Handle bottom row filter clicks
     handleBottomRowFilterClick(button) {
         const filterType = button.dataset.filterType;
+        console.log('handleBottomRowFilterClick called with filterType:', filterType);
         
         if (filterType === 'search') {
+            console.log('Calling toggleBottomRowSearchFilter from handleBottomRowFilterClick...');
             this.toggleBottomRowSearchFilter();
+            console.log('toggleBottomRowSearchFilter completed');
         } else if (filterType === 'date') {
+            console.log('Calling toggleBottomRowDateFilter...');
             this.toggleBottomRowDateFilter();
         } else {
             // For other filter types, show a placeholder message
+            console.log('Filter type not implemented:', filterType);
             this.announceToScreenReader(`${filterType} filter not yet implemented`);
         }
     }
     
     // Toggle search filter in bottom row
     toggleBottomRowSearchFilter() {
+        console.log('toggleBottomRowSearchFilter called, current state:', this.expandedBottomFilter);
         if (this.expandedBottomFilter === 'search') {
+            console.log('Search is expanded, collapsing...');
             this.collapseBottomRowFilters();
         } else {
+            console.log('Search is not expanded, expanding...');
             this.expandBottomRowFilter('search');
         }
+        console.log('toggleBottomRowSearchFilter completed, new state:', this.expandedBottomFilter);
     }
     
     // Toggle date filter in bottom row
@@ -2007,13 +2035,16 @@ class FamilyEventsApp {
     
     // Expand a specific bottom row filter
     expandBottomRowFilter(filterType) {
+        console.log('expandBottomRowFilter called with:', filterType);
         this.expandedBottomFilter = filterType;
         
         // Update legacy compatibility
         this.expandedFilter = filterType;
         
         // Re-render bottom row with expanded filter
+        console.log('Calling updateBottomRowFilters to re-render...');
         this.updateBottomRowFilters();
+        console.log('updateBottomRowFilters completed');
         
         this.announceToScreenReader(`${filterType} filter expanded in bottom row`);
     }
