@@ -66,33 +66,52 @@
     - **Visual Verification**: Test search functionality across different categories and verify category-specific filtering
     - _Requirements: 3.4, 3.5, 5.1, 5.2, 5.3, 5.4_
 
-  - [x] 3.6 Implement expandable date filter in bottom row
-    - Create date filter button in bottom row that expands to show date selection interface
-    - Implement expansion behavior within bottom row space while keeping top row visible
-    - Add date range picker with start and end date inputs
-    - Include quick date options (Today, This Weekend, etc.)
-    - Ensure date expansion doesn't affect top row category filters
-    - **Visual Verification**: Test date filter expansion within bottom row and verify top row remains visible
+  - [-] 3.6 Implement date filter popover in bottom row
+    - Create date filter button in bottom row that triggers small popover below the button
+    - Implement positioned popover with calendar/date picker interface that doesn't cover entire page
+    - Add smart positioning logic to adapt popover placement based on screen edges
+    - Include quick date options (Today, This Weekend, etc.) within popover
+    - Add Apply/Clear buttons and click-outside-to-dismiss functionality
+    - **Visual Verification**: Test date filter popover positioning and verify it appears below button without covering page
     - _Requirements: 4.1, 4.2, 4.3_
 
-  - [x] 3.7 Add date filtering functionality with category context
-    - Implement date range validation and formatting
+  - [x] 3.7 Add date filtering functionality with popover interface
+    - Implement date range validation and formatting within popover
     - Add activity filtering based on selected date criteria within selected category context
     - Display selected date range in collapsed date filter button in bottom row
     - Connect date filtering to existing activity display logic with category filtering
-    - Ensure date filtering operates within the context of selected category filter
-    - **Visual Verification**: Test date filtering across different categories and verify category-specific results update
+    - Handle popover dismiss and state management when dates are applied
+    - **Visual Verification**: Test date filtering across different categories and verify popover interactions work correctly
     - _Requirements: 4.4, 4.5, 5.4, 5.5_
 
-  - [x] 3.8 Implement comprehensive two-row filter state management
+  - [ ] 3.8 Implement "More filters" button and full-screen popover
+    - Add "More filters" button to bottom row for each category
+    - Create full-screen popover that covers entire viewport with lightbox background
+    - Implement comprehensive filter interface with organized sections (Activity Type, Age Group, Price Range)
+    - Add sticky header with close button and sticky footer with Apply/Clear buttons
+    - Ensure proper scroll behavior for long filter lists on mobile devices
+    - **Visual Verification**: Test full-screen popover covers entire viewport and verify lightbox background
+    - _Requirements: 6.1, 6.2, 6.3_
+
+  - [ ] 3.9 Add comprehensive filtering functionality to full-screen popover
+    - Implement multiple filter selection support across different filter categories
+    - Add individual section clear functionality and global clear all functionality
+    - Connect all filter selections to activity display logic with proper category context
+    - Implement filter state persistence when popover is dismissed and reopened
+    - Handle "Show results" button to apply all selected filters and dismiss popover
+    - **Visual Verification**: Test comprehensive filtering across all categories and verify filter persistence
+    - _Requirements: 6.4, 6.5_
+
+  - [ ] 3.10 Implement comprehensive two-row filter state management with popovers
     - Implement JavaScript logic for managing top row category filters and bottom row specific filters
     - Handle bottom row content updates when top row category selection changes
-    - Manage bottom row filter expansion states (none, search, date expanded) while maintaining top row visibility
-    - Update visual states when filters are clicked or changed in either row
-    - Maintain filter state persistence across interactions including both row contexts
-    - Ensure top row category filter remains active during bottom row filter usage
-    - **Visual Verification**: Test all filter combinations across both rows and verify comprehensive state management
-    - _Requirements: 2.4, 2.5, 3.4, 4.5, 5.5_
+    - Manage popover states (none, date popover, full-screen popover) while maintaining top row visibility
+    - Update visual states when filters are clicked or changed in either row or within popovers
+    - Maintain filter state persistence across interactions including popover dismissal and reopening
+    - Ensure top row category filter remains active during popover interactions
+    - Handle proper focus management and keyboard navigation for popover interfaces
+    - **Visual Verification**: Test all filter combinations across both rows and popovers, verify comprehensive state management
+    - _Requirements: 2.4, 2.5, 3.4, 4.5, 5.5, 6.5_
 
 - [x] 4. Create action buttons section (right)
   - [x] 4.1 Implement action buttons area
@@ -144,20 +163,22 @@
     - _Requirements: 6.3, 6.4, 6.5_
 
 - [ ] 7. Add accessibility and performance enhancements
-  - [ ] 7.1 Implement accessibility improvements for two-row layout
-    - Add proper ARIA labels for all filter navigation elements in both rows (category, search, date)
-    - Ensure keyboard navigation works for both top and bottom row elements including expanded filters
-    - Implement proper focus management between rows and during bottom row content changes
-    - Test screen reader compatibility for two-row header structure and filter interactions
-    - Verify color contrast meets WCAG AA standards for all filter states in both rows
-    - **Visual Verification**: Test keyboard navigation across both rows and take screenshots of focus states
-    - _Requirements: 1.1, 2.5, 3.4, 4.5_
+  - [ ] 7.1 Implement accessibility improvements for two-row layout with popovers
+    - Add proper ARIA labels for all filter navigation elements in both rows and popover interfaces
+    - Ensure keyboard navigation works for both top and bottom row elements including popover interactions
+    - Implement proper focus management between rows, during popover opening/closing, and within popovers
+    - Add proper ARIA attributes for popover states (aria-expanded, aria-haspopup, role="dialog" for full-screen)
+    - Test screen reader compatibility for two-row header structure and popover interactions
+    - Verify color contrast meets WCAG AA standards for all filter states in both rows and popovers
+    - **Visual Verification**: Test keyboard navigation across both rows and popovers, take screenshots of focus states
+    - _Requirements: 1.1, 2.5, 3.4, 4.5, 6.5_
 
-  - [ ] 7.2 Optimize performance and interactions for two-row layout
-    - Implement smooth transitions and micro-animations for bottom row content changes and filter expansion/collapse
-    - Optimize scroll performance for both top and bottom row navigation
+  - [ ] 7.2 Optimize performance and interactions for two-row layout with popovers
+    - Implement smooth transitions and micro-animations for bottom row content changes and popover open/close
+    - Optimize scroll performance for both top and bottom row navigation and within full-screen popover
     - Add debounced search to prevent excessive filtering operations
-    - Test and optimize for minimal layout shift during filter state changes and row transitions
-    - Ensure smooth category switching with bottom row content updates
-    - **Visual Verification**: Record or observe smooth transitions and animations for both rows in browser
-    - _Requirements: 2.3, 2.4, 3.2, 4.2_
+    - Implement smooth popover animations (fade in/out for full-screen, slide down for date popover)
+    - Test and optimize for minimal layout shift during filter state changes, row transitions, and popover interactions
+    - Ensure smooth category switching with bottom row content updates and popover state management
+    - **Visual Verification**: Record or observe smooth transitions and animations for both rows and popovers in browser
+    - _Requirements: 2.3, 2.4, 3.2, 4.2, 6.2, 6.3_

@@ -22,6 +22,10 @@ This feature redesigns the Seattle Family Activities Platform header and filter 
 - **Top_Filter_Row**: The upper row of Filter_Navigation containing Category_Filter buttons
 - **Bottom_Filter_Row**: The lower row of Filter_Navigation containing Category_Specific_Filters
 - **Touch_Target**: Interactive elements with minimum 44px height and width for mobile accessibility
+- **Filter_Popover**: A small overlay interface positioned below individual filter buttons (like date) that appears when users click specific filter options
+- **Full_Screen_Popover**: A full-page overlay interface that covers the entire viewport when users click "More filters" button
+- **Lightbox_Overlay**: A semi-transparent background that covers the entire page when Full_Screen_Popover is active
+- **More_Filters_Button**: A button in the Bottom_Filter_Row that triggers the Full_Screen_Popover expansion
 
 ## Requirements
 
@@ -63,13 +67,13 @@ This feature redesigns the Seattle Family Activities Platform header and filter 
 
 ### Requirement 4
 
-**User Story:** As a user planning activities for specific dates, I want date selection integrated within the bottom filter row, so that I can easily find activities happening on my preferred dates within my selected category.
+**User Story:** As a user planning activities for specific dates, I want date selection available as a popover below the date filter button, so that I can easily find activities happening on my preferred dates within my selected category.
 
 #### Acceptance Criteria
 
 1. THE Frontend_Interface SHALL integrate Date_Filter as a button within the Bottom_Filter_Row of Category_Specific_Filters
-2. WHEN a user clicks the Date_Filter button, THE Frontend_Interface SHALL expand the Date_Filter to show date selection interface within the Bottom_Filter_Row
-3. THE Frontend_Interface SHALL implement Filter_Expansion behavior for the Date_Filter similar to the Search_Filter while maintaining Top_Filter_Row visibility
+2. WHEN a user clicks the Date_Filter button, THE Frontend_Interface SHALL display a Filter_Popover positioned below the Date_Filter button with date selection interface
+3. THE Frontend_Interface SHALL implement the Filter_Popover with calendar or date picker interface that does not cover the entire page
 4. THE Frontend_Interface SHALL display selected date range in the collapsed Date_Filter button within the Bottom_Filter_Row
 5. THE Frontend_Interface SHALL filter displayed activities based on selected date criteria while maintaining Category_Filter context
 
@@ -87,6 +91,18 @@ This feature redesigns the Seattle Family Activities Platform header and filter 
 
 ### Requirement 6
 
+**User Story:** As a user who wants more detailed filtering options, I want to access an expanded filter interface that covers the entire page, so that I can apply multiple advanced filters without being constrained by the header space.
+
+#### Acceptance Criteria
+
+1. THE Frontend_Interface SHALL implement a More_Filters_Button within the Bottom_Filter_Row that triggers Full_Screen_Popover expansion
+2. WHEN a user clicks the More_Filters_Button, THE Frontend_Interface SHALL display a Full_Screen_Popover that covers the entire viewport
+3. THE Frontend_Interface SHALL implement a Lightbox_Overlay with semi-transparent background that covers the entire page when Full_Screen_Popover is active
+4. THE Frontend_Interface SHALL provide comprehensive filter options within the Full_Screen_Popover including all Category_Specific_Filters plus additional advanced options
+5. THE Frontend_Interface SHALL include close functionality to dismiss the Full_Screen_Popover and return to the standard Bottom_Filter_Row view
+
+### Requirement 7
+
 **User Story:** As a user accessing the platform on different devices, I want the header to adapt seamlessly to my screen size, so that I can always access navigation and filtering functionality.
 
 #### Acceptance Criteria
@@ -95,4 +111,4 @@ This feature redesigns the Seattle Family Activities Platform header and filter 
 2. THE Frontend_Interface SHALL implement interactive elements with minimum Touch_Target dimensions of 44px height and 44px width
 3. AT each Responsive_Breakpoint, THE Frontend_Interface SHALL adjust spacing and typography appropriately
 4. THE Frontend_Interface SHALL ensure Filter_Navigation remains horizontally scrollable across all screen sizes
-5. THE Frontend_Interface SHALL preserve all Header_Component functionality including Search_Filter and Date_Filter while adapting to different viewport dimensions
+5. THE Frontend_Interface SHALL preserve all Header_Component functionality including Search_Filter, Date_Filter, Filter_Popover, and Full_Screen_Popover while adapting to different viewport dimensions

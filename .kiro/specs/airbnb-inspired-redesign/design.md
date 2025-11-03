@@ -84,10 +84,10 @@ The header will follow a three-column layout pattern inspired by Airbnb's design
 - **Smooth Transitions**: Animated content changes when switching categories
 
 **Category-Specific Bottom Row Content**:
-- **All Category**: Search, Dates, Age Group, Price filters
-- **Events Category**: Search, Dates, Event Type, Age Group filters  
-- **Activities Category**: Search, Dates, Activity Type, Duration filters
-- **Venues Category**: Search, Location, Amenities, Age Group filters
+- **All Category**: Search, Dates, Age Group, Price, More filters
+- **Events Category**: Search, Dates, Event Type, Age Group, More filters  
+- **Activities Category**: Search, Dates, Activity Type, Duration, More filters
+- **Venues Category**: Search, Location, Amenities, Age Group, More filters
 
 **Visual States**:
 - **Inactive**: Light background, dark text, subtle border
@@ -106,17 +106,26 @@ The header will follow a three-column layout pattern inspired by Airbnb's design
 
 **Date Filter Component (Bottom Row)**:
 - Collapsed: "Dates" pill button in bottom row showing selected range or "Any date"
-- Expanded: Date picker interface within bottom row space (calendar or date range selector)
-- Quick date options (Today, This Weekend, This Week)
-- Clear button to reset date filter
-- Close button to return to other bottom row filters
-- Top row (category filters) remains visible during date expansion
+- Popover: Small positioned overlay below the date button with calendar/date picker interface
+- Quick date options (Today, This Weekend, This Week) within the popover
+- Clear button to reset date filter within popover
+- Click outside or close button to dismiss popover
+- Popover positioning adapts to screen edges and available space
+
+**More Filters Component (Bottom Row)**:
+- Collapsed: "More filters" pill button in bottom row
+- Full-Screen Popover: Covers entire viewport with semi-transparent lightbox background
+- Comprehensive filter interface with all available filter options organized in sections
+- Apply/Clear buttons at bottom of full-screen interface
+- Close button (X) in top-right corner to dismiss
+- Scroll support for long filter lists on mobile devices
 
 **Responsive Behavior**:
 - Both rows support horizontal scroll on all screen sizes
 - Touch-friendly button sizing (minimum 44px height) for both rows
-- Expanded filters adapt to available screen width within bottom row
-- Mobile-optimized date picker and search input
+- Small filter popovers (date) adapt positioning based on screen edges and available space
+- Full-screen popover adapts content layout for mobile vs desktop
+- Mobile-optimized date picker and search input within popovers
 - Consistent spacing and alignment between top and bottom rows
 - Stack rows vertically on very small screens if needed
 
@@ -164,14 +173,19 @@ The header will follow a three-column layout pattern inspired by Airbnb's design
     placeholder: string // Dynamic based on active category
   },
   dateState: {
-    isExpanded: boolean,
+    isPopoverOpen: boolean,
     startDate: Date | null,
     endDate: Date | null,
     displayText: string
   },
+  moreFiltersState: {
+    isFullScreenOpen: boolean,
+    selectedFilters: object // All advanced filter selections
+  },
   
   // UI State
-  expandedBottomFilter: 'none' | 'search' | 'dates' | 'other',
+  expandedBottomFilter: 'none' | 'search' | 'dates' | 'more',
+  activePopover: 'none' | 'date' | 'fullscreen',
   topRowScrollPosition: number,
   bottomRowScrollPosition: number
 }
@@ -303,18 +317,94 @@ The header will follow a three-column layout pattern inspired by Airbnb's design
 </div>
 ```
 
-**Expanded Date Filter (Bottom Row)**:
+**Date Filter Popover**:
 ```html
-<!-- Expanded date picker takes full width of bottom row -->
-<div class="flex items-center space-x-2 bg-white border border-gray-300 rounded-full shadow-sm px-4 py-1.5">
-  <span class="text-xs text-gray-700">Start</span>
-  <input type="date" class="text-xs border-0 bg-transparent focus:outline-none">
-  <span class="text-gray-300">—</span>
-  <span class="text-xs text-gray-700">End</span>
-  <input type="date" class="text-xs border-0 bg-transparent focus:outline-none">
-  <button class="ml-2 text-gray-400 hover:text-gray-600">
-    <svg class="w-3 h-3"><!-- close icon --></svg>
-  </button>
+<!-- Small popover positioned below date button -->
+<div class="absolute top-full left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg p-4 z-50 min-w-80">
+  <div class="flex items-center justify-between mb-3">
+    <h3 class="text-sm font-medium text-gray-900">Select dates</h3>
+    <button class="text-gray-400 hover:text-gray-600">
+      <svg class="w-4 h-4"><!-- close icon --></svg>
+    </button>
+  </div>
+  
+  <!-- Quick date options -->
+  <div class="flex flex-wrap gap-2 mb-4">
+    <button class="px-3 py-1 text-xs bg-gray-100 rounded-full hover:bg-gray-200">Today</button>
+    <button class="px-3 py-1 text-xs bg-gray-100 rounded-full hover:bg-gray-200">This Weekend</button>
+    <button class="px-3 py-1 text-xs bg-gray-100 rounded-full hover:bg-gray-200">This Week</button>
+  </div>
+  
+  <!-- Date inputs -->
+  <div class="flex items-center space-x-2">
+    <div class="flex-1">
+      <label class="block text-xs text-gray-700 mb-1">Start date</label>
+      <input type="date" class="w-full text-xs border border-gray-300 rounded px-2 py-1">
+    </div>
+    <span class="text-gray-300 mt-4">—</span>
+    <div class="flex-1">
+      <label class="block text-xs text-gray-700 mb-1">End date</label>
+      <input type="date" class="w-full text-xs border border-gray-300 rounded px-2 py-1">
+    </div>
+  </div>
+  
+  <div class="flex justify-end mt-4 space-x-2">
+    <button class="px-3 py-1 text-xs text-gray-600 hover:text-gray-800">Clear</button>
+    <button class="px-3 py-1 text-xs bg-gray-900 text-white rounded hover:bg-gray-800">Apply</button>
+  </div>
+</div>
+```
+
+**More Filters Full-Screen Popover**:
+```html
+<!-- Full-screen overlay with lightbox background -->
+<div class="fixed inset-0 z-50 overflow-y-auto">
+  <!-- Lightbox background -->
+  <div class="fixed inset-0 bg-black bg-opacity-50"></div>
+  
+  <!-- Full-screen content -->
+  <div class="relative min-h-screen bg-white">
+    <!-- Header -->
+    <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+      <h2 class="text-lg font-semibold text-gray-900">Filters</h2>
+      <button class="text-gray-400 hover:text-gray-600">
+        <svg class="w-6 h-6"><!-- close icon --></svg>
+      </button>
+    </div>
+    
+    <!-- Filter content -->
+    <div class="px-6 py-6 space-y-8">
+      <!-- Activity Type Section -->
+      <div>
+        <h3 class="text-sm font-medium text-gray-900 mb-3">Activity Type</h3>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+          <!-- Filter checkboxes/buttons -->
+        </div>
+      </div>
+      
+      <!-- Age Group Section -->
+      <div>
+        <h3 class="text-sm font-medium text-gray-900 mb-3">Age Group</h3>
+        <div class="flex flex-wrap gap-2">
+          <!-- Age filter buttons -->
+        </div>
+      </div>
+      
+      <!-- Price Range Section -->
+      <div>
+        <h3 class="text-sm font-medium text-gray-900 mb-3">Price Range</h3>
+        <!-- Price range slider or buttons -->
+      </div>
+    </div>
+    
+    <!-- Footer with action buttons -->
+    <div class="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 flex items-center justify-between">
+      <button class="text-sm text-gray-600 hover:text-gray-800">Clear all</button>
+      <button class="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800">
+        Show results
+      </button>
+    </div>
+  </div>
 </div>
 ```
 
@@ -330,10 +420,11 @@ The header will follow a three-column layout pattern inspired by Airbnb's design
 **Two-Row Filter Logic**:
 - Track active category in top row (All, Events, Activities, Venues)
 - Update bottom row content based on selected category
-- Track which bottom row filter is currently expanded (none, search, dates, etc.)
-- Animate transition between collapsed and expanded states within bottom row
-- Handle click outside to collapse expanded bottom row filters
-- Manage focus states during expansion/collapse while keeping top row accessible
+- Track which bottom row filter is currently active (none, search, dates, more)
+- Handle small popover positioning for date filter (below button, adapt to screen edges)
+- Handle full-screen popover for more filters (cover entire viewport with lightbox)
+- Manage click outside to dismiss popovers and return to normal state
+- Manage focus states during popover interactions while keeping top row accessible
 
 **State Management**:
 - Update URL parameters when filters change
@@ -352,11 +443,20 @@ The header will follow a three-column layout pattern inspired by Airbnb's design
 - Provide search suggestions or autocomplete
 
 **Date Filtering**:
-- Support single date and date range selection
-- Provide quick date options (Today, Tomorrow, This Weekend)
+- Support single date and date range selection within popover interface
+- Provide quick date options (Today, Tomorrow, This Weekend) as clickable buttons
 - Apply date filtering within the context of selected category filter
-- Handle date validation and range constraints
+- Handle date validation and range constraints within popover
 - Format date display for different locales
+- Position date popover below button with smart edge detection
+
+**More Filters Functionality**:
+- Display comprehensive filter options in organized sections within full-screen interface
+- Support multiple filter selections across different categories (age, price, type, etc.)
+- Provide clear/reset functionality for individual sections and all filters
+- Apply all selected filters when user clicks "Show results"
+- Maintain filter state when popover is dismissed and reopened
+- Handle scroll behavior for long filter lists on mobile devices
 
 ### Category-Specific Filtering Logic
 

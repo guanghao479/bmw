@@ -53,6 +53,10 @@ class FamilyEventsApp {
         this.searchQuery = '';
         this.dateRange = { start: null, end: null };
         
+        // Popover state management
+        this.activePopover = 'none'; // 'none', 'date', 'fullscreen'
+        this.datePopoverVisible = false;
+        
         // State management for preventing race conditions
         this.isUpdatingBottomRow = false;
         this.updateBottomRowDebounceTimer = null;
@@ -1237,67 +1241,7 @@ class FamilyEventsApp {
         `;
     }
     
-    // Generate expanded date filter for bottom row
-    generateExpandedDateFilter() {
-        const today = new Date();
-        const tomorrow = new Date(today);
-        tomorrow.setDate(today.getDate() + 1);
-        const thisWeekend = new Date(today);
-        thisWeekend.setDate(today.getDate() + (6 - today.getDay())); // Next Saturday
-        
-        return `
-            <div class="flex items-center w-full max-w-2xl bg-white border-2 border-blue-500 rounded-full shadow-lg transition-all duration-300 ease-in-out">
-                <div class="flex items-center pl-3 pr-2">
-                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                    </svg>
-                </div>
-                
-                <!-- Quick date options -->
-                <div class="flex items-center gap-1 px-2 py-1 flex-1">
-                    <button class="px-2 py-1 text-xs font-medium rounded-full transition-all duration-200 ${this.selectedDate === 'all' ? 'bg-blue-100 text-blue-800' : 'text-gray-600 hover:bg-gray-100'} whitespace-nowrap" 
-                            data-quick-date="all">
-                        Any date
-                    </button>
-                    <button class="px-2 py-1 text-xs font-medium rounded-full transition-all duration-200 ${this.selectedDate === this.getTodayDateString() ? 'bg-blue-100 text-blue-800' : 'text-gray-600 hover:bg-gray-100'} whitespace-nowrap" 
-                            data-quick-date="today">
-                        Today
-                    </button>
-                    <button class="px-2 py-1 text-xs font-medium rounded-full transition-all duration-200 ${this.selectedDate === tomorrow.toISOString().split('T')[0] ? 'bg-blue-100 text-blue-800' : 'text-gray-600 hover:bg-gray-100'} whitespace-nowrap" 
-                            data-quick-date="tomorrow">
-                        Tomorrow
-                    </button>
-                    <button class="px-2 py-1 text-xs font-medium rounded-full transition-all duration-200 text-gray-600 hover:bg-gray-100 whitespace-nowrap" 
-                            data-quick-date="weekend">
-                        Weekend
-                    </button>
-                </div>
-                
-                <!-- Date range inputs -->
-                <div class="flex items-center gap-1 px-2 border-l border-gray-200">
-                    <input type="date" 
-                           id="bottomStartDateInput"
-                           class="px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                           value="${this.dateRange.start || ''}"
-                           title="Start date">
-                    <span class="text-gray-400 text-xs">to</span>
-                    <input type="date" 
-                           id="bottomEndDateInput"
-                           class="px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                           value="${this.dateRange.end || ''}"
-                           title="End date">
-                </div>
-                
-                <button class="px-3 py-2 text-gray-500 hover:text-gray-700 border-l border-gray-200 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset rounded-r-full" 
-                        id="closeBottomDateBtn"
-                        title="Close date filter">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
-            </div>
-        `;
-    }
+    // Note: generateExpandedDateFilter removed - now using popover system
     
     // Setup event listeners for expanded search filter
     setupExpandedSearchListeners() {
@@ -1810,8 +1754,11 @@ class FamilyEventsApp {
         // Setup expanded filter listeners if any filter is expanded
         if (this.expandedBottomFilter === 'search') {
             this.setupExpandedBottomSearchListeners();
-        } else if (this.expandedBottomFilter === 'date') {
-            this.setupExpandedBottomDateListeners();
+        }
+        
+        // Setup popover listeners if date popover is visible
+        if (this.datePopoverVisible) {
+            this.setupDatePopoverListeners();
         }
         
         // Clear the updating flag
@@ -1844,22 +1791,63 @@ class FamilyEventsApp {
     // Generate date filter button for bottom row
     generateDateFilterButton() {
         const isActive = this.selectedDate !== 'all' || (this.dateRange.start || this.dateRange.end);
-        const isExpanded = this.expandedBottomFilter === 'date';
-        
-        if (isExpanded) {
-            return this.generateExpandedDateFilter();
-        }
         
         return `
-            <button class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${isActive ? 'bg-blue-100 text-blue-800 border-2 border-blue-300' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bottom-row-filter-btn touch-manipulation min-h-[36px] whitespace-nowrap shadow-sm" 
-                    id="bottomDateFilterBtn" 
-                    data-filter-type="date"
-                    aria-pressed="false">
-                <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                </svg>
-                <span>${this.getDateFilterDisplayText()}</span>
-            </button>
+            <div class="relative">
+                <button class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${isActive ? 'bg-blue-100 text-blue-800 border-2 border-blue-300' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bottom-row-filter-btn touch-manipulation min-h-[36px] whitespace-nowrap shadow-sm" 
+                        id="bottomDateFilterBtn" 
+                        data-filter-type="date"
+                        aria-pressed="${this.datePopoverVisible}"
+                        aria-haspopup="true"
+                        aria-expanded="${this.datePopoverVisible}">
+                    <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    <span>${this.getDateFilterDisplayText()}</span>
+                </button>
+                
+                <!-- Date Filter Popover -->
+                <div id="dateFilterPopover" class="absolute top-full left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg p-4 z-50 min-w-80 ${this.datePopoverVisible ? '' : 'hidden'}" role="dialog" aria-labelledby="dateFilterTitle">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 id="dateFilterTitle" class="text-sm font-medium text-gray-900">Select dates</h3>
+                        <button id="closeDatePopover" class="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <!-- Quick date options -->
+                    <div class="flex flex-wrap gap-2 mb-4">
+                        <button class="px-3 py-1 text-xs ${this.selectedDate === 'all' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" 
+                                data-quick-date="all">Any date</button>
+                        <button class="px-3 py-1 text-xs ${this.selectedDate === this.getTodayDateString() ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" 
+                                data-quick-date="today">Today</button>
+                        <button class="px-3 py-1 text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" 
+                                data-quick-date="tomorrow">Tomorrow</button>
+                        <button class="px-3 py-1 text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" 
+                                data-quick-date="weekend">This Weekend</button>
+                    </div>
+                    
+                    <!-- Date inputs -->
+                    <div class="flex items-center space-x-2">
+                        <div class="flex-1">
+                            <label class="block text-xs text-gray-700 mb-1">Start date</label>
+                            <input type="date" id="popoverStartDateInput" class="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" value="${this.dateRange.start || ''}">
+                        </div>
+                        <span class="text-gray-300 mt-4">—</span>
+                        <div class="flex-1">
+                            <label class="block text-xs text-gray-700 mb-1">End date</label>
+                            <input type="date" id="popoverEndDateInput" class="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" value="${this.dateRange.end || ''}">
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-end mt-4 space-x-2">
+                        <button id="clearDateFilter" class="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded">Clear</button>
+                        <button id="applyDateFilter" class="px-3 py-1 text-xs bg-gray-900 text-white rounded hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">Apply</button>
+                    </div>
+                </div>
+            </div>
         `;
     }
     
@@ -2086,12 +2074,88 @@ class FamilyEventsApp {
         console.log('toggleBottomRowSearchFilter completed, new state:', this.expandedBottomFilter);
     }
     
-    // Toggle date filter in bottom row
+    // Toggle date filter popover in bottom row
     toggleBottomRowDateFilter() {
-        if (this.expandedBottomFilter === 'date') {
-            this.collapseBottomRowFilters();
+        if (this.datePopoverVisible) {
+            this.hideDatePopover();
         } else {
-            this.expandBottomRowFilter('date');
+            this.showDatePopover();
+        }
+    }
+    
+    // Show date filter popover
+    showDatePopover() {
+        // Hide any other popovers first
+        this.hideAllPopovers();
+        
+        this.datePopoverVisible = true;
+        this.activePopover = 'date';
+        
+        // Re-render to show popover
+        this.updateBottomRowFilters();
+        
+        // Setup event listeners after DOM update
+        setTimeout(() => {
+            this.setupDatePopoverListeners();
+            this.positionDatePopover();
+        }, 10);
+        
+        this.announceToScreenReader('Date filter popover opened');
+    }
+    
+    // Hide date filter popover
+    hideDatePopover() {
+        this.datePopoverVisible = false;
+        this.activePopover = 'none';
+        
+        // Clean up event listeners
+        this.cleanupDatePopoverListeners();
+        
+        // Re-render to hide popover
+        this.updateBottomRowFilters();
+        
+        this.announceToScreenReader('Date filter popover closed');
+    }
+    
+    // Clean up date popover event listeners
+    cleanupDatePopoverListeners() {
+        // Remove document-level event listeners if they exist
+        if (this._boundOutsideClickHandler) {
+            document.removeEventListener('click', this._boundOutsideClickHandler);
+            this._boundOutsideClickHandler = null;
+        }
+        if (this._boundEscapeKeyHandler) {
+            document.removeEventListener('keydown', this._boundEscapeKeyHandler);
+            this._boundEscapeKeyHandler = null;
+        }
+    }
+    
+    // Hide all popovers
+    hideAllPopovers() {
+        this.datePopoverVisible = false;
+        this.activePopover = 'none';
+    }
+    
+    // Position date popover to avoid screen edges
+    positionDatePopover() {
+        const popover = document.getElementById('dateFilterPopover');
+        const button = document.getElementById('bottomDateFilterBtn');
+        
+        if (!popover || !button) return;
+        
+        const buttonRect = button.getBoundingClientRect();
+        const popoverRect = popover.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        
+        // Check if popover would go off right edge
+        if (buttonRect.left + popoverRect.width > viewportWidth - 20) {
+            // Position from right edge of button
+            popover.style.left = 'auto';
+            popover.style.right = '0';
+        } else {
+            // Default left positioning
+            popover.style.left = '0';
+            popover.style.right = 'auto';
         }
     }
     
@@ -2214,19 +2278,21 @@ class FamilyEventsApp {
         }
     }
     
-    // Setup event listeners for expanded bottom row date filter
-    setupExpandedBottomDateListeners() {
+    // Setup event listeners for date filter popover
+    setupDatePopoverListeners() {
         const quickDateButtons = document.querySelectorAll('[data-quick-date]');
-        const startDateInput = document.getElementById('bottomStartDateInput');
-        const endDateInput = document.getElementById('bottomEndDateInput');
-        const closeDateBtn = document.getElementById('closeBottomDateBtn');
+        const startDateInput = document.getElementById('popoverStartDateInput');
+        const endDateInput = document.getElementById('popoverEndDateInput');
+        const closeDateBtn = document.getElementById('closeDatePopover');
+        const clearDateBtn = document.getElementById('clearDateFilter');
+        const applyDateBtn = document.getElementById('applyDateFilter');
         
         // Quick date button handlers
         quickDateButtons.forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
                 const quickDate = e.target.dataset.quickDate;
-                this.handleBottomRowQuickDateSelection(quickDate);
+                this.handlePopoverQuickDateSelection(quickDate);
             });
         });
         
@@ -2234,22 +2300,66 @@ class FamilyEventsApp {
         if (startDateInput) {
             startDateInput.addEventListener('change', (e) => {
                 this.dateRange.start = e.target.value;
-                this.applyBottomRowDateRangeFilter();
             });
         }
         
         if (endDateInput) {
             endDateInput.addEventListener('change', (e) => {
                 this.dateRange.end = e.target.value;
-                this.applyBottomRowDateRangeFilter();
             });
         }
         
+        // Close button
         if (closeDateBtn) {
             closeDateBtn.addEventListener('click', (e) => {
                 e.preventDefault();
-                this.collapseBottomRowFilters();
+                this.hideDatePopover();
             });
+        }
+        
+        // Clear button
+        if (clearDateBtn) {
+            clearDateBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.clearDateFilter();
+            });
+        }
+        
+        // Apply button
+        if (applyDateBtn) {
+            applyDateBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.applyDateFilter();
+            });
+        }
+        
+        // Store bound functions for cleanup
+        this._boundOutsideClickHandler = this.handleDatePopoverOutsideClick.bind(this);
+        this._boundEscapeKeyHandler = this.handleDatePopoverEscapeKey.bind(this);
+        
+        // Click outside to close
+        document.addEventListener('click', this._boundOutsideClickHandler);
+        
+        // Escape key to close
+        document.addEventListener('keydown', this._boundEscapeKeyHandler);
+    }
+    
+    // Handle click outside popover to close it
+    handleDatePopoverOutsideClick(e) {
+        if (!this.datePopoverVisible) return;
+        
+        const popover = document.getElementById('dateFilterPopover');
+        const button = document.getElementById('bottomDateFilterBtn');
+        
+        if (popover && !popover.contains(e.target) && !button.contains(e.target)) {
+            this.hideDatePopover();
+        }
+    }
+    
+    // Handle escape key to close popover
+    handleDatePopoverEscapeKey(e) {
+        if (e.key === 'Escape' && this.datePopoverVisible) {
+            this.hideDatePopover();
         }
     }
     
@@ -2286,8 +2396,8 @@ class FamilyEventsApp {
         this.announceToScreenReader('Search cleared');
     }
     
-    // Handle quick date selection in bottom row
-    handleBottomRowQuickDateSelection(quickDate) {
+    // Handle quick date selection in popover
+    handlePopoverQuickDateSelection(quickDate) {
         const today = new Date();
         const tomorrow = new Date(today);
         tomorrow.setDate(today.getDate() + 1);
@@ -2314,30 +2424,52 @@ class FamilyEventsApp {
                 break;
         }
         
-        // Update the visual state and filter results
-        this.updateBottomRowFilters(); // Re-render to update button states
+        // Apply filter immediately and close popover
         this.renderContent();
+        this.hideDatePopover();
         
         this.announceToScreenReader(`Date filter set to ${quickDate} in ${this.activeCategory} category`);
     }
     
-    // Apply date range filter in bottom row
-    applyBottomRowDateRangeFilter() {
+    // Clear date filter
+    clearDateFilter() {
+        this.selectedDate = 'all';
+        this.dateRange = { start: null, end: null };
+        
+        // Update input values
+        const startInput = document.getElementById('popoverStartDateInput');
+        const endInput = document.getElementById('popoverEndDateInput');
+        if (startInput) startInput.value = '';
+        if (endInput) endInput.value = '';
+        
+        // Apply filter and close popover
+        this.renderContent();
+        this.hideDatePopover();
+        
+        this.announceToScreenReader('Date filter cleared');
+    }
+    
+    // Apply date filter from popover
+    applyDateFilter() {
+        // If date range is set, use it
         if (this.dateRange.start && this.dateRange.end) {
-            // For range filtering, we'll need to modify the filtering logic
-            // For now, just use the start date
+            // For now, just use start date (range filtering can be enhanced later)
             this.selectedDate = this.dateRange.start;
         } else if (this.dateRange.start) {
             this.selectedDate = this.dateRange.start;
         }
         
+        // Apply filter and close popover
         this.renderContent();
+        this.hideDatePopover();
         
         const rangeText = this.dateRange.start && this.dateRange.end 
             ? `${this.dateRange.start} to ${this.dateRange.end}`
-            : this.dateRange.start || 'date range';
-        this.announceToScreenReader(`Date filter set to ${rangeText} in ${this.activeCategory} category`);
+            : this.dateRange.start || 'selected date';
+        this.announceToScreenReader(`Date filter applied: ${rangeText} in ${this.activeCategory} category`);
     }
+    
+    // Note: applyBottomRowDateRangeFilter removed - now using popover system with applyDateFilter()
     
     // Setup additional accessibility features
     setupAccessibilityFeatures() {
