@@ -1716,7 +1716,16 @@ class FamilyEventsApp {
     // Update bottom row filters based on selected category
     updateBottomRowFilters() {
         // Add stack trace to identify caller
-        console.log('updateBottomRowFilters called from:', new Error().stack.split('\n')[2].trim());
+        const stack = new Error().stack;
+        const caller = stack.split('\n')[2] ? stack.split('\n')[2].trim() : 'unknown';
+        console.log('updateBottomRowFilters called from:', caller);
+        console.log('Current expandedBottomFilter state:', this.expandedBottomFilter);
+        
+        // If this is a suspicious call (state is none when it shouldn't be), log full stack
+        if (this.expandedBottomFilter === 'none' && this.lastExpandedBottomFilter !== 'none') {
+            console.log('SUSPICIOUS CALL - Full stack trace:');
+            console.log(stack);
+        }
         
         // Prevent race conditions by debouncing rapid calls
         if (this.updateBottomRowDebounceTimer) {
@@ -1948,9 +1957,17 @@ class FamilyEventsApp {
         // Handle clicks outside expanded filters to collapse them
         document.addEventListener('click', (e) => {
             if (this.expandedBottomFilter !== 'none') {
-                const bottomRowContainer = document.getElementById('bottomRowFilterContainer');
+                console.log('Click outside handler triggered, expandedBottomFilter:', this.expandedBottomFilter);
+                const bottomRowContainer = document.getElementById('bottom-row-filters'); // Fixed ID
+                console.log('Bottom row container found:', !!bottomRowContainer);
+                console.log('Click target:', e.target);
+                console.log('Click is inside container:', bottomRowContainer ? bottomRowContainer.contains(e.target) : false);
+                
                 if (bottomRowContainer && !bottomRowContainer.contains(e.target)) {
+                    console.log('Collapsing due to click outside');
                     this.collapseBottomRowFilters();
+                } else {
+                    console.log('Click is inside container, not collapsing');
                 }
             }
         });
@@ -1958,6 +1975,7 @@ class FamilyEventsApp {
         // Handle escape key to collapse filters
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && this.expandedBottomFilter !== 'none') {
+                console.log('Escape key pressed, collapsing filters');
                 this.collapseBottomRowFilters();
             }
         });
